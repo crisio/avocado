@@ -1,65 +1,65 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { Session } from '@supabase/supabase-js'
-import { supabase } from './lib/supabase'
-import type { Profile } from './lib/types'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { api, getToken, setToken, setUnauthorizedHandler } from './lib/api'
+import type { User } from './lib/types'
 
 interface AuthState {
-  session: Session | null
-  profile: Profile | null
-  loading: boolean
-  /** true cuando el usuario llegó desde el correo de "recuperar contraseña" */
-  recovering: boolean
-  endRecovery: () => void
-  reloadProfile: () => Promise<void>
+  user: User | null
+  signIn: (token: string, user: User) => void
+  signOut: () => Promise<void>
+  setUser: (user: User) => void
+}
+
+const USER_KEY = 'avocado.user'
+
+// El perfil se guarda junto al token para que la app abra al instante (y sin internet).
+function readCachedUser(): User | null {
+  try {
+    return getToken() ? JSON.parse(localStorage.getItem(USER_KEY) ?? 'null') : null
+  } catch {
+    return null
+  }
+}
+
+function cacheUser(user: User | null) {
+  try {
+    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user))
+    else localStorage.removeItem(USER_KEY)
+  } catch {
+    // almacenamiento no disponible
+  }
 }
 
 const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null)
-  const [sessionLoaded, setSessionLoaded] = useState(false)
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [profileLoaded, setProfileLoaded] = useState(false)
-  const [recovering, setRecovering] = useState(false)
+  const [user, setUserState] = useState<User | null>(readCachedUser)
+
+  const setUser = (next: User | null) => {
+    cacheUser(next)
+    setUserState(next)
+  }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
-      setSessionLoaded(true)
+    setUnauthorizedHandler(() => {
+      setToken(null)
+      setUser(null)
     })
-    // No llamar a otros métodos de supabase dentro de este callback (puede bloquearse).
-    const { data } = supabase.auth.onAuthStateChange((event, next) => {
-      setSession(next)
-      if (event === 'PASSWORD_RECOVERY') setRecovering(true)
-      if (event === 'SIGNED_OUT') setRecovering(false)
-    })
-    return () => data.subscription.unsubscribe()
+    // Refresca el perfil en segundo plano (un 401 cierra la sesión vía el handler)
+    if (getToken()) api<User>('/me').then(setUser, () => {})
   }, [])
 
-  const userId = session?.user.id
-  const reloadProfile = useCallback(async () => {
-    if (!userId) {
-      setProfile(null)
-      setProfileLoaded(true)
-      return
-    }
-    const { data } = await supabase.from('profiles').select('id, email, full_name, role').eq('id', userId).single()
-    setProfile(data)
-    setProfileLoaded(true)
-  }, [userId])
-
-  useEffect(() => {
-    setProfileLoaded(false)
-    reloadProfile()
-  }, [reloadProfile])
-
   const value: AuthState = {
-    session,
-    profile,
-    loading: !sessionLoaded || (Boolean(session) && !profileLoaded),
-    recovering,
-    endRecovery: () => setRecovering(false),
-    reloadProfile,
+    user,
+    signIn: (token, next) => {
+      setToken(token)
+      setUser(next)
+    },
+    signOut: async () => {
+      await api('/auth/logout', { method: 'POST' }).catch(() => {})
+      setToken(null)
+      setUser(null)
+    },
+    setUser,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

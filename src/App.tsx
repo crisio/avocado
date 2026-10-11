@@ -1,9 +1,9 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth'
-import { isConfigured } from './lib/supabase'
+import { isConfigured } from './lib/api'
 import Layout from './components/Layout'
 import Login from './pages/Login'
-import NewPassword from './pages/NewPassword'
+import Onboarding from './pages/Onboarding'
 import Today from './pages/Today'
 import AddMeal from './pages/AddMeal'
 import MealDetail from './pages/MealDetail'
@@ -12,18 +12,16 @@ import PatientDay from './pages/PatientDay'
 import Settings from './pages/Settings'
 
 export default function App() {
-  const { session, profile, loading, recovering } = useAuth()
+  const { user } = useAuth()
 
   if (!isConfigured) return <SetupNeeded />
-  if (loading) return <div className="center muted">Cargando…</div>
-  if (recovering) return <NewPassword />
-  if (!session) return <Login />
-  if (!profile) return <div className="center muted">No encontramos tu perfil. Revisa que la migración de la base de datos esté aplicada.</div>
+  if (!user) return <Login />
+  if (!user.role) return <Onboarding />
 
   return (
     <Routes>
-      <Route element={<Layout role={profile.role} />}>
-        {profile.role === 'nutritionist' ? (
+      <Route element={<Layout role={user.role} />}>
+        {user.role === 'nutritionist' ? (
           <>
             <Route index element={<Patients />} />
             <Route path="paciente/:id" element={<PatientDay />} />
@@ -45,10 +43,10 @@ export default function App() {
 function SetupNeeded() {
   return (
     <div className="center stack">
-      <h1>Falta configurar Supabase</h1>
+      <h1>Falta conectar la API</h1>
       <p className="muted">
-        Define <code>VITE_SUPABASE_URL</code> y <code>VITE_SUPABASE_KEY</code> en <code>.env.local</code> (local) o como
-        variables del repositorio en GitHub (producción). Revisa el README.
+        Define <code>VITE_API_URL</code> en <code>.env.local</code> (local) o como variable del repositorio en GitHub
+        (producción). Revisa el README.
       </p>
     </div>
   )

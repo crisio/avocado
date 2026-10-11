@@ -416,3 +416,10 @@ fieldset {
   background: var(--brand-soft);
   border-color: transparent;
 }
+
+.code-input {
+  font-size: 2rem;
+  text-align: center;
+  letter-spacing: 0.4em;
+  font-variant-numeric: tabular-nums;
+}

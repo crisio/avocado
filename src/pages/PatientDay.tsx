@@ -1,21 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import DayView from '../components/DayView'
-import { supabase } from '../lib/supabase'
+import { api } from '../lib/api'
 import { displayName } from '../lib/format'
-import type { Profile } from '../lib/types'
+import type { User } from '../lib/types'
 
 export default function PatientDay() {
-  const { id } = useParams<{ id: string }>()
+  const { id = '' } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [patient, setPatient] = useState<Profile | null>(null)
+  const [patient, setPatient] = useState<User | null>(null)
 
   useEffect(() => {
-    if (!id) return
-    supabase.from('profiles').select('id, email, full_name, role').eq('id', id).maybeSingle().then(({ data }) => setPatient(data))
+    api<User>(`/users/${id}`).then(setPatient, () => setPatient(null))
   }, [id])
-
-  if (!id) return null
 
   return (
     <div className="stack">

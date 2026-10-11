@@ -1,11 +1,13 @@
 export type Role = 'patient' | 'nutritionist'
 
-export interface Profile {
+export interface User {
   id: string
   email: string
   full_name: string | null
-  role: Role
+  role: Role | null // null hasta terminar el registro
 }
+
+export type Person = Pick<User, 'id' | 'email' | 'full_name'>
 
 export interface AnalysisItem {
   name: string
@@ -30,7 +32,7 @@ export interface Meal {
   id: string
   user_id: string
   eaten_at: string
-  photo_path: string
+  photo_url: string
   note: string | null
   status: 'pending' | 'analyzed' | 'error'
   analysis: Analysis | null
@@ -47,5 +49,10 @@ export interface MealComment {
   author_id: string
   body: string
   created_at: string
-  author?: Pick<Profile, 'full_name' | 'role'> | null
+  author_name: string | null
+  author_role: Role | null
+}
+
+export interface MealWithComments extends Meal {
+  comments: MealComment[]
 }

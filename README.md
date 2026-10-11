@@ -1,105 +1,129 @@
 # 🥑 Avocado
 
 Registra tus comidas con una foto. La IA reconoce qué comiste, estima porciones, calorías y macros, y tu nutrióloga
-ve tu día en tiempo real para dejarte indicaciones. Algo como Whoop, pero para nutrición y con tu nutrióloga en el loop.
+ve tu día para dejarte indicaciones. Algo como Whoop, pero para nutrición y con tu nutrióloga en el loop.
 
 **App:** https://crisio.github.io/avocado/ (se instala en el teléfono como app)
 
-## Qué hace hoy (v0.1)
+## Qué hace hoy (v0.2)
 
-- **Cuentas con correo y contraseña.** Al registrarte te llega un correo de confirmación; también hay recuperación de contraseña.
-- **Dos roles:** paciente y nutrióloga.
+- **Entrar con código por correo:** escribes tu correo y te llega a Gmail un código de 6 dígitos. No hay contraseña, y la sesión dura 90 días en el teléfono.
+- **Dos roles:** paciente y nutrióloga. Se elige al crear la cuenta.
 - **Registrar comida:** tomas la foto (o la eliges de la galería), pones la hora y una nota opcional.
-- **Análisis con IA** (vía [OpenRouter](https://openrouter.ai)): detecta alimentos, porciones, calorías, proteína, carbohidratos y grasa.
-- **Mi día:** las comidas del día con sus horas y los totales. Puedes navegar a días anteriores.
-- **Nutrióloga:** ve la lista de sus pacientes y el día de cada uno, y comenta cada comida. Los comentarios aparecen en tiempo real.
-- **Privacidad:** cada paciente decide a qué nutrióloga vincula, y la nutrióloga solo ve a esos pacientes. Lo aplica la base de datos con RLS, no la app.
+- **Análisis con IA** (vía [OpenRouter](https://openrouter.ai)): alimentos, porciones, calorías, proteína, carbohidratos y grasa.
+- **Mi día:** comidas con horas y totales; puedes navegar a días anteriores.
+- **Nutrióloga:** ve a sus pacientes y el día de cada uno, y comenta cada comida. Los comentarios aparecen solos, sin recargar.
+- **Privacidad:** el paciente decide qué nutrióloga lo ve y puede quitarla cuando quiera. Las fotos solo se abren con enlaces firmados que vencen.
 
-## Arquitectura
-
-```
-Teléfono (PWA: React + Vite)  ──►  GitHub Pages (hosting gratis)
-        │
-        ├──►  Supabase Auth       usuario/contraseña + correos de confirmación
-        ├──►  Supabase Postgres   comidas, vínculos, comentarios (con RLS) + Realtime
-        ├──►  Supabase Storage    fotos privadas: meal-photos/<user_id>/<uuid>.jpg
-        └──►  Edge Function analyze-meal ──► OpenRouter (modelo con visión)
-                                  (la API key vive solo en el servidor)
-```
+## Arquitectura (todo en planes gratis)
 
 ```
-src/
-  App.tsx              rutas según rol (paciente / nutrióloga)
-  auth.tsx             sesión y perfil
-  pages/               Login, Today, AddMeal, MealDetail, Patients, PatientDay, Settings, NewPassword
-  components/DayView   día con comidas + totales (lo usan paciente y nutrióloga)
-  lib/                 cliente Supabase, tipos, formato, compresión de fotos
-supabase/
-  migrations/          esquema, políticas RLS, bucket de fotos, realtime
-  functions/analyze-meal/  análisis de la foto con IA
-  tests/rls.test.mjs   pruebas de las reglas de seguridad (Postgres en memoria)
+Teléfono (PWA: React + Vite) ──► GitHub Pages
+        │  token de sesión (Bearer)
+        ▼
+Cloudflare Worker  avocado-api (Hono)          ← api/
+   ├─ D1 (SQLite)   usuarios, sesiones, comidas, vínculos, comentarios
+   ├─ R2            fotos: <user_id>/<meal_id>.jpg
+   ├─ Gmail (SMTP)  códigos de acceso
+   └─ OpenRouter    análisis de la foto con un modelo de visión
 ```
+
+```
+src/                 la app (PWA)
+  lib/api.ts         cliente de la API + token
+  pages/             Login, Onboarding, Today, AddMeal, MealDetail, Patients, PatientDay, Settings
+api/                 la API (Cloudflare Worker)
+  src/auth.ts        códigos por correo, sesiones
+  src/access.ts      quién puede ver qué (paciente ↔ nutrióloga)
+  src/meals.ts       comidas, fotos, comentarios, análisis
+  src/ai.ts          OpenRouter
+  migrations/        esquema de D1
+  test/              pruebas (corren en el runtime real de Workers)
+```
+
+### Costos
+
+| Servicio | Gratis | Para Avocado |
+|---|---|---|
+| Cloudflare Workers | 100,000 peticiones/día | sobra |
+| D1 | 5 GB, 5 M lecturas/día | sobra |
+| R2 | 10 GB (~60,000 fotos) | pide tarjeta como verificación; $0 dentro del límite |
+| Gmail | 500 correos/día | sobra |
+| GitHub Pages | ilimitado para repos públicos | $0 |
+| OpenRouter | pagas por uso | centavos por foto según el modelo |
 
 ## Puesta en marcha
 
-### 1. Supabase (gratis)
+### 1. Cloudflare
 
-1. Crea un proyecto en https://supabase.com.
-2. **Base de datos:** en *SQL Editor* pega el contenido de `supabase/migrations/20261011000000_init.sql` y dale *Run*.
-3. **URLs de autenticación:** en *Authentication → URL Configuration*:
-   - *Site URL*: `https://crisio.github.io/avocado/`
-   - *Redirect URLs*: `https://crisio.github.io/avocado/**` y `http://localhost:5173/avocado/**`
-4. **Correos:** el correo integrado de Supabase solo envía a los miembros de tu equipo de Supabase y tiene un límite muy
-   bajo. Antes de invitar a tu nutrióloga configura un SMTP propio en *Authentication → Emails → SMTP Settings*
-   ([Resend](https://resend.com) tiene plan gratis; también sirve Gmail con una "contraseña de aplicación"). Ahí mismo
-   puedes traducir las plantillas de correo al español.
-5. Copia el *Project URL* y la *Publishable key* (o *anon key*) de *Project Settings → API*.
+1. Crea una cuenta gratis en https://dash.cloudflare.com.
+2. Entra a **Workers & Pages** una vez para elegir tu subdominio `*.workers.dev` (p. ej. `crisio`).
+3. Entra a **R2 Object Storage** y actívalo (plan gratis; te pide una tarjeta como verificación).
+4. Copia tu **Account ID** (aparece en la barra lateral de *Workers & Pages*).
+5. Crea un **API Token**: *My Profile → API Tokens → Create Token →* plantilla **"Edit Cloudflare Workers"**, y
+   agrégale los permisos de cuenta **D1: Edit** y **Workers R2 Storage: Edit**.
 
-> En el plan gratis, Supabase pausa el proyecto tras una semana sin uso. Si pasa, se reactiva desde el dashboard.
+### 2. Gmail (para enviar los códigos)
 
-### 2. IA con OpenRouter
+1. Activa la verificación en 2 pasos en tu cuenta de Google.
+2. Crea una contraseña de aplicación en https://myaccount.google.com/apppasswords (nómbrala "Avocado").
+   Son 16 letras: esa es `GMAIL_APP_PASSWORD`. **No es tu contraseña normal.**
+
+### 3. OpenRouter
 
 1. Crea una API key en https://openrouter.ai/keys.
-2. Elige un modelo que acepte imágenes en https://openrouter.ai/models (filtra por *Input: image*) y copia su id
-   (formato `proveedor/modelo`).
-3. Despliega la función con el CLI de Supabase:
+2. Elige un modelo con entrada de imagen en https://openrouter.ai/models (filtra por *Input: image*) y copia su id
+   (`proveedor/modelo`).
 
-```bash
-npx supabase login
-npx supabase link --project-ref TU_PROJECT_REF
-npx supabase secrets set OPENROUTER_API_KEY=sk-or-... OPENROUTER_MODEL=proveedor/modelo
-npx supabase functions deploy analyze-meal
-```
+### 4. Secretos en GitHub
 
-Para cambiar de modelo después basta con volver a correr `secrets set`, sin tocar código.
+En el repo: **Settings → Secrets and variables → Actions → New repository secret**:
 
-### 3. GitHub Pages
+| Secreto | Valor |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | el token del paso 1 |
+| `CLOUDFLARE_ACCOUNT_ID` | tu Account ID |
+| `AUTH_SECRET` | texto aleatorio de 32+ caracteres. En la Terminal de tu Mac: `openssl rand -hex 32` |
+| `GMAIL_USER` | tu correo de Gmail (desde ahí salen los códigos) |
+| `GMAIL_APP_PASSWORD` | la contraseña de aplicación del paso 2 |
+| `OPENROUTER_API_KEY` | tu API key de OpenRouter |
+| `OPENROUTER_MODEL` | el id del modelo que elegiste |
 
-1. En el repo: *Settings → Pages → Source: GitHub Actions*.
-2. *Settings → Secrets and variables → Actions → pestaña Variables* y crea:
-   - `VITE_SUPABASE_URL` = Project URL
-   - `VITE_SUPABASE_KEY` = Publishable / anon key (es pública por diseño; la seguridad la dan las políticas RLS)
-3. Cada push a `main` corre las pruebas, compila y publica en https://crisio.github.io/avocado/.
+### 5. Publicar
 
-### 4. Instalar en el teléfono
+1. **Actions → "Deploy API (Cloudflare)" → Run workflow.** La primera vez crea la base de datos y el bucket de
+   fotos. Al terminar, la API queda en `https://avocado-api.<tu-subdominio>.workers.dev`.
+2. En **Settings → Secrets and variables → Actions → pestaña Variables** crea `VITE_API_URL` con esa URL.
+3. **Actions → "Deploy a GitHub Pages" → Run workflow.**
 
-- **iPhone:** abre la URL en Safari → *Compartir* → *Agregar a pantalla de inicio*.
-- **Android:** abre la URL en Chrome → menú → *Instalar app*.
+Después de eso, cada push a `main` publica solo lo que cambió (la app o la API).
 
-### 5. Conectar a tu nutrióloga
+### 6. Instalar en el teléfono
 
-1. Ella crea su cuenta eligiendo **Nutrióloga / nutriólogo**.
+- **iPhone:** abre https://crisio.github.io/avocado/ en Safari → *Compartir* → *Agregar a pantalla de inicio*.
+- **Android:** ábrela en Chrome → menú → *Instalar app*.
+
+### 7. Conectar a tu nutrióloga
+
+1. Ella entra con su correo y elige **Nutrióloga / nutriólogo**.
 2. Tú vas a **Ajustes → Mi nutrióloga** y escribes su correo.
-3. Desde ese momento ella ve tus comidas y puede comentarlas. Puedes quitar el vínculo cuando quieras.
 
 ## Desarrollo local
 
 ```bash
-cp .env.example .env.local   # pon tu URL y key de Supabase
+# API (terminal 1): en modo "log" el código de acceso se imprime aquí en lugar de enviarse
+cd api
+cp .dev.vars.example .dev.vars
 npm install
-npm run dev                  # http://localhost:5173/avocado/
-npm run test:db              # pruebas de RLS (no necesita Supabase)
-npm run build
+npm run db:migrate:local
+npm run dev                 # http://localhost:8787
+
+# App (terminal 2)
+cp .env.example .env.local
+npm install
+npm run dev                 # http://localhost:5173/avocado/
+
+npm test                    # pruebas de la API
 ```
 
 ## Siguientes pasos (ideas)

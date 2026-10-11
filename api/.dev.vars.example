@@ -1,0 +1,6 @@
+# Copia a .dev.vars para `npm run dev` (desarrollo local). No se sube a git.
+EMAIL_MODE=log
+AUTH_SECRET=cambia-esto-por-un-texto-aleatorio-de-32-caracteres-o-mas
+# Opcional en local: para probar el análisis con IA
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=

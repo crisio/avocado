@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
-import { usePhotoUrls } from '../lib/usePhotoUrls'
+import { api } from '../lib/api'
+import { usePoll } from '../lib/usePoll'
 import { addDays, formatDay, formatTime, grams, kcal, startOfDay } from '../lib/format'
 import type { Meal } from '../lib/types'
 
@@ -9,34 +9,25 @@ import type { Meal } from '../lib/types'
 export default function DayView({ userId }: { userId: string }) {
   const [day, setDay] = useState(() => startOfDay(new Date()))
   const [meals, setMeals] = useState<Meal[] | null>(null)
-  const urls = usePhotoUrls((meals ?? []).map((m) => m.photo_path))
+  const [error, setError] = useState<string | null>(null)
+  const key = `${userId}|${day.toISOString()}`
 
-  useEffect(() => {
-    let cancelled = false
-    const load = () =>
-      supabase
-        .from('meals')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('eaten_at', day.toISOString())
-        .lt('eaten_at', addDays(day, 1).toISOString())
-        .order('eaten_at')
-        .then(({ data }) => !cancelled && setMeals(data ?? []))
+  usePoll(
+    () =>
+      api<Meal[]>(`/meals?user_id=${userId}&from=${day.toISOString()}&to=${addDays(day, 1).toISOString()}`)
+        .then((list) => {
+          setMeals(list)
+          setError(null)
+        })
+        .catch((err) => setError(err.message)),
+    20_000,
+    key,
+  )
 
+  function goTo(next: Date) {
     setMeals(null)
-    load()
-
-    // Recarga cuando se agrega una comida o termina su análisis.
-    const channel = supabase
-      .channel(`meals:${userId}:${day.toISOString()}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'meals', filter: `user_id=eq.${userId}` }, load)
-      .subscribe()
-
-    return () => {
-      cancelled = true
-      supabase.removeChannel(channel)
-    }
-  }, [userId, day])
+    setDay(next)
+  }
 
   const totals = (meals ?? []).reduce(
     (acc, m) => ({
@@ -52,11 +43,11 @@ export default function DayView({ userId }: { userId: string }) {
   return (
     <div className="stack">
       <div className="day-nav">
-        <button className="icon" onClick={() => setDay(addDays(day, -1))} aria-label="Día anterior">
+        <button className="icon" onClick={() => goTo(addDays(day, -1))} aria-label="Día anterior">
           ‹
         </button>
         <h2>{formatDay(day)}</h2>
-        <button className="icon" onClick={() => setDay(addDays(day, 1))} disabled={isToday} aria-label="Día siguiente">
+        <button className="icon" onClick={() => goTo(addDays(day, 1))} disabled={isToday} aria-label="Día siguiente">
           ›
         </button>
       </div>
@@ -80,7 +71,9 @@ export default function DayView({ userId }: { userId: string }) {
         </div>
       </section>
 
-      {meals === null ? (
+      {error && meals === null ? (
+        <p className="error center">{error}</p>
+      ) : meals === null ? (
         <p className="muted center">Cargando…</p>
       ) : meals.length === 0 ? (
         <p className="muted center">Sin comidas registradas este día.</p>
@@ -89,7 +82,7 @@ export default function DayView({ userId }: { userId: string }) {
           {meals.map((m) => (
             <li key={m.id}>
               <Link to={`/comida/${m.id}`} className="meal-row card">
-                {urls[m.photo_path] ? <img src={urls[m.photo_path]} alt="" /> : <div className="thumb-placeholder" />}
+                <img src={m.photo_url} alt="" loading="lazy" />
                 <div>
                   <div className="meal-time">{formatTime(m.eaten_at)}</div>
                   <div className="meal-title">

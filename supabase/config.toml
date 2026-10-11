@@ -1,5 +1,0 @@
-# Configuración mínima para el CLI de Supabase (npx supabase link / functions deploy).
-project_id = "avocado"
-
-[functions.analyze-meal]
-verify_jwt = true

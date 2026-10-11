@@ -1,70 +1,60 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth'
-import { PHOTO_BUCKET, supabase } from '../lib/supabase'
-import { usePhotoUrls } from '../lib/usePhotoUrls'
-import { displayName, formatDay, formatTime, grams, kcal } from '../lib/format'
-import type { Meal, MealComment } from '../lib/types'
+import { api } from '../lib/api'
+import { usePoll } from '../lib/usePoll'
+import { formatDay, formatTime, grams, kcal } from '../lib/format'
+import type { Meal, MealComment, MealWithComments } from '../lib/types'
+
+const STUCK_AFTER_MS = 2 * 60_000
 
 export default function MealDetail() {
-  const { id } = useParams<{ id: string }>()
-  const { session } = useAuth()
+  const { id = '' } = useParams<{ id: string }>()
+  const { user } = useAuth()
   const navigate = useNavigate()
-  const [meal, setMeal] = useState<Meal | null | undefined>(undefined)
-  const [comments, setComments] = useState<MealComment[]>([])
+  const [meal, setMeal] = useState<MealWithComments | null | undefined>(undefined)
   const [body, setBody] = useState('')
+  const [sending, setSending] = useState(false)
   const [retrying, setRetrying] = useState(false)
-  const urls = usePhotoUrls(meal ? [meal.photo_path] : [])
-  const isOwner = meal?.user_id === session?.user.id
 
-  useEffect(() => {
-    if (!id) return
-    const loadMeal = () =>
-      supabase.from('meals').select('*').eq('id', id).maybeSingle().then(({ data }) => setMeal(data))
-    const loadComments = () =>
-      supabase
-        .from('meal_comments')
-        .select('*, author:profiles(full_name, role)')
-        .eq('meal_id', id)
-        .order('created_at')
-        .then(({ data }) => setComments((data as MealComment[]) ?? []))
+  const load = () =>
+    api<MealWithComments>(`/meals/${id}`)
+      .then(setMeal)
+      .catch((err) => err.status === 404 && setMeal(null))
 
-    loadMeal()
-    loadComments()
-
-    const channel = supabase
-      .channel(`meal:${id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'meals', filter: `id=eq.${id}` }, loadMeal)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'meal_comments', filter: `meal_id=eq.${id}` },
-        loadComments,
-      )
-      .subscribe()
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [id])
+  // Rápido mientras la IA analiza; después, cada 15 s para ver comentarios nuevos.
+  usePoll(load, meal?.status === 'pending' ? 4_000 : 15_000, id)
 
   async function sendComment(e: FormEvent) {
     e.preventDefault()
-    if (!id || !body.trim()) return
-    const { error } = await supabase.from('meal_comments').insert({ meal_id: id, body: body.trim() })
-    if (!error) setBody('')
+    if (!body.trim() || !meal) return
+    setSending(true)
+    try {
+      const comment = await api<MealComment>(`/meals/${id}/comments`, { method: 'POST', json: { body: body.trim() } })
+      setMeal({ ...meal, comments: [...meal.comments, comment] })
+      setBody('')
+    } catch (err) {
+      alert((err as Error).message)
+    }
+    setSending(false)
   }
 
   async function retry() {
     if (!meal) return
     setRetrying(true)
-    await supabase.from('meals').update({ status: 'pending' }).eq('id', meal.id)
-    await supabase.functions.invoke('analyze-meal', { body: { meal_id: meal.id } })
+    setMeal({ ...meal, status: 'pending' })
+    try {
+      const updated = await api<Meal>(`/meals/${id}/analyze`, { method: 'POST' })
+      setMeal((prev) => (prev ? { ...prev, ...updated } : prev))
+    } catch (err) {
+      alert((err as Error).message)
+    }
     setRetrying(false)
   }
 
   async function remove() {
-    if (!meal || !confirm('¿Borrar esta comida?')) return
-    await supabase.from('meals').delete().eq('id', meal.id)
-    await supabase.storage.from(PHOTO_BUCKET).remove([meal.photo_path])
+    if (!confirm('¿Borrar esta comida?')) return
+    await api(`/meals/${id}`, { method: 'DELETE' })
     navigate('/', { replace: true })
   }
 
@@ -72,6 +62,9 @@ export default function MealDetail() {
   if (meal === null) return <p className="muted center">No encontramos esta comida.</p>
 
   const a = meal.analysis
+  const isOwner = meal.user_id === user?.id
+  const stuck = meal.status === 'pending' && Date.now() - Date.parse(meal.created_at) > STUCK_AFTER_MS
+  const canRetry = isOwner && !retrying && (meal.status === 'error' || stuck)
 
   return (
     <div className="stack">
@@ -79,7 +72,7 @@ export default function MealDetail() {
         ‹ Volver
       </button>
 
-      {urls[meal.photo_path] && <img className="hero" src={urls[meal.photo_path]} alt="Foto de la comida" />}
+      <img className="hero" src={meal.photo_url} alt="Foto de la comida" />
 
       <div>
         <div className="muted">
@@ -90,14 +83,16 @@ export default function MealDetail() {
         {meal.note && <p className="note">“{meal.note}”</p>}
       </div>
 
-      {meal.status === 'error' && (
+      {(meal.status === 'error' || canRetry) && (
         <div className="card stack">
-          <p className="error">No se pudo analizar: {a?.error ?? 'error desconocido'}</p>
-          {isOwner && (
-            <button onClick={retry} disabled={retrying}>
-              {retrying ? 'Analizando…' : 'Reintentar análisis'}
-            </button>
+          {meal.status === 'error' && (
+            <div>
+              <p className="error">No se pudo analizar la foto.</p>
+              {a?.error && <p className="muted small">Detalle: {a.error}</p>}
+            </div>
           )}
+          {stuck && <p className="muted">El análisis está tardando más de lo normal.</p>}
+          {canRetry && <button onClick={retry}>Reintentar análisis</button>}
         </div>
       )}
 
@@ -142,12 +137,12 @@ export default function MealDetail() {
 
       <section className="stack">
         <h2>Indicaciones y comentarios</h2>
-        {comments.length === 0 && <p className="muted">Aún no hay comentarios.</p>}
+        {meal.comments.length === 0 && <p className="muted">Aún no hay comentarios.</p>}
         <ul className="comments">
-          {comments.map((c) => (
-            <li key={c.id} className={c.author?.role === 'nutritionist' ? 'from-nutritionist' : ''}>
+          {meal.comments.map((c) => (
+            <li key={c.id} className={c.author_role === 'nutritionist' ? 'from-nutritionist' : ''}>
               <div className="muted small">
-                {displayName(c.author ?? null)} · {formatTime(c.created_at)}
+                {c.author_name || 'Sin nombre'} · {formatTime(c.created_at)}
               </div>
               <p>{c.body}</p>
             </li>
@@ -155,7 +150,7 @@ export default function MealDetail() {
         </ul>
         <form className="row" onSubmit={sendComment}>
           <input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Escribe un comentario…" maxLength={2000} />
-          <button className="primary" disabled={!body.trim()}>
+          <button className="primary" disabled={!body.trim() || sending}>
             Enviar
           </button>
         </form>

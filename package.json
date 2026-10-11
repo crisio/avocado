@@ -8,16 +8,14 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc",
-    "test:db": "node supabase/tests/rls.test.mjs"
+    "test": "npm --prefix api test"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.117.3",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.8",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",

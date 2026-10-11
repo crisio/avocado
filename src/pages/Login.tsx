@@ -1,55 +1,60 @@
-import { useState, type FormEvent } from 'react'
-import { appUrl, supabase } from '../lib/supabase'
-import type { Role } from '../lib/types'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useAuth } from '../auth'
+import { api } from '../lib/api'
+import type { User } from '../lib/types'
 
-type Mode = 'signin' | 'signup' | 'forgot'
+const RESEND_SECONDS = 60
 
 export default function Login() {
-  const [mode, setMode] = useState<Mode>('signin')
+  const { signIn } = useAuth()
+  const [step, setStep] = useState<'email' | 'code'>('email')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [fullName, setFullName] = useState('')
-  const [role, setRole] = useState<Role>('patient')
+  const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [wait, setWait] = useState(0)
+  const codeInput = useRef<HTMLInputElement>(null)
 
-  function switchMode(next: Mode) {
-    setMode(next)
-    setError(null)
-    setNotice(null)
-  }
+  useEffect(() => {
+    if (wait <= 0) return
+    const t = setTimeout(() => setWait(wait - 1), 1000)
+    return () => clearTimeout(t)
+  }, [wait])
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault()
+  async function requestCode(e?: FormEvent) {
+    e?.preventDefault()
     setBusy(true)
     setError(null)
-    setNotice(null)
-
-    if (mode === 'signin') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) {
-        setError(
-          error.message.includes('Email not confirmed')
-            ? 'Primero confirma tu correo: revisa tu bandeja de entrada (y spam).'
-            : 'Correo o contraseña incorrectos.',
-        )
-      }
-    } else if (mode === 'signup') {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: appUrl(), data: { full_name: fullName, role } },
-      })
-      if (error) setError(error.message)
-      else if (!data.session) setNotice(`Te enviamos un correo a ${email}. Ábrelo para confirmar tu cuenta y luego entra.`)
-    } else {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: appUrl() })
-      if (error) setError(error.message)
-      else setNotice(`Si ${email} tiene cuenta, te llegará un correo para crear una nueva contraseña.`)
+    try {
+      await api('/auth/code', { method: 'POST', json: { email } })
+      setStep('code')
+      setCode('')
+      setWait(RESEND_SECONDS)
+      setTimeout(() => codeInput.current?.focus(), 50)
+    } catch (err) {
+      setError((err as Error).message)
     }
-
     setBusy(false)
+  }
+
+  async function verify(value: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await api<{ token: string; user: User }>('/auth/verify', { method: 'POST', json: { email, code: value } })
+      signIn(res.token, res.user)
+    } catch (err) {
+      setError((err as Error).message)
+      setCode('')
+      setBusy(false)
+      setTimeout(() => codeInput.current?.focus(), 50)
+    }
+  }
+
+  function onCodeChange(value: string) {
+    const digits = value.replace(/\D/g, '').slice(0, 6)
+    setCode(digits)
+    if (digits.length === 6) verify(digits)
   }
 
   return (
@@ -60,82 +65,62 @@ export default function Login() {
         <p className="muted">Tus comidas en fotos, con seguimiento de tu nutrióloga.</p>
       </header>
 
-      {mode !== 'forgot' && (
-        <div className="segmented" role="tablist">
-          <button role="tab" aria-selected={mode === 'signin'} onClick={() => switchMode('signin')}>
-            Entrar
-          </button>
-          <button role="tab" aria-selected={mode === 'signup'} onClick={() => switchMode('signup')}>
-            Crear cuenta
-          </button>
-        </div>
-      )}
-
-      <form className="card stack" onSubmit={onSubmit}>
-        {mode === 'forgot' && <h2>Recuperar contraseña</h2>}
-
-        {mode === 'signup' && (
-          <>
-            <label>
-              Nombre
-              <input value={fullName} onChange={(e) => setFullName(e.target.value)} required autoComplete="name" />
-            </label>
-            <fieldset className="role-picker">
-              <legend>Soy…</legend>
-              <label>
-                <input type="radio" name="role" checked={role === 'patient'} onChange={() => setRole('patient')} />
-                Paciente
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="role"
-                  checked={role === 'nutritionist'}
-                  onChange={() => setRole('nutritionist')}
-                />
-                Nutrióloga / nutriólogo
-              </label>
-            </fieldset>
-          </>
-        )}
-
-        <label>
-          Correo
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
-        </label>
-
-        {mode !== 'forgot' && (
+      {step === 'email' ? (
+        <form className="card stack" onSubmit={requestCode}>
           <label>
-            Contraseña
+            Tu correo
             <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
-              minLength={8}
-              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              autoComplete="email"
+              placeholder="tucorreo@gmail.com"
             />
           </label>
-        )}
-
-        {error && <p className="error">{error}</p>}
-        {notice && <p className="notice">{notice}</p>}
-
-        <button className="primary" disabled={busy}>
-          {busy ? 'Un momento…' : mode === 'signin' ? 'Entrar' : mode === 'signup' ? 'Crear cuenta' : 'Enviar correo'}
-        </button>
-
-        {mode === 'signin' && (
-          <button type="button" className="link" onClick={() => switchMode('forgot')}>
-            Olvidé mi contraseña
+          <p className="muted small">Te enviaremos un código para entrar. Si es tu primera vez, se crea tu cuenta.</p>
+          {error && <p className="error">{error}</p>}
+          <button className="primary" disabled={busy}>
+            {busy ? 'Enviando…' : 'Enviarme un código'}
           </button>
-        )}
-        {mode === 'forgot' && (
-          <button type="button" className="link" onClick={() => switchMode('signin')}>
-            Volver
+        </form>
+      ) : (
+        <form
+          className="card stack"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (code.length === 6) verify(code)
+          }}
+        >
+          <p>
+            Escribe el código de 6 dígitos que enviamos a <strong>{email}</strong>.
+          </p>
+          <input
+            ref={codeInput}
+            className="code-input"
+            value={code}
+            onChange={(e) => onCodeChange(e.target.value)}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="••••••"
+            aria-label="Código"
+            disabled={busy}
+          />
+          {error && <p className="error">{error}</p>}
+          <button className="primary" disabled={busy || code.length !== 6}>
+            {busy ? 'Verificando…' : 'Entrar'}
           </button>
-        )}
-      </form>
+          <div className="row spread">
+            <button type="button" className="link" onClick={() => setStep('email')}>
+              Cambiar correo
+            </button>
+            <button type="button" className="link" onClick={() => requestCode()} disabled={wait > 0 || busy}>
+              {wait > 0 ? `Reenviar en ${wait}s` : 'Reenviar código'}
+            </button>
+          </div>
+          <p className="muted small">¿No llega? Revisa la carpeta de spam o promociones.</p>
+        </form>
+      )}
     </div>
   )
 }

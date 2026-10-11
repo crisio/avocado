@@ -1,12 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../auth'
+import { api } from '../lib/api'
 import { compressImage } from '../lib/image'
 import { toLocalInput } from '../lib/format'
-import { PHOTO_BUCKET, supabase } from '../lib/supabase'
+import type { Meal } from '../lib/types'
 
 export default function AddMeal() {
-  const { session } = useAuth()
   const navigate = useNavigate()
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
@@ -24,28 +23,22 @@ export default function AddMeal() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!file || !session) return
+    if (!file) return
     setBusy(true)
     setError(null)
 
     try {
-      const photo = await compressImage(file)
-      const path = `${session.user.id}/${crypto.randomUUID()}.jpg`
-      const upload = await supabase.storage.from(PHOTO_BUCKET).upload(path, photo, { contentType: 'image/jpeg' })
-      if (upload.error) throw upload.error
+      const form = new FormData()
+      form.set('photo', await compressImage(file), 'comida.jpg')
+      form.set('eaten_at', new Date(eatenAt).toISOString())
+      if (note.trim()) form.set('note', note.trim())
+      const meal = await api<Meal>('/meals', { method: 'POST', body: form })
 
-      const { data: meal, error: insertError } = await supabase
-        .from('meals')
-        .insert({ photo_path: path, note: note.trim() || null, eaten_at: new Date(eatenAt).toISOString() })
-        .select('id')
-        .single()
-      if (insertError) throw insertError
-
-      // El análisis corre en segundo plano; la pantalla de detalle se actualiza en tiempo real al terminar.
-      supabase.functions.invoke('analyze-meal', { body: { meal_id: meal.id } })
+      // El análisis sigue en segundo plano; el detalle se actualiza solo cuando termina.
+      api(`/meals/${meal.id}/analyze`, { method: 'POST' }).catch(() => {})
       navigate(`/comida/${meal.id}`, { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo guardar la comida')
+      setError((err as Error).message)
       setBusy(false)
     }
   }

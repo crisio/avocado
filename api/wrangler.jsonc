@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "avocado-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "vars": {
+    // URL pública de la app (para los enlaces de los correos y CORS)
+    "APP_URL": "https://crisio.github.io/avocado/",
+    "ALLOWED_ORIGINS": "https://crisio.github.io,http://localhost:5173",
+    // "smtp" envía correos por Gmail; "log" solo los imprime (desarrollo local)
+    "EMAIL_MODE": "smtp"
+  },
+  // Al publicar por primera vez, Cloudflare crea la base de datos y el bucket automáticamente.
+  "d1_databases": [{ "binding": "DB", "database_name": "avocado", "migrations_dir": "migrations" }],
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "avocado-photos" }]
+  // Secretos (no van aquí): AUTH_SECRET, GMAIL_USER, GMAIL_APP_PASSWORD, OPENROUTER_API_KEY, OPENROUTER_MODEL
+}
