@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "avocado"
+version = "0.1.0"
+description = "A tiny avocado package"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "crisio" }]
+
+[tool.setuptools]
+packages = ["avocado"]
