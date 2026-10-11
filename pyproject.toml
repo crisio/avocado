@@ -10,5 +10,8 @@ readme = "README.md"
 requires-python = ">=3.9"
 authors = [{ name = "crisio" }]
 
+[project.scripts]
+avocado = "avocado.cli:main"
+
 [tool.setuptools]
 packages = ["avocado"]
