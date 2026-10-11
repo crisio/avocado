@@ -7,7 +7,7 @@ ve tu día para dejarte indicaciones. Algo como Whoop, pero para nutrición y co
 
 ## Qué hace hoy (v0.2)
 
-- **Entrar con código por correo:** escribes tu correo y te llega a Gmail un código de 6 dígitos. No hay contraseña, y la sesión dura 90 días en el teléfono.
+- **Entrar con código por correo:** escribes tu correo y te llega un código de 6 dígitos (enviado desde `avocado@cristopherpineda.com`). No hay contraseña, y la sesión dura 90 días en el teléfono.
 - **Dos roles:** paciente y nutrióloga. Se elige al crear la cuenta.
 - **Registrar comida:** tomas la foto (o la eliges de la galería), pones la hora y una nota opcional.
 - **Análisis con IA** (vía [OpenRouter](https://openrouter.ai)): alimentos, porciones, calorías, proteína, carbohidratos y grasa.
@@ -24,7 +24,7 @@ Teléfono (PWA: React + Vite) ──► GitHub Pages
 Cloudflare Worker  avocado-api (Hono)          ← api/
    ├─ D1 (SQLite)   usuarios, sesiones, comidas, vínculos, comentarios
    ├─ R2            fotos: <user_id>/<meal_id>.jpg
-   ├─ Gmail (SMTP)  códigos de acceso
+   ├─ Resend        códigos de acceso (desde avocado@cristopherpineda.com)
    └─ OpenRouter    análisis de la foto con un modelo de visión
 ```
 
@@ -48,7 +48,7 @@ api/                 la API (Cloudflare Worker)
 | Cloudflare Workers | 100,000 peticiones/día | sobra |
 | D1 | 5 GB, 5 M lecturas/día | sobra |
 | R2 | 10 GB (~60,000 fotos) | pide tarjeta como verificación; $0 dentro del límite |
-| Gmail | 500 correos/día | sobra |
+| Resend | 3,000 correos/mes (100/día) | sobra |
 | GitHub Pages | ilimitado para repos públicos | $0 |
 | OpenRouter | pagas por uso | centavos por foto según el modelo |
 
@@ -63,11 +63,16 @@ api/                 la API (Cloudflare Worker)
 5. Crea un **API Token**: *My Profile → API Tokens → Create Token →* plantilla **"Edit Cloudflare Workers"**, y
    agrégale los permisos de cuenta **D1: Edit** y **Workers R2 Storage: Edit**.
 
-### 2. Gmail (para enviar los códigos)
+### 2. Resend (para enviar los códigos)
 
-1. Activa la verificación en 2 pasos en tu cuenta de Google.
-2. Crea una contraseña de aplicación en https://myaccount.google.com/apppasswords (nómbrala "Avocado").
-   Son 16 letras: esa es `GMAIL_APP_PASSWORD`. **No es tu contraseña normal.**
+1. Crea una cuenta gratis en https://resend.com.
+2. **Domains → Add Domain →** `cristopherpineda.com`. Usa la opción para configurar el DNS automáticamente con
+   Cloudflare (o copia los registros a *Cloudflare → DNS*). Espera a que diga **Verified**.
+   Los registros van en `send.` y `resend._domainkey.`, no tocan el correo que ya tengas en el dominio.
+3. **API Keys → Create API Key** (permiso *Sending access*). Esa es `RESEND_API_KEY`.
+
+El remitente se cambia en `api/wrangler.jsonc` (`EMAIL_FROM`). Para usar Gmail en lugar de Resend:
+`EMAIL_MODE: "smtp"` y los secretos `GMAIL_USER` / `GMAIL_APP_PASSWORD` (contraseña de aplicación).
 
 ### 3. OpenRouter
 
@@ -84,8 +89,7 @@ En el repo: **Settings → Secrets and variables → Actions → New repository 
 | `CLOUDFLARE_API_TOKEN` | el token del paso 1 |
 | `CLOUDFLARE_ACCOUNT_ID` | tu Account ID |
 | `AUTH_SECRET` | texto aleatorio de 32+ caracteres. En la Terminal de tu Mac: `openssl rand -hex 32` |
-| `GMAIL_USER` | tu correo de Gmail (desde ahí salen los códigos) |
-| `GMAIL_APP_PASSWORD` | la contraseña de aplicación del paso 2 |
+| `RESEND_API_KEY` | la API key de Resend del paso 2 |
 | `OPENROUTER_API_KEY` | tu API key de OpenRouter |
 | `OPENROUTER_MODEL` | el id del modelo que elegiste |
 

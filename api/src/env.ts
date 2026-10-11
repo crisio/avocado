@@ -3,9 +3,11 @@ export interface Env {
   PHOTOS: R2Bucket
   APP_URL: string
   ALLOWED_ORIGINS: string
-  EMAIL_MODE: 'smtp' | 'log'
+  EMAIL_MODE: 'resend' | 'smtp' | 'log'
+  EMAIL_FROM: string
   // Secretos
   AUTH_SECRET: string
+  RESEND_API_KEY?: string
   GMAIL_USER?: string
   GMAIL_APP_PASSWORD?: string
   OPENROUTER_API_KEY?: string

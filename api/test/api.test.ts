@@ -261,3 +261,35 @@ describe('configuración', () => {
     expect(res.status).toBe(503)
   })
 })
+
+describe('envío de correos con Resend', () => {
+  const resendEnv = () => ({ ...env, EMAIL_MODE: 'resend' as const, RESEND_API_KEY: 're_test', EMAIL_FROM: 'Avocado <avocado@cristopherpineda.com>' })
+
+  it('manda el código desde el dominio configurado', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ id: 'email_1' }))
+    const res = await app.fetch(
+      new Request(`${BASE}/auth/code`, { method: 'POST', body: JSON.stringify({ email: 'resend@gmail.com' }) }),
+      resendEnv(),
+      createExecutionContext(),
+    )
+    expect(res.status).toBe(200)
+
+    const [url, init] = fetchSpy.mock.calls[0]
+    expect(String(url)).toBe('https://api.resend.com/emails')
+    expect(new Headers((init as RequestInit).headers).get('Authorization')).toBe('Bearer re_test')
+    const body = JSON.parse(String((init as RequestInit).body))
+    expect(body).toMatchObject({ from: 'Avocado <avocado@cristopherpineda.com>', to: ['resend@gmail.com'] })
+    expect(body.subject).toMatch(/^\d{6} es tu código de Avocado$/)
+  })
+
+  it('si Resend falla, avisa con un error claro', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"message":"domain not verified"}', { status: 403 }))
+    const res = await app.fetch(
+      new Request(`${BASE}/auth/code`, { method: 'POST', body: JSON.stringify({ email: 'resend2@gmail.com' }) }),
+      resendEnv(),
+      createExecutionContext(),
+    )
+    expect(res.status).toBe(502)
+    expect((await res.json<any>()).error).toContain('No pudimos enviar el correo')
+  })
+})

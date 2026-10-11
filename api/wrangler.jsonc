@@ -9,11 +9,13 @@
     // URL pública de la app (para los enlaces de los correos y CORS)
     "APP_URL": "https://crisio.github.io/avocado/",
     "ALLOWED_ORIGINS": "https://crisio.github.io,http://localhost:5173",
-    // "smtp" envía correos por Gmail; "log" solo los imprime (desarrollo local)
-    "EMAIL_MODE": "smtp"
+    // "resend" envía con tu dominio; "smtp" por Gmail; "log" solo los imprime (desarrollo local)
+    "EMAIL_MODE": "resend",
+    "EMAIL_FROM": "Avocado <avocado@cristopherpineda.com>"
   },
   // Al publicar por primera vez, Cloudflare crea la base de datos y el bucket automáticamente.
   "d1_databases": [{ "binding": "DB", "database_name": "avocado", "migrations_dir": "migrations" }],
   "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "avocado-photos" }]
-  // Secretos (no van aquí): AUTH_SECRET, GMAIL_USER, GMAIL_APP_PASSWORD, OPENROUTER_API_KEY, OPENROUTER_MODEL
+  // Secretos (no van aquí): AUTH_SECRET, RESEND_API_KEY, OPENROUTER_API_KEY, OPENROUTER_MODEL
+  // (o GMAIL_USER y GMAIL_APP_PASSWORD si usas EMAIL_MODE "smtp")
 }

@@ -12,13 +12,32 @@ export interface Mail {
 export const devOutbox: Mail[] = []
 
 export async function sendMail(env: Env, mail: Mail) {
-  if (env.EMAIL_MODE === 'log') {
-    devOutbox.push(mail)
-    console.log(`[correo a ${mail.to}] ${mail.subject}\n${mail.text}`)
-    return
+  switch (env.EMAIL_MODE) {
+    case 'log':
+      devOutbox.push(mail)
+      console.log(`[correo a ${mail.to}] ${mail.subject}\n${mail.text}`)
+      return
+    case 'smtp':
+      return sendWithGmail(env, mail)
+    default:
+      return sendWithResend(env, mail)
   }
-  if (!env.GMAIL_USER || !env.GMAIL_APP_PASSWORD) throw new Error('Faltan los secretos GMAIL_USER / GMAIL_APP_PASSWORD')
+}
 
+// Resend (https://resend.com): envía desde tu dominio, p. ej. avocado@cristopherpineda.com
+async function sendWithResend(env: Env, mail: Mail) {
+  if (!env.RESEND_API_KEY) throw new Error('Falta el secreto RESEND_API_KEY')
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: env.EMAIL_FROM, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html }),
+  })
+  if (!res.ok) throw new Error(`Resend ${res.status}: ${(await res.text()).slice(0, 300)}`)
+}
+
+// Alternativa: Gmail con contraseña de aplicación (EMAIL_MODE = "smtp")
+async function sendWithGmail(env: Env, mail: Mail) {
+  if (!env.GMAIL_USER || !env.GMAIL_APP_PASSWORD) throw new Error('Faltan los secretos GMAIL_USER / GMAIL_APP_PASSWORD')
   await WorkerMailer.send(
     {
       host: 'smtp.gmail.com',
