@@ -52,7 +52,9 @@ export default defineConfig({
         orientation: 'portrait',
         start_url: base,
         scope: base,
+        // Solo PNG opacos: iOS reciente lee estos íconos y, si no le sirve ninguno, pone la inicial del nombre.
         icons: [
+          { src: 'icon-180-v3.png', sizes: '180x180', type: 'image/png', purpose: 'any' },
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           { src: 'maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
