@@ -2,7 +2,7 @@ import type { Env } from './env'
 
 // Analiza la foto de una comida con un modelo de visión vía OpenRouter.
 
-const SYSTEM_PROMPT = `Eres un asistente de nutrición. Te paso la foto de una comida (y a veces una nota del paciente).
+export const SYSTEM_PROMPT = `Eres un asistente de nutrición. Te paso la foto de una comida (y a veces una nota del paciente).
 Identifica cada alimento visible, estima la porción en gramos y calcula calorías y macronutrientes.
 Si la nota del paciente contradice la foto, confía en la nota para ingredientes que no se ven (aceite, azúcar, etc.).
 Responde SOLO con un objeto JSON válido, sin texto adicional, con esta forma exacta:
