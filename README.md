@@ -1,4 +1,6 @@
-# 🥑 Avocado
+<p align="center"><img src="brand/avocado-logo.png" alt="Avocado" width="420"></p>
+
+# Avocado
 
 Registra tus comidas con una foto. La IA reconoce qué comiste, estima porciones, calorías y macros, y tu nutrióloga
 ve tu día para dejarte indicaciones. Algo como Whoop, pero para nutrición y con tu nutrióloga en el loop.
