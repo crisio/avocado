@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Button, IconButton, Notice, PageHeader, PhotoPicker, Screen, TextField } from '@avocado/ui'
 import { api } from '../lib/api'
 import { compressImage } from '../lib/image'
 import { toLocalInput } from '../lib/format'
@@ -26,7 +27,6 @@ export default function AddMeal() {
     if (!file) return
     setBusy(true)
     setError(null)
-
     try {
       const form = new FormData()
       form.set('photo', await compressImage(file), 'comida.jpg')
@@ -44,43 +44,27 @@ export default function AddMeal() {
   }
 
   return (
-    <form className="stack" onSubmit={onSubmit}>
-      <h1>Registrar comida</h1>
-
-      <div className={`photo-preview card ${preview ? 'has-photo' : ''}`}>
-        {preview ? <img src={preview} alt="Foto de la comida" /> : <span className="muted">Aún no hay foto</span>}
+    <Screen withTabBar>
+      <div>
+        <IconButton icon="chevron-left" label="Volver" plain onClick={() => navigate(-1)} />
       </div>
-      <div className="row">
-        <label className="button">
-          📷 Tomar foto
-          <input type="file" accept="image/*" capture="environment" onChange={(e) => setFile(e.target.files?.[0] ?? null)} hidden />
-        </label>
-        <label className="button">
-          🖼️ Galería
-          <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} hidden />
-        </label>
-      </div>
-
-      <label>
-        ¿Cuándo comiste?
-        <input type="datetime-local" value={eatenAt} onChange={(e) => setEatenAt(e.target.value)} required />
-      </label>
-
-      <label>
-        Nota (opcional)
-        <textarea
+      <PageHeader title="Registrar comida" compact />
+      <form className="app-stack" style={{ gap: 18 }} onSubmit={onSubmit}>
+        <PhotoPicker previewUrl={preview} onSelect={setFile} />
+        <TextField label="¿Cuándo comiste?" type="datetime-local" value={eatenAt} onChange={(e) => setEatenAt(e.target.value)} required />
+        <TextField
+          label="Nota (opcional)"
+          multiline
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          rows={3}
           placeholder="Ej. sin azúcar, con una cucharada de aceite de oliva, me comí la mitad…"
+          hint="Ayuda a la IA con lo que no se ve en la foto."
         />
-      </label>
-
-      {error && <p className="error">{error}</p>}
-
-      <button className="primary" disabled={!file || busy}>
-        {busy ? 'Subiendo…' : 'Guardar y analizar'}
-      </button>
-    </form>
+        {error && <Notice tone="error">{error}</Notice>}
+        <Button type="submit" size="lg" fullWidth icon="check" loading={busy} disabled={!file}>
+          Guardar y analizar
+        </Button>
+      </form>
+    </Screen>
   )
 }

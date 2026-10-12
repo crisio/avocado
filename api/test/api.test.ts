@@ -139,6 +139,7 @@ describe('comidas, fotos y acceso de la nutrióloga', () => {
 
     const day = `/meals?user_id=${patientId}&from=2026-10-11T00:00:00Z&to=2026-10-12T00:00:00Z`
     expect((await call(day, { token: patient })).data).toHaveLength(1)
+    expect((await call(day, { token: patient })).data[0].last_comment).toBeNull()
 
     // Sin vínculo, la nutrióloga no ve nada
     expect((await call(day, { token: nutri })).status).toBe(404)
@@ -165,6 +166,9 @@ describe('comidas, fotos y acceso de la nutrióloga', () => {
     expect((await call(`/meals/${mealId}/comments`, { method: 'POST', token: other, json: { body: 'hola' } })).status).toBe(404)
     expect((await call(`/meals/${mealId}`, { method: 'DELETE', token: nutri })).status).toBe(404)
     expect((await call(`/meals/${mealId}/analyze`, { method: 'POST', token: nutri })).status).toBe(404)
+
+    const listed = await call(day, { token: patient })
+    expect(listed.data[0].last_comment).toMatchObject({ body: 'Agrega verdura', author_name: 'Lic. Ana', author_role: 'nutritionist' })
 
     const detail = await call(`/meals/${mealId}`, { token: patient })
     expect(detail.data.comments).toEqual([

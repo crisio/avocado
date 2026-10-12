@@ -9,3 +9,4 @@ dev-dist
 api/node_modules
 api/.wrangler
 api/.dev.vars
+ui/dist

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { IconButton, PageHeader, Screen } from '@avocado/ui'
 import DayView from '../components/DayView'
 import { api } from '../lib/api'
 import { displayName } from '../lib/format'
@@ -15,12 +16,12 @@ export default function PatientDay() {
   }, [id])
 
   return (
-    <div className="stack">
-      <button className="link back" onClick={() => navigate('/')}>
-        ‹ Pacientes
-      </button>
-      <h1>{displayName(patient)}</h1>
+    <Screen withTabBar>
+      <div>
+        <IconButton icon="chevron-left" label="Volver a pacientes" plain onClick={() => navigate('/')} />
+      </div>
+      <PageHeader eyebrow="Paciente" title={displayName(patient)} compact />
       <DayView userId={id} />
-    </div>
+    </Screen>
   )
 }

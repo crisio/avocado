@@ -1,9 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { Button, Card, Chip, CommentBubble, EmptyState, IconButton, Notice, NutritionTable, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
 import { api } from '../lib/api'
 import { usePoll } from '../lib/usePoll'
-import { formatDay, formatTime, grams, kcal } from '../lib/format'
+import { formatAgo, formatDay } from '../lib/format'
+import { mealKind, mealKindLabel, mealTitle } from '../lib/meals'
+import { formatTime } from '../lib/format'
 import type { Meal, MealComment, MealWithComments } from '../lib/types'
 
 const STUCK_AFTER_MS = 2 * 60_000
@@ -58,8 +61,26 @@ export default function MealDetail() {
     navigate('/', { replace: true })
   }
 
-  if (meal === undefined) return <p className="muted center">Cargando…</p>
-  if (meal === null) return <p className="muted center">No encontramos esta comida.</p>
+  const back = (
+    <div>
+      <IconButton icon="chevron-left" label="Volver" plain onClick={() => navigate(-1)} />
+    </div>
+  )
+
+  if (meal === undefined)
+    return (
+      <Screen withTabBar>
+        {back}
+        <p className="av-text-muted">Cargando…</p>
+      </Screen>
+    )
+  if (meal === null)
+    return (
+      <Screen withTabBar>
+        {back}
+        <EmptyState title="No encontramos esta comida" description="Puede que la hayan borrado o que ya no tengas acceso." />
+      </Screen>
+    )
 
   const a = meal.analysis
   const isOwner = meal.user_id === user?.id
@@ -67,100 +88,83 @@ export default function MealDetail() {
   const canRetry = isOwner && !retrying && (meal.status === 'error' || stuck)
 
   return (
-    <div className="stack">
-      <button className="link back" onClick={() => navigate(-1)}>
-        ‹ Volver
-      </button>
+    <Screen withTabBar>
+      {back}
+      <img className="av-hero-photo" src={meal.photo_url} alt="Foto de la comida" />
 
-      <img className="hero" src={meal.photo_url} alt="Foto de la comida" />
-
-      <div>
-        <div className="muted">
-          {formatDay(new Date(meal.eaten_at))} · {formatTime(meal.eaten_at)}
-          {a?.meal_type ? ` · ${a.meal_type}` : ''}
-        </div>
-        <h1>{meal.status === 'analyzed' ? a?.summary || 'Comida' : meal.status === 'pending' ? 'Analizando…' : 'Sin análisis'}</h1>
-        {meal.note && <p className="note">“{meal.note}”</p>}
+      <div className="app-stack" style={{ gap: 6 }}>
+        <span className="av-meal-card__meta">
+          {formatDay(new Date(meal.eaten_at))} · {formatTime(meal.eaten_at)} · {mealKindLabel(mealKind(meal))}
+        </span>
+        <h1 className="av-page-header__title" style={{ fontSize: 28 }}>
+          {mealTitle(meal)}
+        </h1>
+        {meal.note && <p className="app-note">“{meal.note}”</p>}
+        {meal.status === 'pending' && (
+          <div>
+            <Chip tone="warning" icon="clock">
+              La IA está analizando la foto
+            </Chip>
+          </div>
+        )}
       </div>
 
       {(meal.status === 'error' || canRetry) && (
-        <div className="card stack">
+        <Card>
           {meal.status === 'error' && (
-            <div>
-              <p className="error">No se pudo analizar la foto.</p>
-              {a?.error && <p className="muted small">Detalle: {a.error}</p>}
-            </div>
+            <Notice tone="error">
+              No se pudo analizar la foto.
+              {a?.error && <span style={{ display: 'block', fontSize: 13, opacity: 0.85 }}>Detalle: {a.error}</span>}
+            </Notice>
           )}
-          {stuck && <p className="muted">El análisis está tardando más de lo normal.</p>}
-          {canRetry && <button onClick={retry}>Reintentar análisis</button>}
-        </div>
+          {stuck && <p className="av-text-muted" style={{ margin: 0 }}>El análisis está tardando más de lo normal.</p>}
+          {canRetry && (
+            <Button variant="secondary" icon="refresh" onClick={retry}>
+              Reintentar análisis
+            </Button>
+          )}
+        </Card>
       )}
 
       {meal.status === 'analyzed' && a && (
-        <section className="card stack">
-          <div className="totals">
-            <div>
-              <strong>{kcal(meal.calories)}</strong>
-              <span>calorías</span>
-            </div>
-            <div>
-              <strong>{grams(meal.protein_g)}</strong>
-              <span>proteína</span>
-            </div>
-            <div>
-              <strong>{grams(meal.carbs_g)}</strong>
-              <span>carbs</span>
-            </div>
-            <div>
-              <strong>{grams(meal.fat_g)}</strong>
-              <span>grasa</span>
-            </div>
-          </div>
-          {a.items && a.items.length > 0 && (
-            <table className="items">
-              <tbody>
-                {a.items.map((item, i) => (
-                  <tr key={i}>
-                    <td>{item.name}</td>
-                    <td className="muted">{grams(item.portion_g)}</td>
-                    <td>{kcal(item.calories)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          <p className="muted small">
-            Estimación con IA{a.confidence ? ` (confianza ${Math.round(a.confidence * 100)}%)` : ''}. Puede tener errores.
-          </p>
-        </section>
+        <Card padding="lg">
+          <NutritionTable
+            totals={{ calories: meal.calories ?? 0, protein_g: meal.protein_g ?? 0, carbs_g: meal.carbs_g ?? 0, fat_g: meal.fat_g ?? 0 }}
+            items={a.items}
+            note={`Estimación con IA${a.confidence ? ` (confianza ${Math.round(a.confidence * 100)} %)` : ''}. Puede tener errores.`}
+          />
+        </Card>
       )}
 
-      <section className="stack">
-        <h2>Indicaciones y comentarios</h2>
-        {meal.comments.length === 0 && <p className="muted">Aún no hay comentarios.</p>}
-        <ul className="comments">
+      <section aria-labelledby="comentarios" className="app-stack" style={{ gap: 12 }}>
+        <h2 id="comentarios" className="av-section-title">
+          Indicaciones y comentarios
+        </h2>
+        {meal.comments.length === 0 && <p className="av-text-muted" style={{ margin: 0 }}>Aún no hay comentarios.</p>}
+        <ul className="app-stack">
           {meal.comments.map((c) => (
-            <li key={c.id} className={c.author_role === 'nutritionist' ? 'from-nutritionist' : ''}>
-              <div className="muted small">
-                {c.author_name || 'Sin nombre'} · {formatTime(c.created_at)}
-              </div>
-              <p>{c.body}</p>
+            <li key={c.id}>
+              <CommentBubble author={c.author_name || 'Sin nombre'} role={c.author_role === 'nutritionist' ? 'nutritionist' : 'patient'} time={formatAgo(c.created_at)}>
+                {c.body}
+              </CommentBubble>
             </li>
           ))}
         </ul>
-        <form className="row" onSubmit={sendComment}>
-          <input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Escribe un comentario…" maxLength={2000} />
-          <button className="primary" disabled={!body.trim() || sending}>
+        <form className="app-row" onSubmit={sendComment}>
+          <TextField label="Escribe un comentario" value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} />
+          <Button type="submit" icon="send" loading={sending} disabled={!body.trim()}>
             Enviar
-          </button>
+          </Button>
         </form>
       </section>
 
       {isOwner && (
-        <button className="link danger" onClick={remove}>
-          Borrar comida
-        </button>
+        <div>
+          <Button variant="danger" icon="trash" onClick={remove}>
+            Borrar comida
+          </Button>
+        </div>
       )}
-    </div>
+    </Screen>
   )
 }

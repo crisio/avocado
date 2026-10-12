@@ -41,6 +41,8 @@ export interface Meal {
   carbs_g: number | null
   fat_g: number | null
   created_at: string
+  /** Comentario más reciente (solo en la lista del día). */
+  last_comment?: { body: string; author_name: string | null; author_role: Role | null; created_at: string } | null
 }
 
 export interface MealComment {

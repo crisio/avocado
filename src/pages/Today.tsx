@@ -1,20 +1,17 @@
-import { Link } from 'react-router-dom'
+import { Screen, PageHeader } from '@avocado/ui'
 import { useAuth } from '../auth'
 import DayView from '../components/DayView'
+import { firstName, formatLongDate } from '../lib/format'
 
 export default function Today() {
   const { user } = useAuth()
   if (!user) return null
+  const name = firstName(user.full_name)
 
   return (
-    <div className="stack">
-      <header className="page-header">
-        <h1>Hola{user.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}</h1>
-        <Link to="/nueva" className="button primary">
-          + Comida
-        </Link>
-      </header>
+    <Screen withTabBar>
+      <PageHeader eyebrow={formatLongDate(new Date())} title={name ? `Hola, ${name}` : 'Hola'} />
       <DayView userId={user.id} />
-    </div>
+    </Screen>
   )
 }

@@ -21,14 +21,16 @@ interface MealRow {
   carbs_g: number | null
   fat_g: number | null
   created_at: string
+  last_comment?: string | null
 }
 
 async function toMeal(env: Env, origin: string, row: MealRow) {
-  const { photo_key, analysis, ...rest } = row
+  const { photo_key, analysis, last_comment, ...rest } = row
   return {
     ...rest,
     analysis: analysis ? JSON.parse(analysis) : null,
     photo_url: await signedPhotoUrl(env, origin, photo_key),
+    ...(last_comment !== undefined ? { last_comment: last_comment ? JSON.parse(last_comment) : null } : {}),
   }
 }
 
@@ -71,8 +73,14 @@ mealRoutes.get('/', async (c) => {
   const from = toIso(c.req.query('from'), 'from')
   const to = toIso(c.req.query('to'), 'to')
 
+  // Cada comida trae su comentario más reciente (para mostrar la indicación en "Mi día").
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM meals WHERE user_id = ? AND eaten_at >= ? AND eaten_at < ? ORDER BY eaten_at',
+    `SELECT m.*, (
+       SELECT json_object('body', mc.body, 'author_name', u.full_name, 'author_role', u.role, 'created_at', mc.created_at)
+       FROM meal_comments mc JOIN users u ON u.id = mc.author_id
+       WHERE mc.meal_id = m.id ORDER BY mc.created_at DESC LIMIT 1
+     ) AS last_comment
+     FROM meals m WHERE m.user_id = ? AND m.eaten_at >= ? AND m.eaten_at < ? ORDER BY m.eaten_at`,
   )
     .bind(userId, from, to)
     .all<MealRow>()

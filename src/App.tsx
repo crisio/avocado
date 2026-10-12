@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { EmptyState, Screen } from '@avocado/ui'
 import { useAuth } from './auth'
 import { isConfigured } from './lib/api'
 import Layout from './components/Layout'
@@ -14,7 +15,12 @@ import Settings from './pages/Settings'
 export default function App() {
   const { user } = useAuth()
 
-  if (!isConfigured) return <SetupNeeded />
+  if (!isConfigured)
+    return (
+      <Screen narrow>
+        <EmptyState title="Falta conectar la API" description="Define VITE_API_URL en .env.local (local) o como variable del repositorio en GitHub. Revisa el README." />
+      </Screen>
+    )
   if (!user) return <Login />
   if (!user.role) return <Onboarding />
 
@@ -37,17 +43,5 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
-  )
-}
-
-function SetupNeeded() {
-  return (
-    <div className="center stack">
-      <h1>Falta conectar la API</h1>
-      <p className="muted">
-        Define <code>VITE_API_URL</code> en <code>.env.local</code> (local) o como variable del repositorio en GitHub
-        (producción). Revisa el README.
-      </p>
-    </div>
   )
 }

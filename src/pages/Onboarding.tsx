@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Button, Card, Notice, PageHeader, RadioCard, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
 import { api } from '../lib/api'
 import type { Role, User } from '../lib/types'
@@ -23,33 +24,31 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="auth">
-      <form className="card stack" onSubmit={onSubmit}>
-        <h2>¡Bienvenida/o!</h2>
-        <p className="muted">{user?.email}</p>
-        <label>
-          ¿Cómo te llamas?
-          <input value={fullName} onChange={(e) => setFullName(e.target.value)} required autoComplete="name" autoFocus />
-        </label>
-        <fieldset className="role-picker">
-          <legend>Soy…</legend>
-          <label>
-            <input type="radio" name="role" checked={role === 'patient'} onChange={() => setRole('patient')} />
-            Paciente: quiero registrar mis comidas
-          </label>
-          <label>
-            <input type="radio" name="role" checked={role === 'nutritionist'} onChange={() => setRole('nutritionist')} />
-            Nutrióloga / nutriólogo: doy seguimiento a pacientes
-          </label>
+    <Screen narrow>
+      <PageHeader eyebrow={user?.email} title="¡Bienvenida/o!" />
+      <Card as="form" padding="lg" onSubmit={onSubmit}>
+        <TextField label="¿Cómo te llamas?" value={fullName} onChange={(e) => setFullName(e.target.value)} required autoComplete="name" autoFocus />
+        <fieldset style={{ border: 0, margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <legend className="av-field__label" style={{ marginBottom: 6 }}>
+            Soy…
+          </legend>
+          <RadioCard name="role" checked={role === 'patient'} onChange={() => setRole('patient')} title="Paciente" description="Quiero registrar mis comidas." />
+          <RadioCard
+            name="role"
+            checked={role === 'nutritionist'}
+            onChange={() => setRole('nutritionist')}
+            title="Nutrióloga / nutriólogo"
+            description="Doy seguimiento a mis pacientes."
+          />
         </fieldset>
-        {error && <p className="error">{error}</p>}
-        <button className="primary" disabled={busy}>
-          {busy ? 'Guardando…' : 'Continuar'}
-        </button>
-        <button type="button" className="link" onClick={signOut}>
+        {error && <Notice tone="error">{error}</Notice>}
+        <Button type="submit" size="lg" fullWidth loading={busy}>
+          Continuar
+        </Button>
+        <Button variant="ghost" onClick={signOut}>
           Usar otro correo
-        </button>
-      </form>
-    </div>
+        </Button>
+      </Card>
+    </Screen>
   )
 }

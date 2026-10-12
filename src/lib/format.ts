@@ -3,13 +3,28 @@ const dayFmt = new Intl.DateTimeFormat('es-MX', { weekday: 'long', day: 'numeric
 
 export const formatTime = (iso: string) => timeFmt.format(new Date(iso))
 
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
+/** "Domingo 11 de octubre" */
+export const formatLongDate = (date: Date) => capitalize(dayFmt.format(date))
+
+/** "Hoy", "Ayer" o "Viernes 9 de octubre" */
 export function formatDay(date: Date) {
   const today = startOfDay(new Date())
   const diff = Math.round((startOfDay(date).getTime() - today.getTime()) / 86_400_000)
   if (diff === 0) return 'Hoy'
   if (diff === -1) return 'Ayer'
-  const s = dayFmt.format(date)
-  return s.charAt(0).toUpperCase() + s.slice(1)
+  return formatLongDate(date)
+}
+
+/** "hace 5 min", "hace 2 h", "ayer", o la fecha */
+export function formatAgo(iso: string) {
+  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000)
+  if (minutes < 1) return 'ahora'
+  if (minutes < 60) return `hace ${minutes} min`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `hace ${hours} h`
+  return formatDay(new Date(iso)).toLowerCase()
 }
 
 export function startOfDay(date: Date) {
@@ -31,8 +46,9 @@ export function toLocalInput(date: Date) {
 }
 
 export const kcal = (n: number | null | undefined) => `${Math.round(n ?? 0)} kcal`
-export const grams = (n: number | null | undefined) => `${Math.round(n ?? 0)} g`
 
 export function displayName(p: { full_name: string | null; email?: string } | null | undefined) {
   return p?.full_name || p?.email || 'Sin nombre'
 }
+
+export const firstName = (name: string | null | undefined) => (name ?? '').trim().split(/\s+/)[0] ?? ''

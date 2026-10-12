@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useRef, useState, useEffect, type FormEvent } from 'react'
+import { Button, Card, CodeInput, Logo, Notice, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
 import { api } from '../lib/api'
 import type { User } from '../lib/types'
@@ -51,76 +52,63 @@ export default function Login() {
     }
   }
 
-  function onCodeChange(value: string) {
-    const digits = value.replace(/\D/g, '').slice(0, 6)
-    setCode(digits)
-    if (digits.length === 6) verify(digits)
-  }
-
   return (
-    <div className="auth">
-      <header className="auth-header">
-        <img src={`${import.meta.env.BASE_URL}pwa-192x192.png`} alt="" width={72} height={72} />
-        <h1>Avocado</h1>
-        <p className="muted">Tus comidas en fotos, con seguimiento de tu nutrióloga.</p>
+    <Screen narrow>
+      <header style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', paddingTop: 24 }}>
+        <Logo size={76} />
+        <h1 className="av-page-header__title">Avocado</h1>
+        <p className="av-text-muted" style={{ margin: 0 }}>
+          Tus comidas en fotos, con seguimiento de tu nutrióloga.
+        </p>
       </header>
 
       {step === 'email' ? (
-        <form className="card stack" onSubmit={requestCode}>
-          <label>
-            Tu correo
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              placeholder="tucorreo@gmail.com"
-            />
-          </label>
-          <p className="muted small">Te enviaremos un código para entrar. Si es tu primera vez, se crea tu cuenta.</p>
-          {error && <p className="error">{error}</p>}
-          <button className="primary" disabled={busy}>
-            {busy ? 'Enviando…' : 'Enviarme un código'}
-          </button>
-        </form>
+        <Card as="form" padding="lg" onSubmit={requestCode}>
+          <TextField
+            label="Tu correo"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            placeholder="tucorreo@gmail.com"
+            hint="Te enviaremos un código para entrar. Si es tu primera vez, se crea tu cuenta."
+          />
+          {error && <Notice tone="error">{error}</Notice>}
+          <Button type="submit" size="lg" fullWidth loading={busy}>
+            Enviarme un código
+          </Button>
+        </Card>
       ) : (
-        <form
-          className="card stack"
-          onSubmit={(e) => {
+        <Card
+          as="form"
+          padding="lg"
+          onSubmit={(e: FormEvent) => {
             e.preventDefault()
             if (code.length === 6) verify(code)
           }}
         >
-          <p>
+          <p style={{ margin: 0 }}>
             Escribe el código de 6 dígitos que enviamos a <strong>{email}</strong>.
           </p>
-          <input
-            ref={codeInput}
-            className="code-input"
-            value={code}
-            onChange={(e) => onCodeChange(e.target.value)}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="••••••"
-            aria-label="Código"
-            disabled={busy}
-          />
-          {error && <p className="error">{error}</p>}
-          <button className="primary" disabled={busy || code.length !== 6}>
-            {busy ? 'Verificando…' : 'Entrar'}
-          </button>
-          <div className="row spread">
-            <button type="button" className="link" onClick={() => setStep('email')}>
+          <CodeInput inputRef={codeInput} value={code} onChange={setCode} onComplete={verify} disabled={busy} />
+          {error && <Notice tone="error">{error}</Notice>}
+          <Button type="submit" size="lg" fullWidth loading={busy} disabled={code.length !== 6}>
+            Entrar
+          </Button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <Button variant="ghost" onClick={() => setStep('email')}>
               Cambiar correo
-            </button>
-            <button type="button" className="link" onClick={() => requestCode()} disabled={wait > 0 || busy}>
+            </Button>
+            <Button variant="ghost" onClick={() => requestCode()} disabled={wait > 0 || busy}>
               {wait > 0 ? `Reenviar en ${wait}s` : 'Reenviar código'}
-            </button>
+            </Button>
           </div>
-          <p className="muted small">¿No llega? Revisa la carpeta de spam o promociones.</p>
-        </form>
+          <p className="av-text-muted" style={{ margin: 0, fontSize: 14 }}>
+            ¿No llega? Revisa la carpeta de spam o promociones.
+          </p>
+        </Card>
       )}
-    </div>
+    </Screen>
   )
 }

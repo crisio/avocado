@@ -1,28 +1,27 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Button, TabBar, TabBarItem } from '@avocado/ui'
 import type { Role } from '../lib/types'
 
 export default function Layout({ role }: { role: Role }) {
+  const { pathname } = useLocation()
+  // La acción "Registrar comida" solo en la pantalla principal del paciente.
+  const showAction = role === 'patient' && pathname === '/'
+
   return (
-    <div className="app">
-      <main className="content">
-        <Outlet />
-      </main>
-      <nav className="tabbar">
-        <NavLink to="/" end>
-          <span aria-hidden>{role === 'nutritionist' ? '👥' : '🍽️'}</span>
-          {role === 'nutritionist' ? 'Pacientes' : 'Mi día'}
-        </NavLink>
-        {role === 'patient' && (
-          <NavLink to="/nueva" className="tabbar-add">
-            <span aria-hidden>📷</span>
-            Registrar
-          </NavLink>
-        )}
-        <NavLink to="/ajustes">
-          <span aria-hidden>⚙️</span>
-          Ajustes
-        </NavLink>
-      </nav>
-    </div>
+    <>
+      <Outlet />
+      <TabBar
+        action={
+          showAction ? (
+            <Button as={Link} to="/nueva" icon="camera" size="lg" fullWidth>
+              Registrar comida
+            </Button>
+          ) : undefined
+        }
+      >
+        <TabBarItem as={NavLink} to="/" end icon={role === 'nutritionist' ? 'users' : 'home'} label={role === 'nutritionist' ? 'Pacientes' : 'Mi día'} />
+        <TabBarItem as={NavLink} to="/ajustes" icon="user" label="Perfil" />
+      </TabBar>
+    </>
   )
 }

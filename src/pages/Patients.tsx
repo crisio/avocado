@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { EmptyState, Icon, PageHeader, PersonRow, Screen } from '@avocado/ui'
 import { useAuth } from '../auth'
 import { api } from '../lib/api'
 import { usePoll } from '../lib/usePoll'
-import { displayName } from '../lib/format'
+import { displayName, firstName } from '../lib/format'
 import type { Person } from '../lib/types'
 
 export default function Patients() {
@@ -11,32 +12,32 @@ export default function Patients() {
   const [patients, setPatients] = useState<Person[] | null>(null)
 
   usePoll(() => api<Person[]>('/care/patients').then(setPatients, () => {}), 60_000, 'patients')
+  const name = firstName(user?.full_name)
 
   return (
-    <div className="stack">
-      <h1>Pacientes</h1>
+    <Screen withTabBar>
+      <PageHeader eyebrow={name ? `Hola, ${name}` : undefined} title="Pacientes" />
       {patients === null ? (
-        <p className="muted center">Cargando…</p>
+        <p className="av-text-muted">Cargando…</p>
       ) : patients.length === 0 ? (
-        <div className="card stack">
-          <p>Aún no tienes pacientes vinculados.</p>
-          <p className="muted">
-            Pide a tus pacientes que entren a <strong>Ajustes → Mi nutrióloga</strong> y escriban tu correo:{' '}
-            <strong>{user?.email}</strong>
-          </p>
-        </div>
+        <EmptyState
+          icon="users"
+          title="Aún no tienes pacientes"
+          description={
+            <>
+              Pide a tus pacientes que entren a <strong>Perfil → Mi nutrióloga</strong> y escriban tu correo: <strong>{user?.email}</strong>
+            </>
+          }
+        />
       ) : (
-        <ul className="patient-list">
+        <ul className="app-stack">
           {patients.map((p) => (
             <li key={p.id}>
-              <Link to={`/paciente/${p.id}`} className="card row-link">
-                <strong>{displayName(p)}</strong>
-                <span className="muted small">{p.email}</span>
-              </Link>
+              <PersonRow as={Link} to={`/paciente/${p.id}`} name={displayName(p)} detail={p.email} trailing={<Icon name="chevron-right" style={{ color: 'var(--av-muted)' }} />} />
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </Screen>
   )
 }
