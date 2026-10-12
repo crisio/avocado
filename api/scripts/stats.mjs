@@ -6,7 +6,9 @@
  *   npm run stats -- --detalle    # además: quién se registró y sus últimas comidas (correos incluidos)
  *   npm run stats -- --local      # contra la base local de `wrangler dev`
  *
- * Necesita CLOUDFLARE_API_TOKEN y CLOUDFLARE_ACCOUNT_ID en el entorno (salvo con --local).
+ * Necesita CLOUDFLARE_ACCOUNT_ID (o --account <id>) y el token de Cloudflare: en CLOUDFLARE_API_TOKEN, o
+ * inyectado por el proxy de red (secretos de red de Claude Code: Bearer para api.cloudflare.com).
+ * Consulta la API REST de D1 con curl, que respeta HTTPS_PROXY. Con --local usa wrangler.
  * --detalle no corre en CI: los registros de Actions de este repo son públicos.
  */
 import { execFileSync } from 'node:child_process'
@@ -20,12 +22,49 @@ if (detail && process.env.CI) {
   process.exit(1)
 }
 
+const accountIdx = args.indexOf('--account')
+const accountId = accountIdx === -1 ? process.env.CLOUDFLARE_ACCOUNT_ID : args[accountIdx + 1]
+if (!local && !accountId) {
+  console.error('Falta CLOUDFLARE_ACCOUNT_ID (o --account <id>).')
+  process.exit(1)
+}
+
+/** Llama a la API de Cloudflare. Sin token en el entorno, el proxy de red agrega el encabezado Authorization. */
+function cloudflare(path, body) {
+  const curlArgs = ['-sS', '--fail-with-body', `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1${path}`]
+  if (process.env.CLOUDFLARE_API_TOKEN) curlArgs.push('-H', `Authorization: Bearer ${process.env.CLOUDFLARE_API_TOKEN}`)
+  if (body) curlArgs.push('-H', 'Content-Type: application/json', '--data-binary', '@-')
+  let out
+  try {
+    out = execFileSync('curl', curlArgs, { encoding: 'utf8', input: body ? JSON.stringify(body) : undefined })
+  } catch (err) {
+    console.error(`Cloudflare respondió con error en ${path}:\n${err.stdout || err.message}`)
+    process.exit(1)
+  }
+  const res = JSON.parse(out)
+  if (!res.success) {
+    console.error(`Cloudflare respondió con error en ${path}: ${JSON.stringify(res.errors)}`)
+    process.exit(1)
+  }
+  return res.result
+}
+
+let databaseId
 function query(sql) {
-  const out = execFileSync('npx', ['wrangler', 'd1', 'execute', 'DB', local ? '--local' : '--remote', '--json', '--command', sql], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'inherit'],
-  })
-  return JSON.parse(out)[0].results
+  if (local) {
+    const out = execFileSync('npx', ['wrangler', 'd1', 'execute', 'DB', '--local', '--json', '--command', sql], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'inherit'],
+    })
+    return JSON.parse(out)[0].results
+  }
+  // La base se llama "avocado" (wrangler.jsonc); su id lo asigna Cloudflare al crearla.
+  databaseId ??= cloudflare('/database?name=avocado').find((d) => d.name === 'avocado')?.uuid
+  if (!databaseId) {
+    console.error('No encontré la base de datos D1 "avocado" en esa cuenta.')
+    process.exit(1)
+  }
+  return cloudflare(`/database/${databaseId}/query`, { sql })[0].results
 }
 
 const ago = (span) => `strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '${span}')`
