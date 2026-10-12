@@ -19,6 +19,8 @@ export type IconName =
   | 'clock'
   | 'alert'
   | 'send'
+  | 'share'
+  | 'download'
 
 const PATHS: Record<IconName, ReactNode> = {
   camera: (
@@ -81,6 +83,13 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   send: <path d="M4.5 12L20 4.5 15 20l-3.2-6.3zM11.8 13.7L20 4.5" />,
+  share: (
+    <>
+      <path d="M12 3.5v11M8 7.5l4-4 4 4" />
+      <path d="M8.5 10.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6.5a2 2 0 0 0-2-2h-1.5" />
+    </>
+  ),
+  download: <path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14" />,
 }
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {

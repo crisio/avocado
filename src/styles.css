@@ -53,3 +53,36 @@ body {
 .app-banner:empty {
   display: none;
 }
+
+/* Invitación a instalar la app (InstallCard) */
+.install-card__head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.install-card__title {
+  font-family: var(--av-font-display);
+  font-size: 18px;
+  line-height: 1.2;
+}
+.install-card__lead,
+.install-card__note {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--av-muted);
+}
+.install-card__note {
+  margin: 0;
+}
+.install-card__steps {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 15px;
+}
+.install-card__steps .av-icon {
+  color: var(--av-accent);
+  vertical-align: -3px;
+}

@@ -310,6 +310,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .av-field__label {
@@ -336,6 +337,22 @@
 .av-field__control:focus {
   outline: 2px solid var(--av-accent);
   outline-offset: -1px;
+}
+
+/* iOS dibuja fecha/hora con un ancho propio que se sale del contenedor */
+input.av-field__control[type='date'],
+input.av-field__control[type='time'],
+input.av-field__control[type='datetime-local'] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
+}
+
+input.av-field__control::-webkit-date-and-time-value {
+  text-align: left;
 }
 
 textarea.av-field__control {

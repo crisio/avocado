@@ -1,6 +1,7 @@
 import { Screen, PageHeader } from '@avocado/ui'
 import { useAuth } from '../auth'
 import DayView from '../components/DayView'
+import InstallCard from '../components/InstallCard'
 import { firstName, formatLongDate } from '../lib/format'
 
 export default function Today() {
@@ -11,6 +12,7 @@ export default function Today() {
   return (
     <Screen withTabBar>
       <PageHeader eyebrow={formatLongDate(new Date())} title={name ? `Hola, ${name}` : 'Hola'} />
+      <InstallCard dismissible mobileOnly />
       <DayView userId={user.id} />
     </Screen>
   )

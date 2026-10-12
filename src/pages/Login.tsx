@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, type FormEvent } from 'react'
 import { Button, Card, CodeInput, Logo, Notice, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
+import InstallCard from '../components/InstallCard'
 import { api } from '../lib/api'
 import type { User } from '../lib/types'
 
@@ -109,6 +110,9 @@ export default function Login() {
           </p>
         </Card>
       )}
+
+      {/* Mejor instalar antes de entrar: en iPhone la app instalada no comparte la sesión de Safari. */}
+      {step === 'email' && <InstallCard dismissible mobileOnly />}
     </Screen>
   )
 }

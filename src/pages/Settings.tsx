@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Button, Card, Notice, PageHeader, PersonRow, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
+import InstallCard from '../components/InstallCard'
 import { api } from '../lib/api'
 import { useCachedApi } from '../lib/useCachedApi'
 import { displayName } from '../lib/format'
@@ -44,6 +45,8 @@ export default function Settings() {
       </Card>
 
       {user?.role === 'patient' && <MyNutritionists />}
+
+      <InstallCard />
 
       <Button variant="secondary" icon="logout" onClick={signOut}>
         Cerrar sesión

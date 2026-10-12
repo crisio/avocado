@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { EmptyState, Icon, PageHeader, PersonRow, Screen } from '@avocado/ui'
 import { useAuth } from '../auth'
+import InstallCard from '../components/InstallCard'
 import { useCachedApi } from '../lib/useCachedApi'
 import { displayName, firstName } from '../lib/format'
 import type { Person } from '../lib/types'
@@ -13,6 +14,7 @@ export default function Patients() {
   return (
     <Screen withTabBar>
       <PageHeader eyebrow={name ? `Hola, ${name}` : undefined} title="Pacientes" />
+      <InstallCard dismissible mobileOnly />
       {patients === null ? (
         <p className="av-text-muted">Cargando…</p>
       ) : patients.length === 0 ? (
