@@ -19,7 +19,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'apple-touch-icon-precomposed.png', 'icon-180-v3.png'],
+      includeAssets: ['favicon.ico', 'favicon-32x32.png', 'favicon.svg', 'apple-touch-icon.png', 'apple-touch-icon-precomposed.png', 'icon-180-v3.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         // Abrir la app sin internet: cualquier ruta sirve index.html del precache.
