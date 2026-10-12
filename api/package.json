@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
-    "bench": "node --experimental-strip-types scripts/bench-models.ts"
+    "bench": "node --experimental-strip-types scripts/bench-models.ts",
+    "stats": "node scripts/stats.mjs"
   },
   "dependencies": {
     "hono": "^4.13.13",

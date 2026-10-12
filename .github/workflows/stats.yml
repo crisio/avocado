@@ -1,7 +1,7 @@
 name: Estadísticas (usuarios y comidas)
 
-# Solo números agregados: el repo es público y estos registros también. Nada de correos ni nombres.
-# Para ver quién se registró: panel de Cloudflare → D1 → avocado → Console.
+# Solo números agregados (api/scripts/stats.mjs sin --detalle): el repo es público y estos registros también.
+# Para ver quién se registró: `npm run stats -- --detalle` con credenciales de Cloudflare, fuera de CI.
 on:
   workflow_dispatch:
 
@@ -24,47 +24,4 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          q() { npx wrangler d1 execute DB --remote --json --command "$1"; }
-          ago() { echo "strftime('%Y-%m-%dT%H:%M:%fZ','now','$1')"; }
-
-          q "SELECT
-               (SELECT COUNT(*) FROM users) AS usuarios,
-               (SELECT COUNT(*) FROM users WHERE role = 'patient') AS pacientes,
-               (SELECT COUNT(*) FROM users WHERE role = 'nutritionist') AS nutriologas,
-               (SELECT COUNT(*) FROM users WHERE role IS NULL) AS registro_sin_terminar,
-               (SELECT COUNT(*) FROM users WHERE created_at >= $(ago '-1 day')) AS nuevos_24h,
-               (SELECT COUNT(*) FROM users WHERE created_at >= $(ago '-7 days')) AS nuevos_7d,
-               (SELECT COUNT(*) FROM care_links) AS vinculos_nutriologa,
-               (SELECT COUNT(DISTINCT user_id) FROM meals WHERE created_at >= $(ago '-7 days')) AS activos_7d,
-               (SELECT COUNT(*) FROM meals) AS comidas,
-               (SELECT COUNT(*) FROM meals WHERE created_at >= $(ago '-1 day')) AS comidas_24h,
-               (SELECT COUNT(*) FROM meals WHERE status = 'analyzed') AS analizadas,
-               (SELECT COUNT(*) FROM meals WHERE status = 'pending') AS pendientes,
-               (SELECT COUNT(*) FROM meals WHERE status = 'error') AS con_error,
-               (SELECT COUNT(*) FROM meal_comments) AS comentarios" > totals.json
-
-          q "SELECT substr(created_at, 1, 10) AS dia, COUNT(*) AS nuevos
-             FROM users WHERE created_at >= $(ago '-14 days') GROUP BY dia ORDER BY dia" > per_day.json
-
-          # Últimos análisis: modelo usado o el inicio del error (sin datos de la persona)
-          q "SELECT substr(created_at, 1, 16) AS cuando, status,
-                    COALESCE(json_extract(analysis, '$.model'), substr(json_extract(analysis, '$.error'), 1, 120)) AS detalle
-             FROM meals WHERE status != 'pending' ORDER BY created_at DESC LIMIT 5" > recent.json
-
-          node -e '
-            const fs = require("fs")
-            const rows = (f) => JSON.parse(fs.readFileSync(f, "utf8"))[0].results
-            const table = (rs) => rs.length === 0 ? "_(nada)_\n" :
-              "| " + Object.keys(rs[0]).join(" | ") + " |\n|" + Object.keys(rs[0]).map(() => "---").join("|") + "|\n" +
-              rs.map((r) => "| " + Object.values(r).join(" | ") + " |").join("\n") + "\n"
-            const t = rows("totals.json")[0]
-            const md = [
-              "## Totales", "", "| Dato | Valor |", "|---|---|",
-              ...Object.entries(t).map(([k, v]) => `| ${k.replace(/_/g, " ")} | ${v} |`), "",
-              "## Registros por día (últimos 14 días, UTC)", "", table(rows("per_day.json")),
-              "## Últimos análisis", "", table(rows("recent.json")),
-            ].join("\n")
-            console.log(md)
-            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md)
-          '
+        run: npm run stats
