@@ -19,7 +19,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'apple-touch-icon-precomposed.png', 'icon-180-v2.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         // Abrir la app sin internet: cualquier ruta sirve index.html del precache.
@@ -53,8 +53,8 @@ export default defineConfig({
         start_url: base,
         scope: base,
         icons: [
-          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           { src: 'maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },

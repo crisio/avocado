@@ -10,7 +10,7 @@ export function Logo({ size = 72, withWordmark = false }: LogoProps) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: size * 0.22 }}>
       <svg width={size} height={size} viewBox="0 0 64 64" role="img" aria-label={withWordmark ? undefined : 'Avocado'} aria-hidden={withWordmark ? true : undefined}>
-        <rect width="64" height="64" rx="14" fill="#15803d" />
+        <rect width="64" height="64" rx="14" fill="#2f7a3a" />
         <g transform="rotate(22 32 32)">
           <g fill="#163414">
             <circle cx="32" cy="18" r="10" />
