@@ -32,6 +32,7 @@ export default function Layout({ role }: { role: Role }) {
         }
       >
         <TabBarItem as={NavLink} to="/" end icon={role === 'nutritionist' ? 'users' : 'home'} label={role === 'nutritionist' ? 'Pacientes' : 'Mi día'} />
+        {role === 'patient' && <TabBarItem as={NavLink} to="/semana" icon="calendar" label="Semana" />}
         <TabBarItem as={NavLink} to="/ajustes" icon="user" label="Perfil" />
       </TabBar>
     </>

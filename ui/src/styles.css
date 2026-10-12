@@ -476,6 +476,46 @@ textarea.av-field__control {
   text-align: center;
 }
 
+/* ── Segmented ────────────────────────── */
+.av-segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--av-surface-sunken);
+  border-radius: var(--av-radius-pill);
+}
+
+.av-segmented__option {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: var(--av-radius-pill);
+  background: transparent;
+  color: var(--av-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.av-segmented__option--active {
+  background: var(--av-surface);
+  color: var(--av-ink);
+  box-shadow: var(--av-shadow);
+}
+
+.av-segmented__option:focus-visible {
+  outline: 2px solid var(--av-accent);
+  outline-offset: 1px;
+}
+
+.av-segmented__option:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 /* ── CalorieBar ───────────────────────── */
 .av-calorie-bar {
   display: flex;

@@ -52,3 +52,38 @@ export function displayName(p: { full_name: string | null; email?: string } | nu
 }
 
 export const firstName = (name: string | null | undefined) => (name ?? '').trim().split(/\s+/)[0] ?? ''
+
+/** Lunes de la semana de `date` (las semanas empiezan en lunes). */
+export function startOfWeek(date: Date) {
+  const d = startOfDay(date)
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
+  return d
+}
+
+const dayMonthFmt = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long' })
+const shortDayMonthFmt = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short' })
+
+/** "6 – 12 de octubre", o "29 sept – 5 oct" si cruza de mes. */
+export function formatWeekRange(start: Date) {
+  const end = addDays(start, 6)
+  if (start.getMonth() === end.getMonth()) return `${start.getDate()} – ${dayMonthFmt.format(end)}`
+  return `${shortDayMonthFmt.format(start).replace('.', '')} – ${shortDayMonthFmt.format(end).replace('.', '')}`
+}
+
+/** "2026-10-12" en hora local (para ?dia= en la URL). */
+export function toDayParam(date: Date) {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+/** Lee ?dia=2026-10-12; un valor inválido o en el futuro se ignora. */
+export function fromDayParam(value: string | null) {
+  const m = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return undefined
+  const date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  if (Number.isNaN(date.getTime()) || date.getTime() > Date.now()) return undefined
+  return date
+}
+
+/** Números con separador de miles ("1,842"). */
+export const formatNumber = (n: number) => Math.round(n).toLocaleString('es-MX')

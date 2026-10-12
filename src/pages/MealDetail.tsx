@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, Chip, CommentBubble, EmptyState, IconButton, Notice, NutritionTable, Screen, TextField } from '@avocado/ui'
+import Portions from '../components/Portions'
 import { useAuth } from '../auth'
 import { api, type ApiError } from '../lib/api'
 import { useCachedApi } from '../lib/useCachedApi'
@@ -22,6 +23,9 @@ export default function MealDetail() {
   const { jobs, sending } = useOutbox()
   const [body, setBody] = useState('')
   const [retrying, setRetrying] = useState(false)
+  const [correction, setCorrection] = useState('')
+  const [correcting, setCorrecting] = useState(false)
+  const [correctError, setCorrectError] = useState<string | null>(null)
 
   // Comida que sigue en el teléfono (recién registrada o sin conexión)
   const job = jobs.find((j): j is MealJob => j.kind === 'meal' && j.id === id)
@@ -59,6 +63,22 @@ export default function MealDetail() {
       alert((err as Error).message)
     }
     setRetrying(false)
+  }
+
+  const applyMeal = (updated: Meal) => mutate((prev) => (prev ? { ...prev, ...updated } : prev))
+
+  async function correct(e: FormEvent) {
+    e.preventDefault()
+    if (!correction.trim()) return
+    setCorrecting(true)
+    setCorrectError(null)
+    try {
+      applyMeal(await api<Meal>(`/meals/${id}/correct`, { method: 'POST', json: { text: correction.trim() }, timeoutMs: 60_000 }))
+      setCorrection('')
+    } catch (err) {
+      setCorrectError((err as Error).message)
+    }
+    setCorrecting(false)
   }
 
   async function remove() {
@@ -166,11 +186,33 @@ export default function MealDetail() {
 
       {meal.status === 'analyzed' && a && (
         <Card padding="lg">
-          <NutritionTable
-            totals={{ calories: meal.calories ?? 0, protein_g: meal.protein_g ?? 0, carbs_g: meal.carbs_g ?? 0, fat_g: meal.fat_g ?? 0 }}
-            items={a.items}
-            note={`Estimación con IA${a.confidence ? ` (confianza ${Math.round(a.confidence * 100)} %)` : ''}. Puede tener errores.`}
+          {a.items?.length ? (
+            <Portions meal={meal} editable={isOwner && !job} online={online} onChange={applyMeal} />
+          ) : (
+            <NutritionTable
+              totals={{ calories: meal.calories ?? 0, protein_g: meal.protein_g ?? 0, carbs_g: meal.carbs_g ?? 0, fat_g: meal.fat_g ?? 0 }}
+              note={a.summary}
+            />
+          )}
+        </Card>
+      )}
+
+      {meal.status === 'analyzed' && a && isOwner && !job && (
+        <Card as="form" padding="lg" onSubmit={correct}>
+          <TextField
+            label="¿Algo no cuadra? Cuéntalo con tus palabras"
+            multiline
+            rows={2}
+            value={correction}
+            onChange={(e) => setCorrection(e.target.value)}
+            maxLength={1000}
+            placeholder="Ej. me dejé la mitad de la ensalada, solo probé un aderezo y me tomé todo el jugo"
+            hint="La IA ajusta los alimentos y las porciones; no vuelve a mandar la foto."
           />
+          {correctError && <Notice tone="error">{correctError}</Notice>}
+          <Button type="submit" variant="secondary" icon="refresh" loading={correcting} disabled={!correction.trim() || !online}>
+            {online ? 'Corregir' : 'Corregir (sin conexión)'}
+          </Button>
         </Card>
       )}
 

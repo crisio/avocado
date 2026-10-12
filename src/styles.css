@@ -86,3 +86,424 @@ body {
   color: var(--av-accent);
   vertical-align: -3px;
 }
+
+/* Solo para lectores de pantalla */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Porciones (detalle de comida) ───── */
+.portions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.portions__leftover {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--av-radius-sm);
+  background: var(--av-accent-soft);
+  color: var(--av-accent-strong);
+  font-size: 15px;
+}
+.portions__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.portions__item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--av-line);
+}
+.portions__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.portions__name {
+  font-weight: 600;
+  min-width: 0;
+}
+.portions__portion {
+  font-weight: 400;
+  color: var(--av-muted);
+}
+.portions__kcal {
+  flex-shrink: 0;
+  color: var(--av-muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.portions__hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--av-muted);
+}
+
+/* ── Resumen semanal ──────────────────── */
+/* Macros: paleta validada para daltonismo (ver skill dataviz); con etiquetas visibles por contraste. */
+:root {
+  --macro-protein: #2a78d6;
+  --macro-carbs: #eda100;
+  --macro-fat: #e87ba4;
+}
+
+.week-card-title {
+  font-size: 18px;
+}
+.week-card-sub,
+.week-card-foot {
+  margin: -8px 0 0;
+  font-size: 14px;
+}
+.week-card-foot {
+  margin: 0;
+  font-size: 13px;
+}
+
+.week-hero {
+  gap: 6px;
+}
+.week-hero__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--av-muted);
+}
+.week-hero__value {
+  font-size: 52px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.week-hero__unit {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--av-muted);
+}
+.week-hero__days {
+  font-size: 15px;
+}
+
+.week-dots {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.week-dot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.week-dot__mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--av-line);
+  background: var(--av-surface);
+}
+.week-dot--on .week-dot__mark {
+  border-color: var(--av-accent);
+  background: var(--av-accent);
+}
+.week-dot--future .week-dot__mark {
+  border-color: var(--av-surface-sunken);
+  background: var(--av-surface-sunken);
+}
+.week-dot__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--av-muted);
+}
+
+/* Columnas: una serie, sin leyenda; barras ≤ 24 px, punta redondeada de 4 px y base recta. */
+.week-readout {
+  margin: -4px 0 0;
+  min-height: 22px;
+  font-size: 15px;
+}
+.week-chart__plot {
+  position: relative;
+  height: 168px;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid var(--av-line);
+}
+.week-chart__col {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+}
+.week-chart__col:focus-visible {
+  outline: 2px solid var(--av-accent);
+  outline-offset: -2px;
+}
+.week-chart__col--focus {
+  background: var(--av-surface-sunken);
+}
+.week-chart__bar {
+  display: block;
+  width: min(24px, 60%);
+  min-height: 0;
+  background: var(--av-accent);
+  border-radius: 4px 4px 0 0;
+}
+.week-chart__col--focus .week-chart__bar {
+  background: var(--av-accent-strong);
+}
+.week-chart__value {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin-bottom: 4px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--av-ink);
+}
+.week-chart__avg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px solid var(--av-muted);
+  pointer-events: none;
+  z-index: 1;
+}
+.week-chart__avg span {
+  position: absolute;
+  right: 0;
+  bottom: 2px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--av-surface);
+  font-size: 11px;
+  color: var(--av-muted);
+}
+.week-chart__axis {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding-top: 6px;
+}
+.week-chart__day {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--av-muted);
+}
+.week-chart__day--future {
+  opacity: 0.5;
+}
+
+.week-days {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+.week-days__row {
+  display: grid;
+  grid-template-columns: 1fr auto auto 16px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--av-line);
+  color: inherit;
+  text-decoration: none;
+  font-size: 15px;
+}
+.week-days__name {
+  font-weight: 600;
+}
+.week-days__meta {
+  font-size: 13px;
+  color: var(--av-muted);
+}
+.week-days__kcal {
+  min-width: 80px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.week-macros {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.week-macros__cell dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--av-muted);
+}
+.week-macros__cell dd {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+.week-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.week-swatch--protein {
+  background: var(--macro-protein);
+}
+.week-swatch--carbs {
+  background: var(--macro-carbs);
+}
+.week-swatch--fat {
+  background: var(--macro-fat);
+}
+/* Barra 100 %: separación de 2 px en el color de la superficie entre segmentos. */
+.week-share {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.week-share__seg {
+  flex-basis: 0;
+  min-width: 4px;
+  height: 100%;
+  border-radius: 0;
+}
+.week-share__legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 14px;
+}
+.week-share__legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.week-foods {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.week-foods__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+}
+.week-foods__name {
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.week-foods__count {
+  font-size: 14px;
+  color: var(--av-muted);
+  font-variant-numeric: tabular-nums;
+}
+.week-foods__track {
+  grid-column: 1 / -1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--av-surface-sunken);
+}
+.week-foods__bar {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--av-accent);
+}
+
+.week-insights {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.week-insights li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 15px;
+}
+.week-insights__icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  background: var(--av-accent-soft);
+  color: var(--av-accent-strong);
+}
+
+.week-photos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.week-photos__item {
+  position: relative;
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--av-surface-sunken);
+}
+.week-photos__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.week-photos__kcal {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 8px;
+  border-radius: var(--av-radius-pill);
+  background: rgba(24, 34, 27, 0.72);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}

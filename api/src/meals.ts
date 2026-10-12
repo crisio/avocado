@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { AppEnv, Env } from './env'
 import { canSee } from './access'
-import { analyzePhoto } from './ai'
+import { analyzePhoto, correctAnalysis, fraction, withTotals, type Analysis } from './ai'
 import { fail } from './errors'
 import { signedPhotoUrl } from './photos'
 
@@ -45,17 +45,30 @@ async function getMeal(env: Env, id: string) {
   return env.DB.prepare('SELECT * FROM meals WHERE id = ?').bind(id).first<MealRow>()
 }
 
+/** Guarda un análisis; las columnas de calorías y macros son lo que se comió (no lo servido). */
+async function saveAnalysis(env: Env, mealId: string, analysis: Analysis) {
+  await env.DB.prepare(`UPDATE meals SET status = 'analyzed', analysis = ?, calories = ?, protein_g = ?, carbs_g = ?, fat_g = ? WHERE id = ?`)
+    .bind(JSON.stringify(analysis), analysis.total.calories, analysis.total.protein_g, analysis.total.carbs_g, analysis.total.fat_g, mealId)
+    .run()
+}
+
+/** Análisis guardado de una comida del dueño, listo para editar (los análisis viejos no traen "eaten" ni "served"). */
+async function ownAnalyzedMeal(env: Env, id: string, userId: string) {
+  const meal = await getMeal(env, id)
+  if (!meal || meal.user_id !== userId) fail(404, 'No encontramos esta comida')
+  if (meal.status !== 'analyzed' || !meal.analysis) fail(409, 'Esta comida todavía no tiene análisis')
+  const stored = JSON.parse(meal.analysis) as Analysis
+  const items = (stored.items ?? []).map((item) => ({ ...item, eaten: fraction(item.eaten) }))
+  return { meal, analysis: withTotals({ ...stored, items }) }
+}
+
 /** Corre el análisis y guarda el resultado (o el error) en la comida. */
 async function runAnalysis(env: Env, meal: MealRow) {
   try {
     const photo = await env.PHOTOS.get(meal.photo_key)
     if (!photo) throw new Error('No se encontró la foto')
     const result = await analyzePhoto(env, await photo.arrayBuffer(), photo.httpMetadata?.contentType ?? 'image/jpeg', meal.note)
-    await env.DB.prepare(
-      `UPDATE meals SET status = 'analyzed', analysis = ?, calories = ?, protein_g = ?, carbs_g = ?, fat_g = ? WHERE id = ?`,
-    )
-      .bind(JSON.stringify(result), result.total.calories, result.total.protein_g, result.total.carbs_g, result.total.fat_g, meal.id)
-      .run()
+    await saveAnalysis(env, meal.id, result)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error('analyze', meal.id, message)
@@ -152,6 +165,39 @@ mealRoutes.post('/:id/analyze', async (c) => {
 
   const updated = await getMeal(c.env, meal.id)
   return c.json(await toMeal(c.env, new URL(c.req.url).origin, updated!))
+})
+
+// Cuánto se comió de cada alimento: { eaten: [1, 0.5, 0, …] } en el orden de los alimentos (solo el dueño).
+mealRoutes.patch('/:id/portions', async (c) => {
+  const { meal, analysis } = await ownAnalyzedMeal(c.env, c.req.param('id'), c.var.user.id)
+  const { eaten } = await c.req.json<{ eaten?: unknown }>().catch(() => ({ eaten: undefined }))
+  const valid =
+    Array.isArray(eaten) &&
+    eaten.length === analysis.items.length &&
+    eaten.every((v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1)
+  if (!valid) fail(400, 'Porciones inválidas: manda una fracción entre 0 y 1 por cada alimento')
+
+  const updated = withTotals({ ...analysis, items: analysis.items.map((item, i) => ({ ...item, eaten: fraction(eaten[i]) })) })
+  await saveAnalysis(c.env, meal.id, updated)
+  return c.json(await toMeal(c.env, new URL(c.req.url).origin, (await getMeal(c.env, meal.id))!))
+})
+
+// Corrección en palabras del paciente ("me dejé la mitad de la ensalada…"): la IA ajusta el análisis sin volver a ver la foto.
+mealRoutes.post('/:id/correct', async (c) => {
+  const { meal, analysis } = await ownAnalyzedMeal(c.env, c.req.param('id'), c.var.user.id)
+  const { text } = await c.req.json<{ text?: unknown }>().catch(() => ({ text: undefined }))
+  const correction = String(text ?? '').trim()
+  if (!correction || correction.length > 1000) fail(400, 'Cuéntanos qué cambió (máximo 1000 caracteres)')
+
+  let updated: Analysis
+  try {
+    updated = await correctAnalysis(c.env, analysis, correction, meal.note)
+  } catch (err) {
+    console.error('correct', meal.id, err instanceof Error ? err.message : err)
+    fail(502, 'No se pudo corregir con la IA. Intenta de nuevo en un momento.')
+  }
+  await saveAnalysis(c.env, meal.id, updated)
+  return c.json(await toMeal(c.env, new URL(c.req.url).origin, (await getMeal(c.env, meal.id))!))
 })
 
 mealRoutes.delete('/:id', async (c) => {

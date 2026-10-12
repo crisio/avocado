@@ -16,11 +16,20 @@ export interface AnalysisItem {
   protein_g: number
   carbs_g: number
   fat_g: number
+  /** Fracción que se comió (1 = todo). Los análisis viejos no la traen: cuenta como 1. */
+  eaten?: number
 }
+
+export type Totals = { calories: number; protein_g: number; carbs_g: number; fat_g: number }
 
 export interface Analysis {
   items?: AnalysisItem[]
-  total?: { calories: number; protein_g: number; carbs_g: number; fat_g: number }
+  /** Lo que se comió. */
+  total?: Totals
+  /** Lo que se sirvió (sin restar lo que sobró). */
+  served?: Totals
+  /** Última corrección del paciente ("me dejé la mitad…"). */
+  correction?: string
   meal_type?: string
   summary?: string
   confidence?: number

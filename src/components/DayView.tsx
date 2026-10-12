@@ -10,8 +10,8 @@ import { mealDetail, mealKind, mealKindLabel, mealMeta, mealTitle } from '../lib
 import type { Meal } from '../lib/types'
 
 /** Comidas de un usuario en un día: resumen de calorías y macros, y la lista con indicaciones. */
-export default function DayView({ userId, emptyAction }: { userId: string; emptyAction?: React.ReactNode }) {
-  const [day, setDay] = useState(() => startOfDay(new Date()))
+export default function DayView({ userId, emptyAction, initialDay }: { userId: string; emptyAction?: React.ReactNode; initialDay?: Date }) {
+  const [day, setDay] = useState(() => startOfDay(initialDay ?? new Date()))
   const next = addDays(day, 1)
   const { data: serverMeals, error } = useCachedApi<Meal[]>(`/meals?user_id=${userId}&from=${day.toISOString()}&to=${next.toISOString()}`, 20_000)
   const online = useOnline()

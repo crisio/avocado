@@ -3,19 +3,33 @@ import type { Env } from './env'
 // Analiza la foto de una comida con un modelo de visión vía OpenRouter.
 // Modelo: ver AI_MODELS en wrangler.jsonc (elegido por precisión en fotos de comida, velocidad y costo).
 
-export const SYSTEM_PROMPT = `Eres un asistente de nutrición. Te paso la foto de una comida (y a veces una nota del paciente).
-Identifica cada alimento visible, estima la porción en gramos y calcula calorías y macronutrientes.
-Si la nota del paciente contradice la foto, confía en la nota para ingredientes que no se ven (aceite, azúcar, etc.).
-Responde SOLO con un objeto JSON válido, sin texto adicional, con esta forma exacta:
+const ANSWER_FORMAT = `Responde SOLO con un objeto JSON válido, sin texto adicional, con esta forma exacta:
 {
-  "items": [{ "name": string, "portion_g": number, "calories": number, "protein_g": number, "carbs_g": number, "fat_g": number }],
+  "items": [{ "name": string, "portion_g": number, "calories": number, "protein_g": number, "carbs_g": number, "fat_g": number, "eaten": number }],
   "total": { "calories": number, "protein_g": number, "carbs_g": number, "fat_g": number },
   "meal_type": "desayuno" | "comida" | "cena" | "snack" | "bebida",
   "summary": string,
   "confidence": number
 }
-"summary" es una frase corta en español describiendo el plato. "confidence" va de 0 a 1.
+Cada alimento lleva los valores de la porción COMPLETA servida; "eaten" es la fracción que se comió (1 = todo, 0.5 = la mitad, 0 = nada).
+"total" es la suma de lo que se comió (cada alimento multiplicado por su "eaten").
+"summary" es una frase corta en español describiendo el plato. "confidence" va de 0 a 1.`
+
+export const SYSTEM_PROMPT = `Eres un asistente de nutrición. Te paso la foto de una comida (y a veces una nota del paciente).
+Identifica cada alimento visible, estima la porción en gramos y calcula calorías y macronutrientes.
+Si la nota del paciente contradice la foto, confía en la nota para ingredientes que no se ven (aceite, azúcar, etc.).
+Usa "eaten" = 1 salvo que la nota diga que no se comió todo (p. ej. "me dejé la mitad del arroz" → eaten 0.5 en el arroz).
+${ANSWER_FORMAT}
 Si la foto no muestra comida, regresa "items": [] y explica en "summary".`
+
+export const CORRECTION_PROMPT = `Eres un asistente de nutrición. Te paso el análisis de una comida (JSON) y una corrección del paciente.
+Devuelve el análisis corregido:
+- Si dice que no se comió algo completo, ajusta "eaten" de ese alimento (0 a 1) y deja su porción servida igual.
+- Si dice que un alimento era otro o que la porción era distinta, corrige nombre, porción y nutrientes.
+- Si menciona algo que comió y no está en la lista, agrégalo con su porción estimada.
+- Si dice que la foto era de lo que sobró, estima lo que había y lo que se comió según lo que cuente.
+- No cambies los alimentos que no menciona.
+${ANSWER_FORMAT}`
 
 export interface Item {
   name: string
@@ -24,15 +38,24 @@ export interface Item {
   protein_g: number
   carbs_g: number
   fat_g: number
+  /** Fracción que se comió: 1 = todo, 0 = nada. */
+  eaten: number
 }
+
+type Totals = { calories: number; protein_g: number; carbs_g: number; fat_g: number }
 
 export interface Analysis {
   items: Item[]
-  total: { calories: number; protein_g: number; carbs_g: number; fat_g: number }
+  /** Lo que se comió (cada alimento × eaten). */
+  total: Totals
+  /** Lo que se sirvió (todos los alimentos completos). Igual a total si se comió todo. */
+  served: Totals
   meal_type: string
   summary: string
   confidence: number
   model: string
+  /** Última corrección del paciente, si la hubo. */
+  correction?: string
 }
 
 function toBase64(buf: ArrayBuffer) {
@@ -45,6 +68,30 @@ function toBase64(buf: ArrayBuffer) {
 const num = (v: unknown) => {
   const n = typeof v === 'number' ? v : Number(v)
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 10) / 10 : 0
+}
+
+/** Fracción entre 0 y 1; si falta o no es número, se asume que se comió todo. */
+export const fraction = (v: unknown) => {
+  const n = typeof v === 'number' ? v : Number(v)
+  return Number.isFinite(n) ? Math.min(1, Math.max(0, Math.round(n * 100) / 100)) : 1
+}
+
+const KEYS = ['calories', 'protein_g', 'carbs_g', 'fat_g'] as const
+
+function sumItems(items: Item[], useEaten: boolean): Totals {
+  const t = { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 }
+  for (const item of items) for (const k of KEYS) t[k] += item[k] * (useEaten ? fraction(item.eaten) : 1)
+  for (const k of KEYS) t[k] = num(t[k])
+  return t
+}
+
+/** Recalcula lo servido y lo comido a partir de los alimentos (se usa al cambiar porciones). */
+export function withTotals<T extends { items: Item[]; total?: Totals; served?: Totals }>(analysis: T): T & { total: Totals; served: Totals } {
+  if (analysis.items.length === 0) {
+    const total = analysis.total ?? { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 }
+    return { ...analysis, total, served: total }
+  }
+  return { ...analysis, total: sumItems(analysis.items, true), served: sumItems(analysis.items, false) }
 }
 
 // Los modelos a veces envuelven el JSON en ```json ... ``` o agregan texto; nos quedamos con el objeto.
@@ -62,24 +109,20 @@ export function parseAnalysis(text: string, model: string): Analysis {
         protein_g: num(i.protein_g),
         carbs_g: num(i.carbs_g),
         fat_g: num(i.fat_g),
+        eaten: fraction(i.eaten),
       }))
     : []
-  const sum = (k: keyof Omit<Item, 'name'>) => num(items.reduce((acc, i) => acc + i[k], 0))
   const t = raw.total ?? {}
 
-  return {
+  // Con alimentos, los totales salen de ellos (así la tabla siempre cuadra); sin alimentos, los del modelo.
+  return withTotals({
     items,
-    total: {
-      calories: num(t.calories) || sum('calories'),
-      protein_g: num(t.protein_g) || sum('protein_g'),
-      carbs_g: num(t.carbs_g) || sum('carbs_g'),
-      fat_g: num(t.fat_g) || sum('fat_g'),
-    },
+    total: { calories: num(t.calories), protein_g: num(t.protein_g), carbs_g: num(t.carbs_g), fat_g: num(t.fat_g) },
     meal_type: String(raw.meal_type ?? 'comida'),
     summary: String(raw.summary ?? ''),
     confidence: Math.min(1, num(raw.confidence)),
     model,
-  }
+  })
 }
 
 // Forma exacta que pedimos (structured outputs). Si un modelo de respaldo no la respeta, parseAnalysis la tolera igual.
@@ -99,8 +142,8 @@ const ANALYSIS_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['name', 'portion_g', 'calories', 'protein_g', 'carbs_g', 'fat_g'],
-        properties: { name: { type: 'string' }, portion_g: { type: 'number' }, ...nutrients },
+        required: ['name', 'portion_g', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'eaten'],
+        properties: { name: { type: 'string' }, portion_g: { type: 'number' }, ...nutrients, eaten: { type: 'number' } },
       },
     },
     total: { type: 'object', additionalProperties: false, required: ['calories', 'protein_g', 'carbs_g', 'fat_g'], properties: nutrients },
@@ -127,14 +170,14 @@ export function modelList(env: Env) {
     .filter(Boolean)
 }
 
-export async function analyzePhoto(env: Env, photo: ArrayBuffer, contentType: string, note: string | null): Promise<Analysis> {
+/** Una llamada a OpenRouter con nuestras opciones; regresa el análisis ya validado. */
+async function complete(env: Env, messages: unknown[]): Promise<Analysis> {
   const apiKey = env.OPENROUTER_API_KEY
   const models = modelList(env)
   if (!apiKey) throw new Error('Falta el secreto OPENROUTER_API_KEY')
   if (models.length === 0) throw new Error('Falta la variable AI_MODELS')
   const [model, ...fallbacks] = models
 
-  const dataUrl = `data:${contentType};base64,${toBase64(photo)}`
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -142,21 +185,7 @@ export async function analyzePhoto(env: Env, photo: ArrayBuffer, contentType: st
       'Content-Type': 'application/json',
       'X-Title': 'Avocado',
     },
-    body: JSON.stringify({
-      model,
-      ...(fallbacks.length ? { models } : {}),
-      ...REQUEST_OPTIONS,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: note ? `Nota del paciente: ${note}` : 'Analiza esta comida.' },
-            { type: 'image_url', image_url: { url: dataUrl } },
-          ],
-        },
-      ],
-    }),
+    body: JSON.stringify({ model, ...(fallbacks.length ? { models } : {}), ...REQUEST_OPTIONS, messages }),
   })
 
   if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`)
@@ -164,4 +193,37 @@ export async function analyzePhoto(env: Env, photo: ArrayBuffer, contentType: st
   const text = body.choices?.[0]?.message?.content
   if (!text) throw new Error('OpenRouter no regresó contenido')
   return parseAnalysis(text, body.model ?? model)
+}
+
+export function analyzePhoto(env: Env, photo: ArrayBuffer, contentType: string, note: string | null): Promise<Analysis> {
+  return complete(env, [
+    { role: 'system', content: SYSTEM_PROMPT },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: note ? `Nota del paciente: ${note}` : 'Analiza esta comida.' },
+        { type: 'image_url', image_url: { url: `data:${contentType};base64,${toBase64(photo)}` } },
+      ],
+    },
+  ])
+}
+
+/** Corrige un análisis con lo que cuenta el paciente ("me dejé la mitad…"). Solo texto: no vuelve a mandar la foto. */
+export async function correctAnalysis(env: Env, previous: Analysis, correction: string, note: string | null): Promise<Analysis> {
+  const { items, meal_type, summary } = previous
+  const result = await complete(env, [
+    { role: 'system', content: CORRECTION_PROMPT },
+    {
+      role: 'user',
+      content: [
+        `Análisis actual: ${JSON.stringify({ items, meal_type, summary })}`,
+        note ? `Nota que el paciente escribió al registrar la comida: ${note}` : null,
+        `Corrección del paciente: ${correction}`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    },
+  ])
+  // La confianza de la foto se conserva: la corrección no la vuelve a ver.
+  return { ...result, confidence: previous.confidence || result.confidence, correction }
 }

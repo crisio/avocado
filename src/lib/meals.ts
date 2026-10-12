@@ -28,7 +28,15 @@ export function mealMeta(meal: Meal) {
   return `${formatTime(meal.eaten_at)} · ${mealKindLabel(mealKind(meal))}`
 }
 
+/** Calorías que se sirvieron, si no se comió todo (null si se comió completo). */
+export function servedCalories(meal: Meal) {
+  const served = meal.analysis?.served?.calories
+  return served !== undefined && served - (meal.calories ?? 0) >= 1 ? served : null
+}
+
 export function mealDetail(meal: Meal) {
   if (meal.status !== 'analyzed') return undefined
-  return `${kcal(meal.calories)} · ${Math.round(meal.protein_g ?? 0)} g proteína`
+  const served = servedCalories(meal)
+  const eaten = served === null ? kcal(meal.calories) : `${Math.round(meal.calories ?? 0)} de ${kcal(served)}`
+  return `${eaten} · ${Math.round(meal.protein_g ?? 0)} g proteína`
 }

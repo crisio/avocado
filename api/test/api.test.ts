@@ -283,6 +283,94 @@ describe('cola sin conexión', () => {
   })
 })
 
+describe('cuánto se comió', () => {
+  const twoItems = (extra = '') =>
+    Response.json({
+      model: 'test/vision-model',
+      choices: [
+        {
+          message: {
+            content: `{"items":[{"name":"Lechuga","portion_g":100,"calories":20,"protein_g":1,"carbs_g":4,"fat_g":0${extra}},{"name":"Pollo","portion_g":120,"calories":200,"protein_g":36,"carbs_g":0,"fat_g":6${extra}}],"meal_type":"comida","summary":"Ensalada con pollo","confidence":0.8}`,
+          },
+        },
+      ],
+    })
+
+  async function analyzedMeal(email: string) {
+    const token = await login(email, { full_name: 'Porciones', role: 'patient' })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(twoItems())
+    const meal = (await call('/meals', { method: 'POST', token, body: photoForm({ analyze: '1' }) })).data
+    vi.restoreAllMocks()
+    return { token, id: meal.id as string }
+  }
+
+  it('ajusta las porciones y recalcula lo comido sin perder lo servido', async () => {
+    const { token, id } = await analyzedMeal('porcion@gmail.com')
+    const before = await call(`/meals/${id}`, { token })
+    expect(before.data).toMatchObject({ calories: 220, protein_g: 37 })
+    expect(before.data.analysis.items.map((i: any) => i.eaten)).toEqual([1, 1])
+
+    const res = await call(`/meals/${id}/portions`, { method: 'PATCH', token, json: { eaten: [0.5, 1] } })
+    expect(res.status).toBe(200)
+    expect(res.data).toMatchObject({ calories: 210, protein_g: 36.5, carbs_g: 2 })
+    expect(res.data.analysis.served).toMatchObject({ calories: 220, protein_g: 37 })
+    expect(res.data.analysis.items[0].eaten).toBe(0.5)
+
+    // El total del día usa lo comido
+    const day = await call(`/meals?from=2000-01-01T00:00:00Z&to=2100-01-01T00:00:00Z`, { token })
+    expect(day.data.find((m: any) => m.id === id).calories).toBe(210)
+  })
+
+  it('rechaza porciones inválidas y a quien no es dueño', async () => {
+    const { token, id } = await analyzedMeal('porcion2@gmail.com')
+    const other = await login('otro-porcion@gmail.com', { full_name: 'Otro', role: 'patient' })
+    expect((await call(`/meals/${id}/portions`, { method: 'PATCH', token, json: { eaten: [1] } })).status).toBe(400)
+    expect((await call(`/meals/${id}/portions`, { method: 'PATCH', token, json: { eaten: [1, 2] } })).status).toBe(400)
+    expect((await call(`/meals/${id}/portions`, { method: 'PATCH', token, json: { eaten: ['1', 1] } })).status).toBe(400)
+    expect((await call(`/meals/${id}/portions`, { method: 'PATCH', token: other, json: { eaten: [1, 1] } })).status).toBe(404)
+
+    const pending = (await call('/meals', { method: 'POST', token, body: photoForm() })).data
+    expect((await call(`/meals/${pending.id}/portions`, { method: 'PATCH', token, json: { eaten: [] } })).status).toBe(409)
+  })
+
+  it('corrige con las palabras del paciente sin volver a mandar la foto', async () => {
+    const { token, id } = await analyzedMeal('corrige@gmail.com')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json({
+        model: 'test/vision-model',
+        choices: [
+          {
+            message: {
+              content:
+                '{"items":[{"name":"Lechuga","portion_g":100,"calories":20,"protein_g":1,"carbs_g":4,"fat_g":0,"eaten":0.5},{"name":"Pollo","portion_g":120,"calories":200,"protein_g":36,"carbs_g":0,"fat_g":6,"eaten":1},{"name":"Jugo de naranja","portion_g":250,"calories":110,"protein_g":2,"carbs_g":26,"fat_g":0,"eaten":1}],"meal_type":"comida","summary":"Ensalada con pollo y jugo","confidence":0.5}',
+            },
+          },
+        ],
+      }),
+    )
+    const text = 'me dejé la mitad de la lechuga y me tomé un jugo de naranja'
+    const res = await call(`/meals/${id}/correct`, { method: 'POST', token, json: { text } })
+    expect(res.status).toBe(200)
+    expect(res.data).toMatchObject({ calories: 320 })
+    expect(res.data.analysis).toMatchObject({ correction: text, confidence: 0.8 })
+    expect(res.data.analysis.served.calories).toBe(330)
+
+    const sent = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit).body))
+    expect(JSON.stringify(sent.messages)).toContain(text)
+    expect(JSON.stringify(sent.messages)).not.toContain('image_url')
+  })
+
+  it('valida la corrección y avisa si la IA falla', async () => {
+    const { token, id } = await analyzedMeal('corrige2@gmail.com')
+    expect((await call(`/meals/${id}/correct`, { method: 'POST', token, json: { text: '  ' } })).status).toBe(400)
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('caído', { status: 503 }))
+    const res = await call(`/meals/${id}/correct`, { method: 'POST', token, json: { text: 'me comí todo' } })
+    expect(res.status).toBe(502)
+    // El análisis anterior queda igual
+    expect((await call(`/meals/${id}`, { token })).data.calories).toBe(220)
+  })
+})
+
 describe('CORS', () => {
   it('permite la app y bloquea otros orígenes', async () => {
     const ok = await app.fetch(
