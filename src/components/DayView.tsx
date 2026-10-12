@@ -1,7 +1,9 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CalorieBar, Chip, CommentBubble, DayNav, EmptyState, MacroChips, MealCard } from '@avocado/ui'
 import { useCachedApi } from '../lib/useCachedApi'
+import { useAuth } from '../auth'
+import { watchMeal, type MealState } from '../lib/mascot'
 import { useOutbox, type MealJob } from '../lib/outbox'
 import { jobToMeal, usePhotoUrls } from '../lib/localMeals'
 import { useOnline } from '../lib/useOnline'
@@ -10,12 +12,22 @@ import { mealDetail, mealKind, mealKindLabel, mealMeta, mealTitle } from '../lib
 import type { Meal } from '../lib/types'
 
 /** Comidas de un usuario en un día: resumen de calorías y macros, y la lista con indicaciones. */
-export default function DayView({ userId, emptyAction }: { userId: string; emptyAction?: React.ReactNode }) {
+export default function DayView({
+  userId,
+  emptyAction,
+  onAnalyzing,
+}: {
+  userId: string
+  emptyAction?: React.ReactNode
+  /** Cuántas comidas propias de este día siguen en cola o analizándose (para la mascota). */
+  onAnalyzing?: (count: number) => void
+}) {
+  const { user } = useAuth()
   // El día vive en la URL (?dia=2026-10-12) para poder enlazarlo desde la semana; sin él, es hoy.
   const [params, setParams] = useSearchParams()
   const day = startOfDay(fromDayParam(params.get('dia')) ?? new Date())
   const next = addDays(day, 1)
-  const { data: serverMeals, error } = useCachedApi<Meal[]>(`/meals?user_id=${userId}&from=${day.toISOString()}&to=${next.toISOString()}`, 20_000)
+  const { data: serverMeals, error, fresh } = useCachedApi<Meal[]>(`/meals?user_id=${userId}&from=${day.toISOString()}&to=${next.toISOString()}`, 20_000)
   const online = useOnline()
   const { jobs, sending } = useOutbox()
 
@@ -37,6 +49,24 @@ export default function DayView({ userId, emptyAction }: { userId: string; empty
       : [...(serverMeals ?? []).filter((m) => !queuedIds.has(m.id)), ...queued.map((j) => jobToMeal(j, photoUrls.get(j.id)!))].sort((a, b) =>
           a.eaten_at.localeCompare(b.eaten_at),
         )
+
+  // Avo celebra cuando una de tus comidas termina de analizarse (o avisa si falló). Solo cuentan estados vivos:
+  // los de la cola del teléfono y los que acaban de llegar de la red (lo guardado en caché puede ser viejo).
+  const own = user?.id === userId
+  const states = (meals ?? []).map((m) => {
+    const job = queued.find((j) => j.id === m.id)
+    const state: MealState = job ? (job.error ? 'failed' : 'queued') : m.status
+    return { id: m.id, state, calories: m.calories, live: !!job || fresh }
+  })
+  const statesKey = states.map((s) => `${s.id}:${s.state}:${s.live}`).join()
+  const analyzing = states.filter((s) => s.state === 'queued' || s.state === 'pending').length
+  useEffect(() => {
+    if (own) for (const s of states) if (s.live) watchMeal(s.id, s.state, s.calories)
+  }, [own, statesKey])
+  useEffect(() => {
+    onAnalyzing?.(own ? analyzing : 0)
+  }, [own, analyzing])
+  useEffect(() => () => onAnalyzing?.(0), [])
 
   function goTo(nextDay: Date) {
     const today = startOfDay(new Date()).getTime() === startOfDay(nextDay).getTime()

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, IconButton, Notice, PageHeader, PhotoPicker, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
 import { compressImage } from '../lib/image'
+import { cheer } from '../lib/mascot'
 import { enqueueMeal } from '../lib/outbox'
 import { toLocalInput } from '../lib/format'
 import { useOnline } from '../lib/useOnline'
@@ -39,9 +40,11 @@ export default function AddMeal() {
         eaten_at: new Date(eatenAt).toISOString(),
         note: note.trim() || null,
       })
+      cheer('eat', online ? '¡Buen provecho!' : 'La guardo y la analizo al volver la señal', { interrupt: true })
       navigate(`/comida/${job.id}`, { replace: true })
     } catch (err) {
       setError((err as Error).message)
+      cheer('oops', 'No pude guardar la foto', { interrupt: true })
       setBusy(false)
     }
   }
@@ -53,7 +56,13 @@ export default function AddMeal() {
       </div>
       <PageHeader title="Registrar comida" compact />
       <form className="app-stack" style={{ gap: 18 }} onSubmit={onSubmit}>
-        <PhotoPicker previewUrl={preview} onSelect={setFile} />
+        <PhotoPicker
+          previewUrl={preview}
+          onSelect={(f) => {
+            setFile(f)
+            cheer('love', '¡Qué rico se ve!', { interrupt: true })
+          }}
+        />
         <TextField label="¿Cuándo comiste?" type="datetime-local" value={eatenAt} onChange={(e) => setEatenAt(e.target.value)} required />
         <TextField
           label="Nota (opcional)"

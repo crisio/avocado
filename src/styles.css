@@ -516,3 +516,179 @@ body {
   width: 18px;
   border-top: 1px solid var(--av-muted);
 }
+
+/* Avo, la mascota (components/Mascot.tsx): tiras de 4 cuadros en public/mascot/ */
+.mascot {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.mascot--button {
+  cursor: pointer;
+  border-radius: 50%;
+  touch-action: manipulation;
+  transition: transform 120ms ease-out;
+}
+.mascot--button:active {
+  transform: scale(0.93);
+}
+.mascot--button:focus-visible {
+  outline: 3px solid var(--av-accent);
+  outline-offset: 2px;
+}
+.mascot__lift,
+.mascot__sprite {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.mascot__lift {
+  transition: transform 180ms cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+.mascot__sprite {
+  background-repeat: no-repeat;
+  background-size: 400% 100%;
+  transform-origin: 50% 92%;
+}
+.mascot__sprite--breathe {
+  animation: mascot-breathe 3.2s ease-in-out infinite;
+}
+@keyframes mascot-breathe {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.025, 0.975);
+  }
+}
+
+/* Globo de texto */
+.mascot__bubble {
+  position: absolute;
+  z-index: 2;
+  width: max-content;
+  max-width: 190px;
+  padding: 8px 12px;
+  border: 1px solid var(--av-line);
+  border-radius: 16px;
+  background: var(--av-surface);
+  box-shadow: var(--av-shadow);
+  color: var(--av-ink);
+  font: 600 14px/1.25 var(--av-font-body);
+  text-align: left;
+  pointer-events: none;
+  animation: mascot-pop 260ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+.mascot__bubble::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: inherit;
+  border: 1px solid var(--av-line);
+  border-width: 1px 1px 0 0;
+}
+.mascot__bubble--left {
+  right: 88%;
+  top: 6%;
+  transform-origin: right center;
+}
+.mascot__bubble--left::after {
+  right: -6px;
+  top: 12px;
+  transform: rotate(45deg);
+}
+.mascot__bubble--right {
+  left: 88%;
+  top: 6%;
+  transform-origin: left center;
+}
+.mascot__bubble--right::after {
+  left: -6px;
+  top: 12px;
+  transform: rotate(-135deg);
+}
+.mascot__bubble--top {
+  bottom: 94%;
+  left: 50%;
+  translate: -50% 0;
+  text-align: center;
+  transform-origin: bottom center;
+}
+.mascot__bubble--top::after {
+  bottom: -6px;
+  left: calc(50% - 5px);
+  transform: rotate(135deg);
+}
+@keyframes mascot-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* La flotante, sobre la barra de pestañas (bottom lo pone el componente) */
+.mascot-dock {
+  position: fixed;
+  z-index: 20;
+  right: max(12px, calc((100vw - 560px) / 2 + 12px));
+  pointer-events: none;
+  animation: mascot-dock-in 320ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+@keyframes mascot-dock-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.7);
+  }
+}
+.mascot-dock--leaving {
+  animation: mascot-dock-out 200ms ease-in both;
+}
+@keyframes mascot-dock-out {
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.85);
+  }
+}
+
+/* Mientras la IA analiza (detalle de la comida); el aviso puede ser largo y bajar de renglón */
+.mascot-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mascot-status .av-chip {
+  min-width: 0;
+  white-space: normal;
+}
+
+/* Mascota centrada arriba (entrada y bienvenida), con espacio para el globo encima */
+.mascot-hero {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 44px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot__sprite--breathe,
+  .mascot__bubble,
+  .mascot-dock,
+  .mascot-dock--leaving {
+    animation: none;
+  }
+  .mascot__lift,
+  .mascot--button {
+    transition: none;
+  }
+}

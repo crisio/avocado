@@ -1,6 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Button, Card, Notice, PageHeader, RadioCard, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
+import { Mascot } from '../components/Mascot'
+import { cheer, greetOnce } from '../lib/mascot'
 import { api } from '../lib/api'
 import type { Role, User } from '../lib/types'
 
@@ -12,6 +14,11 @@ export default function Onboarding() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    const t = setTimeout(() => greetOnce('onboarding', () => cheer('wave', '¡Hola! Soy Avo, te acompaño en cada comida')), 600)
+    return () => clearTimeout(t)
+  }, [])
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
@@ -19,12 +26,16 @@ export default function Onboarding() {
       setUser(await api<User>('/me', { method: 'PATCH', json: { full_name: fullName, role } }))
     } catch (err) {
       setError((err as Error).message)
+      cheer('oops', 'Algo falló', { interrupt: true })
       setBusy(false)
     }
   }
 
   return (
     <Screen narrow>
+      <div className="mascot-hero">
+        <Mascot size={104} reactive interactive bubble="top" />
+      </div>
       <PageHeader eyebrow={user?.email} title="¡Bienvenida/o!" />
       <Card as="form" padding="lg" onSubmit={onSubmit}>
         <TextField label="¿Cómo te llamas?" value={fullName} onChange={(e) => setFullName(e.target.value)} required autoComplete="name" autoFocus />

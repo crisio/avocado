@@ -10,9 +10,10 @@ import { isOnline, onConnectivityChange } from './useOnline'
  * a pedir cada `intervalMs` (solo con la app visible y con red), y cuando la cola termina un envío.
  */
 export function useCachedApi<T>(path: string | null, intervalMs: number) {
-  const [state, setState] = useState(() => ({ path, data: path ? readCache<T>(path) : undefined, error: null as Error | null }))
+  // fresh: el dato ya llegó de la red en esta visita (false mientras solo hay lo guardado en caché).
+  const [state, setState] = useState(() => ({ path, data: path ? readCache<T>(path) : undefined, error: null as Error | null, fresh: false }))
   // Al cambiar de ruta (otro día, otra comida) se muestra de inmediato lo que haya en caché para ella.
-  const current = state.path === path ? state : { path, data: path ? readCache<T>(path) : undefined, error: null }
+  const current = state.path === path ? state : { path, data: path ? readCache<T>(path) : undefined, error: null, fresh: false }
   if (current !== state) setState(current)
 
   const pathRef = useRef(path)
@@ -24,7 +25,7 @@ export function useCachedApi<T>(path: string | null, intervalMs: number) {
     return api<T>(p)
       .then((data) => {
         writeCache(p, data)
-        if (pathRef.current === p) setState({ path: p, data, error: null })
+        if (pathRef.current === p) setState({ path: p, data, error: null, fresh: true })
       })
       .catch((error: Error) => {
         if (pathRef.current === p) setState((s) => ({ ...s, error }))
@@ -41,8 +42,8 @@ export function useCachedApi<T>(path: string | null, intervalMs: number) {
     setState((s) => {
       const data = fn(s.data)
       if (s.path && data !== undefined) writeCache(s.path, data)
-      return { ...s, data }
+      return { ...s, data, fresh: true }
     })
 
-  return { data: current.data, error: current.error, refresh, mutate }
+  return { data: current.data, error: current.error, fresh: current.fresh, refresh, mutate }
 }

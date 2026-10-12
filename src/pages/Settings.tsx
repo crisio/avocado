@@ -4,7 +4,8 @@ import { useAuth } from '../auth'
 import InstallCard from '../components/InstallCard'
 import { api } from '../lib/api'
 import { useCachedApi } from '../lib/useCachedApi'
-import { displayName } from '../lib/format'
+import { displayName, firstName } from '../lib/format'
+import { cheer } from '../lib/mascot'
 import type { Person, User } from '../lib/types'
 
 export default function Settings() {
@@ -17,8 +18,11 @@ export default function Settings() {
     e.preventDefault()
     setError(null)
     try {
-      setUser(await api<User>('/me', { method: 'PATCH', json: { full_name: name } }))
+      const updated = await api<User>('/me', { method: 'PATCH', json: { full_name: name } })
+      setUser(updated)
       setSaved(true)
+      const first = firstName(updated.full_name)
+      cheer('love', first ? `¡Mucho gusto, ${first}!` : '¡Guardado!', { interrupt: true })
     } catch (err) {
       setError((err as Error).message)
     }
@@ -71,8 +75,10 @@ function MyNutritionists() {
       await api('/care/nutritionists', { method: 'POST', json: { email } })
       setEmail('')
       load()
+      cheer('celebrate', '¡Listo! Ya puede ver tus comidas', { interrupt: true })
     } catch (err) {
       setError((err as Error).message)
+      cheer('oops', 'No pude vincularla', { interrupt: true })
     }
     setBusy(false)
   }

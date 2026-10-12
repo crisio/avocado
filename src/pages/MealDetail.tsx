@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, Chip, CommentBubble, EmptyState, IconButton, Notice, NutritionTable, Screen, TextField } from '@avocado/ui'
+import { Mascot } from '../components/Mascot'
 import Portions from '../components/Portions'
 import { useAuth } from '../auth'
 import { api, type ApiError } from '../lib/api'
@@ -9,6 +10,7 @@ import { discardJob, enqueueComment, retryJob, useOutbox, type CommentJob, type 
 import { jobToMeal, usePhotoUrls } from '../lib/localMeals'
 import { useOnline } from '../lib/useOnline'
 import { formatAgo, formatDay } from '../lib/format'
+import { cheer, watchMeal, type MealState } from '../lib/mascot'
 import { mealKind, mealKindLabel, mealTitle } from '../lib/meals'
 import { formatTime } from '../lib/format'
 import type { Meal, MealWithComments } from '../lib/types'
@@ -34,7 +36,7 @@ export default function MealDetail() {
 
   // Rápido mientras la IA analiza; después, cada 15 s para ver comentarios nuevos.
   const [fast, setFast] = useState(true)
-  const { data, error, mutate, refresh } = useCachedApi<MealWithComments>(job ? null : `/meals/${id}`, fast ? 4_000 : 15_000)
+  const { data, error, fresh, mutate, refresh } = useCachedApi<MealWithComments>(job ? null : `/meals/${id}`, fast ? 4_000 : 15_000)
   const status = data?.status
   useEffect(() => setFast(!status || status === 'pending'), [status])
 
@@ -44,17 +46,33 @@ export default function MealDetail() {
     ? { ...jobToMeal(job, localPhotos.get(job.id)!), comments: [] }
     : data ?? ((error as ApiError | null)?.status === 404 ? null : undefined)
 
+  // Avo celebra cuando tu comida termina de analizarse mientras la ves (o avisa si falló). Solo con datos vivos (no
+  // el caché) y no mientras se reintenta el análisis: el sondeo todavía puede traer el error de antes.
+  const mealState: MealState | null = job
+    ? job.error
+      ? 'failed'
+      : 'queued'
+    : fresh && !retrying && data && data.user_id === user?.id
+      ? data.status
+      : null
+  useEffect(() => {
+    if (mealState) watchMeal(id, mealState, data?.calories)
+  }, [id, mealState])
+
   async function sendComment(e: FormEvent) {
     e.preventDefault()
     if (!body.trim() || !user) return
     // Se guarda en la cola: aparece al instante y se envía en cuanto hay señal.
     await enqueueComment({ id: crypto.randomUUID(), userId: user.id, mealId: id, body: body.trim(), author_name: user.full_name, author_role: user.role })
     setBody('')
+    if (online) cheer('love', user.role === 'nutritionist' ? '¡Indicación enviada!' : '¡Comentario enviado!', { interrupt: true })
+    else cheer('think', 'Lo envío cuando vuelva la señal', { interrupt: true })
   }
 
   async function retry() {
     if (!data) return
     setRetrying(true)
+    cheer('think', 'Lo intento otra vez…', { interrupt: true })
     mutate((prev) => (prev ? { ...prev, status: 'pending' } : prev))
     try {
       const updated = await api<Meal>(`/meals/${id}/analyze`, { method: 'POST', timeoutMs: 90_000 })
@@ -73,11 +91,15 @@ export default function MealDetail() {
     if (!correction.trim()) return
     setCorrecting(true)
     setCorrectError(null)
+    cheer('think', 'Déjame ajustarla…', { interrupt: true })
     try {
-      applyMeal(await api<Meal>(`/meals/${id}/correct`, { method: 'POST', json: { text: correction.trim() }, timeoutMs: 60_000 }))
+      const updated = await api<Meal>(`/meals/${id}/correct`, { method: 'POST', json: { text: correction.trim() }, timeoutMs: 60_000 })
+      applyMeal(updated)
       setCorrection('')
+      cheer('celebrate', `¡Corregido! ${Math.round(updated.calories ?? 0)} kcal`, { interrupt: true })
     } catch (err) {
       setCorrectError((err as Error).message)
+      cheer('oops', 'No pude corregirla', { interrupt: true })
       if ((err as ApiError).status === 409) void refresh()
     }
     setCorrecting(false)
@@ -88,6 +110,7 @@ export default function MealDetail() {
     try {
       if (job) await discardJob(job.id)
       else await api(`/meals/${id}`, { method: 'DELETE' })
+      cheer('oops', 'Comida borrada')
       navigate('/', { replace: true })
     } catch (err) {
       alert((err as Error).message)
@@ -134,7 +157,8 @@ export default function MealDetail() {
         </h1>
         {meal.note && <p className="app-note">“{meal.note}”</p>}
         {job ? (
-          <div>
+          <div className="mascot-status">
+            {!job.error && <Mascot size={52} base="think" />}
             {job.error ? (
               <Chip tone="danger" icon="alert">
                 No se pudo enviar
@@ -151,7 +175,8 @@ export default function MealDetail() {
           </div>
         ) : (
           meal.status === 'pending' && (
-            <div>
+            <div className="mascot-status">
+              <Mascot size={52} base="think" />
               <Chip tone="warning" icon="clock">
                 La IA está analizando la foto
               </Chip>

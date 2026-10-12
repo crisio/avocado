@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Chip, Segmented, type SegmentedOption } from '@avocado/ui'
 import { api, type ApiError } from '../lib/api'
 import { formatNumber } from '../lib/format'
+import { cheer, type Mood } from '../lib/mascot'
 import type { AnalysisItem, Meal, Totals } from '../lib/types'
 
 const OPTIONS: SegmentedOption<number>[] = [
@@ -13,6 +14,15 @@ const OPTIONS: SegmentedOption<number>[] = [
 ]
 
 const FRACTION_TEXT: Record<string, string> = { '0.75': '¾', '0.5': 'la mitad', '0.25': '¼', '0': 'nada' }
+
+/** Lo que dice Avo al marcar cuánto se comió. */
+const PORTION_CHEER: Record<string, [Mood, string]> = {
+  '1': ['love', '¡Todo!'],
+  '0.75': ['eat', '¡Casi todo!'],
+  '0.5': ['eat', 'La mitad, anotado'],
+  '0.25': ['eat', 'Solo un poquito'],
+  '0': ['oops', '¿Nada de nada?'],
+}
 
 /** Espera tras el último toque antes de guardar: varios toques seguidos se mandan en una sola petición. */
 const SAVE_DELAY_MS = 500
@@ -94,6 +104,7 @@ export default function Portions({ meal, editable, online, locked = false, onCha
       clearTimeout(timer.current)
       onChange(confirmed.current)
       if ((err as ApiError).status === 409) onStale?.()
+      cheer('oops', 'No se guardó', { interrupt: true })
       alert((err as Error).message)
     }
     inFlight.current = false
@@ -106,6 +117,8 @@ export default function Portions({ meal, editable, online, locked = false, onCha
     const nextItems = base.map((item, i) => (i === index ? { ...item, eaten: value } : item))
     pending.current = nextItems
     onChange(withItems(meal, nextItems))
+    const [mood, message] = PORTION_CHEER[String(value)] ?? ['eat', 'Anotado']
+    cheer(mood, message, { interrupt: true })
     setSaving(true)
     clearTimeout(timer.current)
     timer.current = setTimeout(flush, SAVE_DELAY_MS)

@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Card, DayNav, EmptyState, Icon, type IconName } from '@avocado/ui'
 import { useCachedApi } from '../lib/useCachedApi'
 import { addDays, formatNumber, formatWeekRange, fromDayParam, startOfDay, startOfWeek, toDayParam } from '../lib/format'
+import { cheer, greetOnce } from '../lib/mascot'
 import { mealKind, mealTitle } from '../lib/meals'
 import type { Meal } from '../lib/types'
 
@@ -67,7 +68,7 @@ export default function WeekView({ userId, self, dayHref }: WeekViewProps) {
     )
   }
   const end = addDays(start, 7)
-  const { data, error } = useCachedApi<Meal[]>(`/meals?user_id=${userId}&from=${start.toISOString()}&to=${end.toISOString()}`, 60_000)
+  const { data, error, fresh } = useCachedApi<Meal[]>(`/meals?user_id=${userId}&from=${start.toISOString()}&to=${end.toISOString()}`, 60_000)
   const [focused, setFocused] = useState<number | null>(null)
   const isCurrent = start.getTime() === thisWeek.getTime()
 
@@ -124,6 +125,23 @@ export default function WeekView({ userId, self, dayHref }: WeekViewProps) {
       breakfastDays,
     }
   }, [data, start.getTime()])
+
+  // Avo comenta cómo va tu semana (una vez por visita, con los datos ya llegados de la red).
+  const loggedDays = stats.logged.length
+  useEffect(() => {
+    if (!self || !isCurrent || !fresh) return
+    const t = setTimeout(
+      () =>
+        greetOnce('week', () => {
+          if (loggedDays === 0) cheer('think', '¿Registramos la primera comida de la semana?')
+          else if (loggedDays >= stats.elapsed && stats.elapsed > 1) cheer('celebrate', '¡Registraste todos los días!')
+          else if (loggedDays * 2 >= stats.elapsed) cheer('love', '¡Vas muy bien esta semana!')
+          else cheer('wave', 'Cada foto cuenta: ¡tú puedes!')
+        }),
+      600,
+    )
+    return () => clearTimeout(t)
+  }, [self, isCurrent, fresh])
 
   const you = self ? 'Tu' : 'Su'
   const nav = (
