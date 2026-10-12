@@ -1,0 +1,19 @@
+{
+  "projectId": "836f6761-ed09-4bed-aa7a-fdf70dcd77e1",
+  "shape": "package",
+  "pkg": "@avocado/ui",
+  "globalName": "AvocadoUI",
+  "buildCmd": "npm run build:ui",
+  "cssEntry": "dist/styles.css",
+  "extraFonts": [
+    "../node_modules/@fontsource-variable/bricolage-grotesque/index.css",
+    "../node_modules/@fontsource-variable/hanken-grotesk/index.css",
+    "../.design-sync/fonts/aliases.css"
+  ],
+  "extraEntries": [
+    "../.design-sync/root.js"
+  ],
+  "provider": {
+    "component": "AvocadoRoot"
+  }
+}
