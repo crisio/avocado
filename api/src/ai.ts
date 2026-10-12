@@ -72,7 +72,8 @@ const num = (v: unknown) => {
 
 /** Fracción entre 0 y 1; si falta o no es número, se asume que se comió todo. */
 export const fraction = (v: unknown) => {
-  const n = typeof v === 'number' ? v : Number(v)
+  // Number(null), Number('') y Number(false) dan 0: solo cuentan números de verdad o texto numérico.
+  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN
   return Number.isFinite(n) ? Math.min(1, Math.max(0, Math.round(n * 100) / 100)) : 1
 }
 

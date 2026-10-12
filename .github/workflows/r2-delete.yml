@@ -29,10 +29,14 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           KEYS: ${{ inputs.keys }}
         run: |
+          # Solo "<uuid de usuario>/<uuid de comida>.<jpg|png|webp>", como las guarda la API: nada de "..", "#" ni "?".
+          UUID='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
           for key in $KEYS; do
-            case "$key" in
-              */*.jpg|*/*.png|*/*.webp) ;;
-              *) echo "::error::Llave inválida: $key"; exit 1 ;;
-            esac
+            if [[ ! "$key" =~ ^${UUID}/${UUID}\.(jpg|png|webp)$ ]]; then
+              echo "::error::Llave inválida: $key"
+              exit 1
+            fi
+          done
+          for key in $KEYS; do
             npx wrangler r2 object delete "avocado-photos/$key" --remote
           done

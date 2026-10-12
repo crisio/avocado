@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Card, DayNav, EmptyState, Icon, type IconName } from '@avocado/ui'
 import { useCachedApi } from '../lib/useCachedApi'
-import { addDays, formatNumber, formatWeekRange, startOfDay, startOfWeek, toDayParam } from '../lib/format'
+import { addDays, formatNumber, formatWeekRange, fromDayParam, startOfDay, startOfWeek, toDayParam } from '../lib/format'
 import { mealKind, mealTitle } from '../lib/meals'
 import type { Meal } from '../lib/types'
 
@@ -17,8 +17,16 @@ interface DayStat {
   future: boolean
 }
 
-/** Singular aproximado en español: frijoles → frijol, tomates → tomate, huevos → huevo. */
-const singular = (w: string) => (w.length > 4 && /[lnrdzj]es$/.test(w) ? w.slice(0, -2) : w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w)
+/**
+ * Forma canónica de una palabra para comparar singular y plural: quita la "s" final y, después de l/n/r/d/z/j,
+ * también la "e" (frijoles/frijol → frijol, chiles/chile → chil, panes/pan → pan, tomates/tomate → tomate).
+ */
+function singular(w: string) {
+  const base = w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w
+  return base.length > 3 && /[lnrdzj]e$/.test(base) ? base.slice(0, -1) : base
+}
+
+const plural = (n: number, one: string, many: string) => `${n.toLocaleString('es-MX', { maximumFractionDigits: 1 })} ${n === 1 ? one : many}`
 
 /** "Tortillas de maíz" y "tortilla de maiz" cuentan como el mismo alimento. */
 const foodKey = (name: string) =>
@@ -43,7 +51,21 @@ export interface WeekViewProps {
 /** Resumen de una semana (lunes a domingo): promedio diario, calorías por día, macros, lo más frecuente y las fotos. */
 export default function WeekView({ userId, self, dayHref }: WeekViewProps) {
   const thisWeek = startOfWeek(new Date())
-  const [start, setStart] = useState(thisWeek)
+  // La semana vive en la URL (?semana=2026-10-05) para volver a ella al regresar de un día.
+  const [params, setParams] = useSearchParams()
+  const fromUrl = fromDayParam(params.get('semana'))
+  const start = fromUrl ? startOfWeek(fromUrl) : thisWeek
+  function setStart(week: Date) {
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (week.getTime() >= thisWeek.getTime()) next.delete('semana')
+        else next.set('semana', toDayParam(week))
+        return next
+      },
+      { replace: true },
+    )
+  }
   const end = addDays(start, 7)
   const { data, error } = useCachedApi<Meal[]>(`/meals?user_id=${userId}&from=${start.toISOString()}&to=${end.toISOString()}`, 60_000)
   const [focused, setFocused] = useState<number | null>(null)
@@ -172,7 +194,7 @@ export default function WeekView({ userId, self, dayHref }: WeekViewProps) {
     icon: 'camera',
     text: (
       <>
-        <strong>{(stats.meals.length / stats.logged.length).toLocaleString('es-MX', { maximumFractionDigits: 1 })}</strong> comidas por día en promedio.
+        <strong>{plural(Math.round((stats.meals.length / stats.logged.length) * 10) / 10, 'comida', 'comidas')}</strong> por día en promedio.
       </>
     ),
   })
@@ -205,7 +227,7 @@ export default function WeekView({ userId, self, dayHref }: WeekViewProps) {
               <span className="week-dot__mark" aria-hidden />
               <span className="week-dot__label">{DAY_SHORT[d.index].charAt(0)}</span>
               <span className="sr-only">
-                {DAY_LONG[d.index]}: {d.future ? 'aún no llega' : d.meals.length ? `${d.meals.length} comidas` : 'sin registro'}
+                {DAY_LONG[d.index]}: {d.future ? 'aún no llega' : d.meals.length ? plural(d.meals.length, 'comida', 'comidas') : 'sin registro'}
               </span>
             </li>
           ))}
@@ -218,32 +240,37 @@ export default function WeekView({ userId, self, dayHref }: WeekViewProps) {
 
       <Card padding="lg">
         <h2 className="av-section-title week-card-title">Calorías por día</h2>
-        <p className="week-readout" aria-live="polite">
+        <p className="week-readout" aria-hidden>
           {focusDay ? (
             <>
               <strong>{formatNumber(focusDay.calories)} kcal</strong> · {DAY_LONG[focusDay.index]} {focusDay.date.getDate()} ·{' '}
-              {focusDay.meals.length} {focusDay.meals.length === 1 ? 'comida' : 'comidas'}
+              {plural(focusDay.meals.length, 'comida', 'comidas')}
+            </>
+          ) : stats.logged.length > 1 ? (
+            <>
+              Promedio <strong>{formatNumber(avg.calories)} kcal</strong> por día. <span className="av-text-muted">Toca un día para ver el suyo.</span>
             </>
           ) : (
             <span className="av-text-muted">Toca un día para ver sus calorías.</span>
           )}
         </p>
-        <div className="week-chart" onPointerLeave={() => setFocused(null)}>
+        <div className="week-chart" onPointerLeave={(e) => e.pointerType === 'mouse' && setFocused(null)}>
           <div className="week-chart__plot">
             {stats.logged.length > 1 && (
-              <div className="week-chart__avg" style={{ bottom: `${(avg.calories / scale) * 100}%` }}>
-                <span>promedio {formatNumber(avg.calories)}</span>
-              </div>
+              <div className="week-chart__avg" style={{ bottom: `${(avg.calories / scale) * 100}%` }} aria-hidden />
             )}
             {days.map((d) => {
               const isMax = stats.maxDay?.index === d.index
+              // Los días que no han llegado no son botones: no hay nada que ver ni que anunciar.
+              if (d.future) return <div key={d.index} className="week-chart__col" aria-hidden />
               return (
                 <button
                   key={d.index}
                   type="button"
                   className={focused === d.index ? 'week-chart__col week-chart__col--focus' : 'week-chart__col'}
-                  aria-label={`${DAY_LONG[d.index]} ${d.date.getDate()}: ${formatNumber(d.calories)} kcal`}
-                  onPointerEnter={() => setFocused(d.index)}
+                  aria-label={`${DAY_LONG[d.index]} ${d.date.getDate()}: ${formatNumber(d.calories)} kcal, ${plural(d.meals.length, 'comida', 'comidas')}`}
+                  // En táctil, pointerleave llega justo después del toque: el hover es solo para mouse.
+                  onPointerEnter={(e) => e.pointerType === 'mouse' && setFocused(d.index)}
                   onFocus={() => setFocused(d.index)}
                   onBlur={() => setFocused(null)}
                   onClick={() => setFocused(d.index)}
@@ -265,6 +292,11 @@ export default function WeekView({ userId, self, dayHref }: WeekViewProps) {
               </span>
             ))}
           </div>
+          {stats.logged.length > 1 && (
+            <p className="week-chart__key" aria-hidden>
+              <span className="week-chart__key-line" /> Promedio de los días registrados
+            </p>
+          )}
         </div>
         <ul className="week-days" aria-label="Calorías de cada día">
           {days
@@ -272,10 +304,12 @@ export default function WeekView({ userId, self, dayHref }: WeekViewProps) {
             .map((d) => (
               <li key={d.index}>
                 <Link to={dayHref(d.date)} className="week-days__row">
-                  <span className="week-days__name">
-                    {DAY_LONG[d.index].charAt(0).toUpperCase() + DAY_LONG[d.index].slice(1)} {d.date.getDate()}
+                  <span className="week-days__text">
+                    <span className="week-days__name">
+                      {DAY_LONG[d.index].charAt(0).toUpperCase() + DAY_LONG[d.index].slice(1)} {d.date.getDate()}
+                    </span>
+                    <span className="week-days__meta">{d.meals.length ? plural(d.meals.length, 'comida', 'comidas') : 'sin registro'}</span>
                   </span>
-                  <span className="week-days__meta">{d.meals.length ? `${d.meals.length} ${d.meals.length === 1 ? 'comida' : 'comidas'}` : 'sin registro'}</span>
                   <span className="week-days__kcal">{d.meals.length ? `${formatNumber(d.calories)} kcal` : '—'}</span>
                   <Icon name="chevron-right" size={16} />
                 </Link>

@@ -1,17 +1,19 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useMemo } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { CalorieBar, Chip, CommentBubble, DayNav, EmptyState, MacroChips, MealCard } from '@avocado/ui'
 import { useCachedApi } from '../lib/useCachedApi'
 import { useOutbox, type MealJob } from '../lib/outbox'
 import { jobToMeal, usePhotoUrls } from '../lib/localMeals'
 import { useOnline } from '../lib/useOnline'
-import { addDays, formatAgo, formatDay, startOfDay } from '../lib/format'
+import { addDays, formatAgo, formatDay, fromDayParam, startOfDay, toDayParam } from '../lib/format'
 import { mealDetail, mealKind, mealKindLabel, mealMeta, mealTitle } from '../lib/meals'
 import type { Meal } from '../lib/types'
 
 /** Comidas de un usuario en un día: resumen de calorías y macros, y la lista con indicaciones. */
-export default function DayView({ userId, emptyAction, initialDay }: { userId: string; emptyAction?: React.ReactNode; initialDay?: Date }) {
-  const [day, setDay] = useState(() => startOfDay(initialDay ?? new Date()))
+export default function DayView({ userId, emptyAction }: { userId: string; emptyAction?: React.ReactNode }) {
+  // El día vive en la URL (?dia=2026-10-12) para poder enlazarlo desde la semana; sin él, es hoy.
+  const [params, setParams] = useSearchParams()
+  const day = startOfDay(fromDayParam(params.get('dia')) ?? new Date())
   const next = addDays(day, 1)
   const { data: serverMeals, error } = useCachedApi<Meal[]>(`/meals?user_id=${userId}&from=${day.toISOString()}&to=${next.toISOString()}`, 20_000)
   const online = useOnline()
@@ -37,7 +39,16 @@ export default function DayView({ userId, emptyAction, initialDay }: { userId: s
         )
 
   function goTo(nextDay: Date) {
-    setDay(nextDay)
+    const today = startOfDay(new Date()).getTime() === startOfDay(nextDay).getTime()
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (today) next.delete('dia')
+        else next.set('dia', toDayParam(nextDay))
+        return next
+      },
+      { replace: true },
+    )
   }
 
   function badge(m: Meal) {

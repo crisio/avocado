@@ -80,8 +80,10 @@ export function toDayParam(date: Date) {
 export function fromDayParam(value: string | null) {
   const m = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (!m) return undefined
-  const date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-  if (Number.isNaN(date.getTime()) || date.getTime() > Date.now()) return undefined
+  const [y, mo, d] = [Number(m[1]), Number(m[2]) - 1, Number(m[3])]
+  const date = new Date(y, mo, d)
+  // new Date(2026, 1, 31) se recorre al 3 de marzo: una fecha imposible no cuenta.
+  if (date.getFullYear() !== y || date.getMonth() !== mo || date.getDate() !== d || date.getTime() > Date.now()) return undefined
   return date
 }
 

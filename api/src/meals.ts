@@ -52,6 +52,19 @@ async function saveAnalysis(env: Env, mealId: string, analysis: Analysis) {
     .run()
 }
 
+/**
+ * Guarda un cambio del paciente solo si el análisis sigue como lo leímos. Si otra petición lo cambió
+ * mientras tanto (p. ej. una corrección con la IA que tardó), responde 409 en lugar de pisarla.
+ */
+async function saveEdit(env: Env, mealId: string, expected: string, analysis: Analysis) {
+  const res = await env.DB.prepare(
+    `UPDATE meals SET analysis = ?, calories = ?, protein_g = ?, carbs_g = ?, fat_g = ? WHERE id = ? AND status = 'analyzed' AND analysis = ?`,
+  )
+    .bind(JSON.stringify(analysis), analysis.total.calories, analysis.total.protein_g, analysis.total.carbs_g, analysis.total.fat_g, mealId, expected)
+    .run()
+  if (!res.meta.changes) fail(409, 'La comida cambió mientras tanto. Revisa y vuelve a intentarlo.')
+}
+
 /** Análisis guardado de una comida del dueño, listo para editar (los análisis viejos no traen "eaten" ni "served"). */
 async function ownAnalyzedMeal(env: Env, id: string, userId: string) {
   const meal = await getMeal(env, id)
@@ -59,7 +72,7 @@ async function ownAnalyzedMeal(env: Env, id: string, userId: string) {
   if (meal.status !== 'analyzed' || !meal.analysis) fail(409, 'Esta comida todavía no tiene análisis')
   const stored = JSON.parse(meal.analysis) as Analysis
   const items = (stored.items ?? []).map((item) => ({ ...item, eaten: fraction(item.eaten) }))
-  return { meal, analysis: withTotals({ ...stored, items }) }
+  return { meal, raw: meal.analysis, analysis: withTotals({ ...stored, items }) }
 }
 
 /** Corre el análisis y guarda el resultado (o el error) en la comida. */
@@ -167,24 +180,27 @@ mealRoutes.post('/:id/analyze', async (c) => {
   return c.json(await toMeal(c.env, new URL(c.req.url).origin, updated!))
 })
 
-// Cuánto se comió de cada alimento: { eaten: [1, 0.5, 0, …] } en el orden de los alimentos (solo el dueño).
+// Cuánto se comió de cada alimento: { eaten: [1, 0.5, 0, …], items: ["Arroz", …] } en el orden de los alimentos
+// (solo el dueño). `items` son los nombres que ve la app: si no coinciden, la lista cambió y se responde 409.
 mealRoutes.patch('/:id/portions', async (c) => {
-  const { meal, analysis } = await ownAnalyzedMeal(c.env, c.req.param('id'), c.var.user.id)
-  const { eaten } = await c.req.json<{ eaten?: unknown }>().catch(() => ({ eaten: undefined }))
+  const { meal, raw, analysis } = await ownAnalyzedMeal(c.env, c.req.param('id'), c.var.user.id)
+  const { eaten, items } = await c.req.json<{ eaten?: unknown; items?: unknown }>().catch(() => ({ eaten: undefined, items: undefined }))
   const valid =
     Array.isArray(eaten) &&
     eaten.length === analysis.items.length &&
     eaten.every((v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1)
   if (!valid) fail(400, 'Porciones inválidas: manda una fracción entre 0 y 1 por cada alimento')
+  if (items !== undefined && (!Array.isArray(items) || items.some((name, i) => name !== analysis.items[i]?.name)))
+    fail(409, 'La comida cambió mientras tanto. Revisa y vuelve a intentarlo.')
 
   const updated = withTotals({ ...analysis, items: analysis.items.map((item, i) => ({ ...item, eaten: fraction(eaten[i]) })) })
-  await saveAnalysis(c.env, meal.id, updated)
+  await saveEdit(c.env, meal.id, raw, updated)
   return c.json(await toMeal(c.env, new URL(c.req.url).origin, (await getMeal(c.env, meal.id))!))
 })
 
 // Corrección en palabras del paciente ("me dejé la mitad de la ensalada…"): la IA ajusta el análisis sin volver a ver la foto.
 mealRoutes.post('/:id/correct', async (c) => {
-  const { meal, analysis } = await ownAnalyzedMeal(c.env, c.req.param('id'), c.var.user.id)
+  const { meal, raw, analysis } = await ownAnalyzedMeal(c.env, c.req.param('id'), c.var.user.id)
   const { text } = await c.req.json<{ text?: unknown }>().catch(() => ({ text: undefined }))
   const correction = String(text ?? '').trim()
   if (!correction || correction.length > 1000) fail(400, 'Cuéntanos qué cambió (máximo 1000 caracteres)')
@@ -196,7 +212,7 @@ mealRoutes.post('/:id/correct', async (c) => {
     console.error('correct', meal.id, err instanceof Error ? err.message : err)
     fail(502, 'No se pudo corregir con la IA. Intenta de nuevo en un momento.')
   }
-  await saveAnalysis(c.env, meal.id, updated)
+  await saveEdit(c.env, meal.id, raw, updated)
   return c.json(await toMeal(c.env, new URL(c.req.url).origin, (await getMeal(c.env, meal.id))!))
 })
 

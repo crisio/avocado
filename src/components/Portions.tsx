@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Chip, Segmented, type SegmentedOption } from '@avocado/ui'
-import { api } from '../lib/api'
+import { api, type ApiError } from '../lib/api'
 import { formatNumber } from '../lib/format'
 import type { AnalysisItem, Meal, Totals } from '../lib/types'
 
@@ -13,6 +13,9 @@ const OPTIONS: SegmentedOption<number>[] = [
 ]
 
 const FRACTION_TEXT: Record<string, string> = { '0.75': '¾', '0.5': 'la mitad', '0.25': '¼', '0': 'nada' }
+
+/** Espera tras el último toque antes de guardar: varios toques seguidos se mandan en una sola petición. */
+const SAVE_DELAY_MS = 500
 
 const eatenOf = (item: AnalysisItem) => item.eaten ?? 1
 
@@ -32,43 +35,86 @@ function totalsOf(items: AnalysisItem[]) {
   return { total: sum(true), served: sum(false) }
 }
 
+function withItems(meal: Meal, items: AnalysisItem[]): Meal {
+  const { total, served } = totalsOf(items)
+  return { ...meal, calories: total.calories, protein_g: total.protein_g, carbs_g: total.carbs_g, fat_g: total.fat_g, analysis: { ...meal.analysis, items, total, served } }
+}
+
 export interface PortionsProps {
   meal: Meal
   /** El dueño puede marcar cuánto comió de cada alimento. */
   editable: boolean
   online: boolean
+  /** Bloquea los cambios (p. ej. mientras la IA corrige la comida). */
+  locked?: boolean
   /** Comida actualizada (al instante y luego con la respuesta del servidor). */
   onChange: (meal: Meal) => void
+  /** Avisa cuando hay porciones sin guardar o guardándose. */
+  onSavingChange?: (saving: boolean) => void
+  /** La comida cambió en el servidor (409): hay que volver a pedirla. */
+  onStale?: () => void
 }
 
 /**
  * Lo que se comió de una comida: totales, y por cada alimento cuánto se comió (Todo · ¾ · ½ · ¼ · Nada).
- * La nutrióloga lo ve igual, sin poder cambiarlo.
+ * Cada toque se ve al instante; se guarda medio segundo después del último. La nutrióloga lo ve sin poder cambiarlo.
  */
-export default function Portions({ meal, editable, online, onChange }: PortionsProps) {
-  const [saving, setSaving] = useState(false)
+export default function Portions({ meal, editable, online, locked = false, onChange, onSavingChange, onStale }: PortionsProps) {
   const a = meal.analysis
   const items = a?.items ?? []
+
+  // Última versión confirmada por el servidor (para regresar a ella si falla) y cambios por guardar.
+  const confirmed = useRef(meal)
+  const pending = useRef<AnalysisItem[] | null>(null)
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const inFlight = useRef(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!pending.current && !inFlight.current) confirmed.current = meal
+  }, [meal])
+  useEffect(() => onSavingChange?.(saving), [saving])
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  async function flush() {
+    const next = pending.current
+    if (!next || inFlight.current) return
+    pending.current = null
+    inFlight.current = true
+    try {
+      const saved = await api<Meal>(`/meals/${meal.id}/portions`, {
+        method: 'PATCH',
+        json: { eaten: next.map(eatenOf), items: next.map((i) => i.name) },
+      })
+      confirmed.current = saved
+      // Si hubo más toques mientras se guardaba, se respetan los de la pantalla y se guardan después.
+      if (!pending.current) onChange(saved)
+    } catch (err) {
+      pending.current = null
+      clearTimeout(timer.current)
+      onChange(confirmed.current)
+      if ((err as ApiError).status === 409) onStale?.()
+      alert((err as Error).message)
+    }
+    inFlight.current = false
+    if (pending.current) flush()
+    else setSaving(false)
+  }
+
+  function setEaten(index: number, value: number) {
+    const base = pending.current ?? items
+    const nextItems = base.map((item, i) => (i === index ? { ...item, eaten: value } : item))
+    pending.current = nextItems
+    onChange(withItems(meal, nextItems))
+    setSaving(true)
+    clearTimeout(timer.current)
+    timer.current = setTimeout(flush, SAVE_DELAY_MS)
+  }
+
   const consumed: Totals = { calories: meal.calories ?? 0, protein_g: meal.protein_g ?? 0, carbs_g: meal.carbs_g ?? 0, fat_g: meal.fat_g ?? 0 }
   const served = a?.served ?? consumed
   const leftover = served.calories - consumed.calories >= 1
   const percent = served.calories > 0 ? Math.round((consumed.calories / served.calories) * 100) : 100
-
-  async function setEaten(index: number, value: number) {
-    const previous = meal
-    const nextItems = items.map((item, i) => (i === index ? { ...item, eaten: value } : item))
-    const { total, served } = totalsOf(nextItems)
-    // Se ve al instante; si el servidor falla, se regresa a como estaba.
-    onChange({ ...meal, calories: total.calories, protein_g: total.protein_g, carbs_g: total.carbs_g, fat_g: total.fat_g, analysis: { ...a, items: nextItems, total, served } })
-    setSaving(true)
-    try {
-      onChange(await api<Meal>(`/meals/${meal.id}/portions`, { method: 'PATCH', json: { eaten: nextItems.map(eatenOf) } }))
-    } catch (err) {
-      onChange(previous)
-      alert((err as Error).message)
-    }
-    setSaving(false)
-  }
 
   const cells = [
     { value: formatNumber(consumed.calories), label: 'kcal' },
@@ -100,7 +146,6 @@ export default function Portions({ meal, editable, online, onChange }: PortionsP
         <ul className="portions__items">
           {items.map((item, i) => {
             const f = eatenOf(item)
-            const itemKcal = item.calories * f
             return (
               <li key={i} className="portions__item">
                 <div className="portions__row">
@@ -109,7 +154,7 @@ export default function Portions({ meal, editable, online, onChange }: PortionsP
                     <span className="portions__portion"> · {Math.round(item.portion_g)} g</span>
                   </span>
                   <span className="portions__kcal">
-                    {f < 1 ? `${formatNumber(itemKcal)} de ${formatNumber(item.calories)}` : formatNumber(item.calories)} kcal
+                    {f < 1 ? `${formatNumber(item.calories * f)} de ${formatNumber(item.calories)}` : formatNumber(item.calories)} kcal
                   </span>
                 </div>
                 {editable ? (
@@ -118,7 +163,7 @@ export default function Portions({ meal, editable, online, onChange }: PortionsP
                     options={OPTIONS}
                     value={OPTIONS.some((o) => o.value === f) ? f : null}
                     onChange={(v) => setEaten(i, v)}
-                    disabled={saving || !online}
+                    disabled={locked || !online}
                   />
                 ) : (
                   f < 1 && (
@@ -134,6 +179,11 @@ export default function Portions({ meal, editable, online, onChange }: PortionsP
       )}
 
       {editable && !online && <p className="portions__hint">Sin conexión: podrás ajustar las porciones cuando vuelva la señal.</p>}
+      {editable && saving && (
+        <p className="portions__hint" role="status">
+          Guardando…
+        </p>
+      )}
       <p className="av-nutrition__note">
         Estimación con IA{a?.confidence ? ` (confianza ${Math.round(a.confidence * 100)} %)` : ''}. Puede tener errores.
         {a?.correction && <> Corregida con: “{a.correction}”.</>}

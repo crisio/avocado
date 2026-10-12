@@ -360,6 +360,31 @@ describe('cuánto se comió', () => {
     expect(JSON.stringify(sent.messages)).not.toContain('image_url')
   })
 
+  it('no pisa un cambio hecho mientras tanto (409) y trata "eaten": null como todo', async () => {
+    const { token, id } = await analyzedMeal('carrera@gmail.com')
+    // La app manda los nombres que ve: si la lista ya no es la misma, no aplica las porciones por posición.
+    const stale = await call(`/meals/${id}/portions`, { method: 'PATCH', token, json: { eaten: [1, 0.5], items: ['Arroz', 'Pollo'] } })
+    expect(stale.status).toBe(409)
+    const ok = await call(`/meals/${id}/portions`, { method: 'PATCH', token, json: { eaten: [1, 0.5], items: ['Lechuga', 'Pollo'] } })
+    expect(ok.status).toBe(200)
+
+    // Una corrección que tarda y encuentra la comida cambiada no la pisa.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      await env.DB.prepare(`UPDATE meals SET analysis = json_set(analysis, '$.summary', 'cambiada') WHERE id = ?`).bind(id).run()
+      return twoItems(',"eaten":null')
+    })
+    const res = await call(`/meals/${id}/correct`, { method: 'POST', token, json: { text: 'me comí todo' } })
+    expect(res.status).toBe(409)
+    expect((await call(`/meals/${id}`, { token })).data.calories).toBe(120)
+
+    // "eaten": null de un modelo cuenta como comido completo
+    vi.restoreAllMocks()
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(twoItems(',"eaten":null'))
+    const fixed = await call(`/meals/${id}/correct`, { method: 'POST', token, json: { text: 'me comí todo' } })
+    expect(fixed.status).toBe(200)
+    expect(fixed.data.calories).toBe(220)
+  })
+
   it('valida la corrección y avisa si la IA falla', async () => {
     const { token, id } = await analyzedMeal('corrige2@gmail.com')
     expect((await call(`/meals/${id}/correct`, { method: 'POST', token, json: { text: '  ' } })).status).toBe(400)

@@ -26,6 +26,7 @@ export default function MealDetail() {
   const [correction, setCorrection] = useState('')
   const [correcting, setCorrecting] = useState(false)
   const [correctError, setCorrectError] = useState<string | null>(null)
+  const [portionsSaving, setPortionsSaving] = useState(false)
 
   // Comida que sigue en el teléfono (recién registrada o sin conexión)
   const job = jobs.find((j): j is MealJob => j.kind === 'meal' && j.id === id)
@@ -33,7 +34,7 @@ export default function MealDetail() {
 
   // Rápido mientras la IA analiza; después, cada 15 s para ver comentarios nuevos.
   const [fast, setFast] = useState(true)
-  const { data, error, mutate } = useCachedApi<MealWithComments>(job ? null : `/meals/${id}`, fast ? 4_000 : 15_000)
+  const { data, error, mutate, refresh } = useCachedApi<MealWithComments>(job ? null : `/meals/${id}`, fast ? 4_000 : 15_000)
   const status = data?.status
   useEffect(() => setFast(!status || status === 'pending'), [status])
 
@@ -77,6 +78,7 @@ export default function MealDetail() {
       setCorrection('')
     } catch (err) {
       setCorrectError((err as Error).message)
+      if ((err as ApiError).status === 409) void refresh()
     }
     setCorrecting(false)
   }
@@ -187,7 +189,15 @@ export default function MealDetail() {
       {meal.status === 'analyzed' && a && (
         <Card padding="lg">
           {a.items?.length ? (
-            <Portions meal={meal} editable={isOwner && !job} online={online} onChange={applyMeal} />
+            <Portions
+              meal={meal}
+              editable={isOwner && !job}
+              online={online}
+              locked={correcting}
+              onChange={applyMeal}
+              onSavingChange={setPortionsSaving}
+              onStale={() => void refresh()}
+            />
           ) : (
             <NutritionTable
               totals={{ calories: meal.calories ?? 0, protein_g: meal.protein_g ?? 0, carbs_g: meal.carbs_g ?? 0, fat_g: meal.fat_g ?? 0 }}
@@ -210,7 +220,7 @@ export default function MealDetail() {
             hint="La IA ajusta los alimentos y las porciones; no vuelve a mandar la foto."
           />
           {correctError && <Notice tone="error">{correctError}</Notice>}
-          <Button type="submit" variant="secondary" icon="refresh" loading={correcting} disabled={!correction.trim() || !online}>
+          <Button type="submit" variant="secondary" icon="refresh" loading={correcting} disabled={!correction.trim() || !online || portionsSaving}>
             {online ? 'Corregir' : 'Corregir (sin conexión)'}
           </Button>
         </Card>
