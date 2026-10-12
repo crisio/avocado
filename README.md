@@ -3,7 +3,7 @@
 Registra tus comidas con una foto. La IA reconoce qué comiste, estima porciones, calorías y macros, y tu nutrióloga
 ve tu día para dejarte indicaciones. Algo como Whoop, pero para nutrición y con tu nutrióloga en el loop.
 
-**App:** https://crisio.github.io/avocado/ (se instala en el teléfono como app)
+**App:** https://avocadoapp.cristopherpineda.com (se instala en el teléfono como app)
 
 ## Qué hace hoy (v0.2)
 
@@ -18,7 +18,7 @@ ve tu día para dejarte indicaciones. Algo como Whoop, pero para nutrición y co
 ## Arquitectura (todo en planes gratis)
 
 ```
-Teléfono (PWA: React + Vite) ──► GitHub Pages
+Teléfono (PWA: React + Vite) ──► GitHub Pages (avocadoapp.cristopherpineda.com)
         │  token de sesión (Bearer)
         ▼
 Cloudflare Worker  avocado-api (Hono)          ← api/
@@ -104,7 +104,7 @@ Después de eso, cada push a `main` publica solo lo que cambió (la app o la API
 
 ### 6. Instalar en el teléfono
 
-- **iPhone:** abre https://crisio.github.io/avocado/ en Safari → *Compartir* → *Agregar a pantalla de inicio*.
+- **iPhone:** abre https://avocadoapp.cristopherpineda.com en Safari → *Compartir* → *Agregar a pantalla de inicio*.
 - **Android:** ábrela en Chrome → menú → *Instalar app*.
 
 ### 7. Conectar a tu nutrióloga
@@ -125,7 +125,7 @@ npm run dev                 # http://localhost:8787
 # App (terminal 2)
 cp .env.example .env.local
 npm install
-npm run dev                 # http://localhost:5173/avocado/
+npm run dev                 # http://localhost:5173/
 
 npm test                    # pruebas de la API
 ```

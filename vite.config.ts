@@ -2,8 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// La app se publica en https://<usuario>.github.io/avocado/
-const base = '/avocado/'
+// La app se publica en la raíz de https://avocadoapp.cristopherpineda.com
+const base = '/'
 
 export default defineConfig({
   base,
