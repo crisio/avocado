@@ -11,11 +11,16 @@
     "ALLOWED_ORIGINS": "https://avocadoapp.cristopherpineda.com,https://crisio.github.io,http://localhost:5173",
     // "resend" envía con tu dominio; "smtp" por Gmail; "log" solo los imprime (desarrollo local)
     "EMAIL_MODE": "resend",
-    "EMAIL_FROM": "Avocado <avocado@cristopherpineda.com>"
+    "EMAIL_FROM": "Avocado <avocado@cristopherpineda.com>",
+    // Modelo de visión para analizar las fotos (OpenRouter). El primero es el principal; los demás entran
+    // solos si el principal falla. Gemini 3.1 Flash-Lite: ~2 s por foto, ~US$0.90 por cada 1,000 fotos y
+    // de los más precisos en calorías entre los modelos baratos. Respaldo de otra empresa: GPT-6 Luna.
+    // Para probar otros con tus fotos: cd api && npm run bench (ver scripts/bench-models.ts).
+    "AI_MODELS": "google/gemini-3.1-flash-lite,openai/gpt-6-luna"
   },
   // Al publicar por primera vez, Cloudflare crea la base de datos y el bucket automáticamente.
   "d1_databases": [{ "binding": "DB", "database_name": "avocado", "migrations_dir": "migrations" }],
   "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "avocado-photos" }]
-  // Secretos (no van aquí): AUTH_SECRET, RESEND_API_KEY, OPENROUTER_API_KEY, OPENROUTER_MODEL
+  // Secretos (no van aquí): AUTH_SECRET, RESEND_API_KEY, OPENROUTER_API_KEY
   // (o GMAIL_USER y GMAIL_APP_PASSWORD si usas EMAIL_MODE "smtp")
 }

@@ -1,6 +1,7 @@
 import type { Env } from './env'
 
 // Analiza la foto de una comida con un modelo de visión vía OpenRouter.
+// Modelo: ver AI_MODELS en wrangler.jsonc (elegido por precisión en fotos de comida, velocidad y costo).
 
 export const SYSTEM_PROMPT = `Eres un asistente de nutrición. Te paso la foto de una comida (y a veces una nota del paciente).
 Identifica cada alimento visible, estima la porción en gramos y calcula calorías y macronutrientes.
@@ -81,10 +82,57 @@ export function parseAnalysis(text: string, model: string): Analysis {
   }
 }
 
+// Forma exacta que pedimos (structured outputs). Si un modelo de respaldo no la respeta, parseAnalysis la tolera igual.
+const nutrients = {
+  calories: { type: 'number' },
+  protein_g: { type: 'number' },
+  carbs_g: { type: 'number' },
+  fat_g: { type: 'number' },
+} as const
+const ANALYSIS_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['items', 'total', 'meal_type', 'summary', 'confidence'],
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name', 'portion_g', 'calories', 'protein_g', 'carbs_g', 'fat_g'],
+        properties: { name: { type: 'string' }, portion_g: { type: 'number' }, ...nutrients },
+      },
+    },
+    total: { type: 'object', additionalProperties: false, required: ['calories', 'protein_g', 'carbs_g', 'fat_g'], properties: nutrients },
+    meal_type: { type: 'string', enum: ['desayuno', 'comida', 'cena', 'snack', 'bebida'] },
+    summary: { type: 'string' },
+    confidence: { type: 'number' },
+  },
+}
+
+/** Opciones de la petición, compartidas con scripts/bench-models.ts para medir exactamente lo que corre en producción. */
+export const REQUEST_OPTIONS = {
+  temperature: 0.2,
+  max_tokens: 1500,
+  // Sin "pensar": para una foto de comida no mejora la estimación y triplica el tiempo de espera.
+  reasoning: { effort: 'minimal', exclude: true },
+  response_format: { type: 'json_schema', json_schema: { name: 'meal_analysis', strict: true, schema: ANALYSIS_SCHEMA } },
+}
+
+/** AI_MODELS = "principal,respaldo1,…": OpenRouter pasa al siguiente si el principal falla o no está disponible. */
+export function modelList(env: Env) {
+  return (env.AI_MODELS ?? '')
+    .split(',')
+    .map((m) => m.trim())
+    .filter(Boolean)
+}
+
 export async function analyzePhoto(env: Env, photo: ArrayBuffer, contentType: string, note: string | null): Promise<Analysis> {
   const apiKey = env.OPENROUTER_API_KEY
-  const model = env.OPENROUTER_MODEL
-  if (!apiKey || !model) throw new Error('Faltan los secretos OPENROUTER_API_KEY / OPENROUTER_MODEL')
+  const models = modelList(env)
+  if (!apiKey) throw new Error('Falta el secreto OPENROUTER_API_KEY')
+  if (models.length === 0) throw new Error('Falta la variable AI_MODELS')
+  const [model, ...fallbacks] = models
 
   const dataUrl = `data:${contentType};base64,${toBase64(photo)}`
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -96,7 +144,8 @@ export async function analyzePhoto(env: Env, photo: ArrayBuffer, contentType: st
     },
     body: JSON.stringify({
       model,
-      temperature: 0.2,
+      ...(fallbacks.length ? { models } : {}),
+      ...REQUEST_OPTIONS,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         {

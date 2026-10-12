@@ -13,7 +13,7 @@ export default defineConfig(async () => {
             EMAIL_MODE: 'log',
             AUTH_SECRET: 'test-secret-de-al-menos-32-caracteres!',
             OPENROUTER_API_KEY: 'test-key',
-            OPENROUTER_MODEL: 'test/vision-model',
+            AI_MODELS: 'test/vision-model',
           },
         },
       }),

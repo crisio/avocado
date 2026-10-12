@@ -5,13 +5,14 @@ export interface Env {
   ALLOWED_ORIGINS: string
   EMAIL_MODE: 'resend' | 'smtp' | 'log'
   EMAIL_FROM: string
+  /** Modelos de visión de OpenRouter, separados por coma: el primero es el principal, los demás de respaldo. */
+  AI_MODELS: string
   // Secretos
   AUTH_SECRET: string
   RESEND_API_KEY?: string
   GMAIL_USER?: string
   GMAIL_APP_PASSWORD?: string
   OPENROUTER_API_KEY?: string
-  OPENROUTER_MODEL?: string
 }
 
 export interface User {

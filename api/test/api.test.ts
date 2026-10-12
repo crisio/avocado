@@ -222,6 +222,9 @@ describe('análisis con IA (OpenRouter simulado)', () => {
     expect(String(url)).toBe('https://openrouter.ai/api/v1/chat/completions')
     const sentBody = JSON.parse(String((init as RequestInit).body))
     expect(sentBody.model).toBe('test/vision-model')
+    expect(sentBody.models).toBeUndefined() // un solo modelo: sin lista de respaldo
+    expect(sentBody.reasoning).toEqual({ effort: 'minimal', exclude: true })
+    expect(sentBody.response_format.type).toBe('json_schema')
     expect(sentBody.messages[1].content[0].text).toContain('con aceite')
     expect(sentBody.messages[1].content[1].image_url.url).toMatch(/^data:image\/jpeg;base64,/)
   })

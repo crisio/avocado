@@ -25,7 +25,7 @@
 import { readFileSync, readdirSync, mkdirSync, writeFileSync, existsSync } from 'node:fs'
 import { join, extname, basename, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseAnalysis, SYSTEM_PROMPT, type Analysis } from '../src/ai.ts'
+import { parseAnalysis, REQUEST_OPTIONS, SYSTEM_PROMPT, type Analysis } from '../src/ai.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -84,7 +84,7 @@ if (photos.length === 0) {
 function buildBody(model: string, dataUrl: string) {
   return {
     model,
-    temperature: 0.2,
+    ...REQUEST_OPTIONS,
     stream: true,
     usage: { include: true }, // OpenRouter devuelve el costo real en el último chunk
     messages: [

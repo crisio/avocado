@@ -93,7 +93,9 @@ En el repo: **Settings → Secrets and variables → Actions → New repository 
 | `AUTH_SECRET` | texto aleatorio de 32+ caracteres. En la Terminal de tu Mac: `openssl rand -hex 32` |
 | `RESEND_API_KEY` | la API key de Resend del paso 2 |
 | `OPENROUTER_API_KEY` | tu API key de OpenRouter |
-| `OPENROUTER_MODEL` | el id del modelo que elegiste |
+
+El modelo de IA no es secreto: está en `AI_MODELS` dentro de `api/wrangler.jsonc` (hoy Gemini 3.1 Flash-Lite, con GPT-6 Luna de respaldo).
+Para comparar modelos con tus propias fotos: `cd api && OPENROUTER_API_KEY=... npm run bench -- --photos ../fotos --models a,b,c`.
 
 ### 5. Publicar
 
