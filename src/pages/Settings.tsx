@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Button, Card, Notice, PageHeader, PersonRow, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
 import { api } from '../lib/api'
-import { usePoll } from '../lib/usePoll'
+import { useCachedApi } from '../lib/useCachedApi'
 import { displayName } from '../lib/format'
 import type { Person, User } from '../lib/types'
 
@@ -53,13 +53,12 @@ export default function Settings() {
 }
 
 function MyNutritionists() {
-  const [list, setList] = useState<Person[]>([])
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const load = () => api<Person[]>('/care/nutritionists').then(setList, () => {})
-  usePoll(load, 60_000, 'nutritionists')
+  const { data, refresh: load } = useCachedApi<Person[]>('/care/nutritionists', 60_000)
+  const list = data ?? []
 
   async function link(e: FormEvent) {
     e.preventDefault()
@@ -77,7 +76,7 @@ function MyNutritionists() {
 
   async function unlink(n: Person) {
     if (!confirm(`¿Dejar de compartir tus comidas con ${displayName(n)}?`)) return
-    await api(`/care/nutritionists/${n.id}`, { method: 'DELETE' }).catch(() => {})
+    await api(`/care/nutritionists/${n.id}`, { method: 'DELETE' }).catch((err) => alert(err.message))
     load()
   }
 

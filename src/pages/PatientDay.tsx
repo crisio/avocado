@@ -1,19 +1,14 @@
-import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { IconButton, PageHeader, Screen } from '@avocado/ui'
 import DayView from '../components/DayView'
-import { api } from '../lib/api'
+import { useCachedApi } from '../lib/useCachedApi'
 import { displayName } from '../lib/format'
 import type { User } from '../lib/types'
 
 export default function PatientDay() {
   const { id = '' } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [patient, setPatient] = useState<User | null>(null)
-
-  useEffect(() => {
-    api<User>(`/users/${id}`).then(setPatient, () => setPatient(null))
-  }, [id])
+  const patient = useCachedApi<User>(`/users/${id}`, 300_000).data ?? null
 
   return (
     <Screen withTabBar>

@@ -1,3 +1,5 @@
+import { reportReachable } from './useOnline'
+
 const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 const TOKEN_KEY = 'avocado.token'
 
@@ -35,8 +37,8 @@ export const setUnauthorizedHandler = (fn: () => void) => {
 }
 
 /** Llama a la API con el token de sesión. Lanza ApiError con el mensaje del servidor (en español). */
-export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
-  const { json, ...rest } = init
+export async function api<T>(path: string, init: RequestInit & { json?: unknown; timeoutMs?: number } = {}): Promise<T> {
+  const { json, timeoutMs = 20_000, ...rest } = init
   const headers = new Headers(rest.headers)
   const token = getToken()
   if (token) headers.set('Authorization', `Bearer ${token}`)
@@ -44,10 +46,18 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
 
   let res: Response
   try {
-    res = await fetch(BASE + path, { ...rest, headers, body: json !== undefined ? JSON.stringify(json) : rest.body })
+    // Con señal débil fetch puede quedarse colgado: se corta a los `timeoutMs` y se trata como sin conexión.
+    res = await fetch(BASE + path, {
+      ...rest,
+      headers,
+      body: json !== undefined ? JSON.stringify(json) : rest.body,
+      signal: rest.signal ?? AbortSignal.timeout(timeoutMs),
+    })
   } catch {
+    reportReachable(false)
     throw new ApiError('Sin conexión. Revisa tu internet.', 0)
   }
+  reportReachable(true)
 
   const data = res.headers.get('Content-Type')?.includes('application/json') ? await res.json() : null
   if (!res.ok) {

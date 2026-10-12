@@ -6,7 +6,12 @@ import '@fontsource-variable/hanken-grotesk'
 import '@avocado/ui/styles.css'
 import { AuthProvider } from './auth'
 import App from './App'
+import { startOutbox } from './lib/outbox'
 import './styles.css'
+
+startOutbox()
+// Pide al navegador no borrar las fotos guardadas sin conexión cuando falte espacio.
+navigator.storage?.persist?.().catch(() => {})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

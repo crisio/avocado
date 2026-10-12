@@ -2,15 +2,19 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { EmptyState, Screen } from '@avocado/ui'
 import { useAuth } from './auth'
 import { isConfigured } from './lib/api'
+import { lazy, Suspense } from 'react'
 import Layout from './components/Layout'
-import Login from './pages/Login'
-import Onboarding from './pages/Onboarding'
 import Today from './pages/Today'
-import AddMeal from './pages/AddMeal'
-import MealDetail from './pages/MealDetail'
-import Patients from './pages/Patients'
-import PatientDay from './pages/PatientDay'
-import Settings from './pages/Settings'
+
+// La pantalla principal del paciente va en el bundle inicial; el resto se carga aparte (y queda en el
+// precache del service worker, así que también abre sin internet).
+const Login = lazy(() => import('./pages/Login'))
+const Onboarding = lazy(() => import('./pages/Onboarding'))
+const AddMeal = lazy(() => import('./pages/AddMeal'))
+const MealDetail = lazy(() => import('./pages/MealDetail'))
+const Patients = lazy(() => import('./pages/Patients'))
+const PatientDay = lazy(() => import('./pages/PatientDay'))
+const Settings = lazy(() => import('./pages/Settings'))
 
 export default function App() {
   const { user } = useAuth()
@@ -21,8 +25,18 @@ export default function App() {
         <EmptyState title="Falta conectar la API" description="Define VITE_API_URL en .env.local (local) o como variable del repositorio en GitHub. Revisa el README." />
       </Screen>
     )
-  if (!user) return <Login />
-  if (!user.role) return <Onboarding />
+  if (!user)
+    return (
+      <Suspense>
+        <Login />
+      </Suspense>
+    )
+  if (!user.role)
+    return (
+      <Suspense>
+        <Onboarding />
+      </Suspense>
+    )
 
   return (
     <Routes>

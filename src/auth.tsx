@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { api, getToken, setToken, setUnauthorizedHandler } from './lib/api'
+import { clearCache } from './lib/cache'
+import { clearOutbox, pendingCount } from './lib/outbox'
 import type { User } from './lib/types'
 
 interface AuthState {
@@ -41,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      // Sesión vencida: la cola se conserva (es del mismo usuario y se envía al volver a entrar)
       setToken(null)
       setUser(null)
     })
@@ -55,7 +58,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(next)
     },
     signOut: async () => {
+      const pending = pendingCount()
+      if (pending && !confirm(`Tienes ${pending} ${pending === 1 ? 'envío' : 'envíos'} sin mandar (sin conexión). Si cierras sesión se pierden. ¿Cerrar sesión de todos modos?`)) return
       await api('/auth/logout', { method: 'POST' }).catch(() => {})
+      // En un teléfono compartido no deben quedar comidas ni datos de otra cuenta
+      clearCache()
+      await clearOutbox()
       setToken(null)
       setUser(null)
     },

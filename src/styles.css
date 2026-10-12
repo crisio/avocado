@@ -43,3 +43,13 @@ body {
   color: var(--av-muted);
   padding: 24px;
 }
+
+/* Aviso de conexión arriba de la pantalla (vacío = no ocupa espacio) */
+.app-banner {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: max(12px, env(safe-area-inset-top)) 20px 0;
+}
+.app-banner:empty {
+  display: none;
+}

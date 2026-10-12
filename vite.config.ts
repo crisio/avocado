@@ -22,6 +22,24 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Abrir la app sin internet: cualquier ruta sirve index.html del precache.
+        navigateFallback: 'index.html',
+        cleanupOutdatedCaches: true,
+        runtimeCaching: [
+          {
+            // Fotos de las comidas (API /photos/...). La firma (?exp=&sig=) cambia cada hora, así que se
+            // guardan ignorando la query: ya vistas, se muestran al instante y sin conexión.
+            urlPattern: ({ url }) => url.pathname.startsWith('/photos/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'meal-photos',
+              matchOptions: { ignoreSearch: true },
+              expiration: { maxEntries: 150, maxAgeSeconds: 60 * 60 * 24 * 30, purgeOnQuotaError: true },
+              // 0 = respuesta opaca (<img> a otro dominio sin CORS)
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
       manifest: {
         name: 'Avocado',

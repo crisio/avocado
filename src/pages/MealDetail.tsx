@@ -1,13 +1,16 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, Chip, CommentBubble, EmptyState, IconButton, Notice, NutritionTable, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
-import { api } from '../lib/api'
-import { usePoll } from '../lib/usePoll'
+import { api, type ApiError } from '../lib/api'
+import { useCachedApi } from '../lib/useCachedApi'
+import { discardJob, enqueueComment, retryJob, useOutbox, type CommentJob, type MealJob } from '../lib/outbox'
+import { jobToMeal, usePhotoUrls } from '../lib/localMeals'
+import { useOnline } from '../lib/useOnline'
 import { formatAgo, formatDay } from '../lib/format'
 import { mealKind, mealKindLabel, mealTitle } from '../lib/meals'
 import { formatTime } from '../lib/format'
-import type { Meal, MealComment, MealWithComments } from '../lib/types'
+import type { Meal, MealWithComments } from '../lib/types'
 
 const STUCK_AFTER_MS = 2 * 60_000
 
@@ -15,41 +18,44 @@ export default function MealDetail() {
   const { id = '' } = useParams<{ id: string }>()
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [meal, setMeal] = useState<MealWithComments | null | undefined>(undefined)
+  const online = useOnline()
+  const { jobs, sending } = useOutbox()
   const [body, setBody] = useState('')
-  const [sending, setSending] = useState(false)
   const [retrying, setRetrying] = useState(false)
 
-  const load = () =>
-    api<MealWithComments>(`/meals/${id}`)
-      .then(setMeal)
-      .catch((err) => err.status === 404 && setMeal(null))
+  // Comida que sigue en el teléfono (recién registrada o sin conexión)
+  const job = jobs.find((j): j is MealJob => j.kind === 'meal' && j.id === id)
+  const localPhotos = usePhotoUrls(useMemo(() => (job ? [job] : []), [job]))
 
   // Rápido mientras la IA analiza; después, cada 15 s para ver comentarios nuevos.
-  usePoll(load, meal?.status === 'pending' ? 4_000 : 15_000, id)
+  const [fast, setFast] = useState(true)
+  const { data, error, mutate } = useCachedApi<MealWithComments>(job ? null : `/meals/${id}`, fast ? 4_000 : 15_000)
+  const status = data?.status
+  useEffect(() => setFast(!status || status === 'pending'), [status])
+
+  const pendingComments = jobs.filter((j): j is CommentJob => j.kind === 'comment' && j.mealId === id && !data?.comments.some((c) => c.id === j.id))
+
+  const meal: MealWithComments | null | undefined = job
+    ? { ...jobToMeal(job, localPhotos.get(job.id)!), comments: [] }
+    : data ?? ((error as ApiError | null)?.status === 404 ? null : undefined)
 
   async function sendComment(e: FormEvent) {
     e.preventDefault()
-    if (!body.trim() || !meal) return
-    setSending(true)
-    try {
-      const comment = await api<MealComment>(`/meals/${id}/comments`, { method: 'POST', json: { body: body.trim() } })
-      setMeal({ ...meal, comments: [...meal.comments, comment] })
-      setBody('')
-    } catch (err) {
-      alert((err as Error).message)
-    }
-    setSending(false)
+    if (!body.trim() || !user) return
+    // Se guarda en la cola: aparece al instante y se envía en cuanto hay señal.
+    await enqueueComment({ id: crypto.randomUUID(), userId: user.id, mealId: id, body: body.trim(), author_name: user.full_name, author_role: user.role })
+    setBody('')
   }
 
   async function retry() {
-    if (!meal) return
+    if (!data) return
     setRetrying(true)
-    setMeal({ ...meal, status: 'pending' })
+    mutate((prev) => (prev ? { ...prev, status: 'pending' } : prev))
     try {
-      const updated = await api<Meal>(`/meals/${id}/analyze`, { method: 'POST' })
-      setMeal((prev) => (prev ? { ...prev, ...updated } : prev))
+      const updated = await api<Meal>(`/meals/${id}/analyze`, { method: 'POST', timeoutMs: 90_000 })
+      mutate((prev) => (prev ? { ...prev, ...updated } : prev))
     } catch (err) {
+      mutate((prev) => (prev ? { ...prev, status: data.status } : prev))
       alert((err as Error).message)
     }
     setRetrying(false)
@@ -57,8 +63,13 @@ export default function MealDetail() {
 
   async function remove() {
     if (!confirm('¿Borrar esta comida?')) return
-    await api(`/meals/${id}`, { method: 'DELETE' })
-    navigate('/', { replace: true })
+    try {
+      if (job) await discardJob(job.id)
+      else await api(`/meals/${id}`, { method: 'DELETE' })
+      navigate('/', { replace: true })
+    } catch (err) {
+      alert((err as Error).message)
+    }
   }
 
   const back = (
@@ -71,7 +82,7 @@ export default function MealDetail() {
     return (
       <Screen withTabBar>
         {back}
-        <p className="av-text-muted">Cargando…</p>
+        <p className="av-text-muted">{error && !online ? 'Sin conexión. Esta comida no está guardada en el teléfono.' : 'Cargando…'}</p>
       </Screen>
     )
   if (meal === null)
@@ -85,7 +96,7 @@ export default function MealDetail() {
   const a = meal.analysis
   const isOwner = meal.user_id === user?.id
   const stuck = meal.status === 'pending' && Date.now() - Date.parse(meal.created_at) > STUCK_AFTER_MS
-  const canRetry = isOwner && !retrying && (meal.status === 'error' || stuck)
+  const canRetry = !job && online && isOwner && !retrying && (meal.status === 'error' || stuck)
 
   return (
     <Screen withTabBar>
@@ -97,19 +108,46 @@ export default function MealDetail() {
           {formatDay(new Date(meal.eaten_at))} · {formatTime(meal.eaten_at)} · {mealKindLabel(mealKind(meal))}
         </span>
         <h1 className="av-page-header__title" style={{ fontSize: 28 }}>
-          {mealTitle(meal)}
+          {job ? 'Comida guardada en el teléfono' : mealTitle(meal)}
         </h1>
         {meal.note && <p className="app-note">“{meal.note}”</p>}
-        {meal.status === 'pending' && (
+        {job ? (
           <div>
-            <Chip tone="warning" icon="clock">
-              La IA está analizando la foto
-            </Chip>
+            {job.error ? (
+              <Chip tone="danger" icon="alert">
+                No se pudo enviar
+              </Chip>
+            ) : sending === job.id ? (
+              <Chip tone="warning" icon="refresh">
+                Enviando la foto…
+              </Chip>
+            ) : (
+              <Chip tone="warning" icon="clock">
+                {online ? 'En cola para enviar' : 'Se analiza en cuanto vuelva la señal'}
+              </Chip>
+            )}
           </div>
+        ) : (
+          meal.status === 'pending' && (
+            <div>
+              <Chip tone="warning" icon="clock">
+                La IA está analizando la foto
+              </Chip>
+            </div>
+          )
         )}
       </div>
 
-      {(meal.status === 'error' || canRetry) && (
+      {job?.error && (
+        <Card>
+          <Notice tone="error">El servidor no aceptó esta comida: {job.error}</Notice>
+          <Button variant="secondary" icon="refresh" onClick={() => retryJob(job.id)}>
+            Intentar de nuevo
+          </Button>
+        </Card>
+      )}
+
+      {!job && (meal.status === 'error' || canRetry) && (
         <Card>
           {meal.status === 'error' && (
             <Notice tone="error">
@@ -140,7 +178,7 @@ export default function MealDetail() {
         <h2 id="comentarios" className="av-section-title">
           Indicaciones y comentarios
         </h2>
-        {meal.comments.length === 0 && <p className="av-text-muted" style={{ margin: 0 }}>Aún no hay comentarios.</p>}
+        {meal.comments.length === 0 && pendingComments.length === 0 && <p className="av-text-muted" style={{ margin: 0 }}>Aún no hay comentarios.</p>}
         <ul className="app-stack">
           {meal.comments.map((c) => (
             <li key={c.id}>
@@ -149,10 +187,26 @@ export default function MealDetail() {
               </CommentBubble>
             </li>
           ))}
+          {pendingComments.map((c) => (
+            <li key={c.id} style={{ opacity: c.error ? 1 : 0.7 }}>
+              <CommentBubble
+                author={c.author_name || 'Sin nombre'}
+                role={c.author_role === 'nutritionist' ? 'nutritionist' : 'patient'}
+                time={c.error ? 'no se pudo enviar' : online ? 'enviando…' : 'se envía al volver la señal'}
+              >
+                {c.body}
+              </CommentBubble>
+              {c.error && (
+                <Button variant="ghost" icon="refresh" onClick={() => retryJob(c.id)}>
+                  Reintentar
+                </Button>
+              )}
+            </li>
+          ))}
         </ul>
         <form className="app-row" onSubmit={sendComment}>
           <TextField label="Escribe un comentario" value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} />
-          <Button type="submit" icon="send" loading={sending} disabled={!body.trim()}>
+          <Button type="submit" icon="send" disabled={!body.trim()}>
             Enviar
           </Button>
         </form>

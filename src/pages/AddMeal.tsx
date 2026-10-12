@@ -1,13 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, IconButton, Notice, PageHeader, PhotoPicker, Screen, TextField } from '@avocado/ui'
-import { api } from '../lib/api'
+import { useAuth } from '../auth'
 import { compressImage } from '../lib/image'
+import { enqueueMeal } from '../lib/outbox'
 import { toLocalInput } from '../lib/format'
-import type { Meal } from '../lib/types'
+import { useOnline } from '../lib/useOnline'
 
 export default function AddMeal() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const online = useOnline()
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [note, setNote] = useState('')
@@ -24,19 +27,19 @@ export default function AddMeal() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!file) return
+    if (!file || !user) return
     setBusy(true)
     setError(null)
     try {
-      const form = new FormData()
-      form.set('photo', await compressImage(file), 'comida.jpg')
-      form.set('eaten_at', new Date(eatenAt).toISOString())
-      if (note.trim()) form.set('note', note.trim())
-      const meal = await api<Meal>('/meals', { method: 'POST', body: form })
-
-      // El análisis sigue en segundo plano; el detalle se actualiza solo cuando termina.
-      api(`/meals/${meal.id}/analyze`, { method: 'POST' }).catch(() => {})
-      navigate(`/comida/${meal.id}`, { replace: true })
+      // Primero se guarda en el teléfono; la cola la sube (y el servidor la analiza) en cuanto hay señal.
+      const job = await enqueueMeal({
+        id: crypto.randomUUID(),
+        userId: user.id,
+        photo: await compressImage(file),
+        eaten_at: new Date(eatenAt).toISOString(),
+        note: note.trim() || null,
+      })
+      navigate(`/comida/${job.id}`, { replace: true })
     } catch (err) {
       setError((err as Error).message)
       setBusy(false)
@@ -60,9 +63,10 @@ export default function AddMeal() {
           placeholder="Ej. sin azúcar, con una cucharada de aceite de oliva, me comí la mitad…"
           hint="Ayuda a la IA con lo que no se ve en la foto."
         />
+        {!online && <Notice tone="warning">Sin conexión: la comida se guarda en el teléfono y se analiza sola al volver la señal.</Notice>}
         {error && <Notice tone="error">{error}</Notice>}
         <Button type="submit" size="lg" fullWidth icon="check" loading={busy} disabled={!file}>
-          Guardar y analizar
+          {online ? 'Guardar y analizar' : 'Guardar en el teléfono'}
         </Button>
       </form>
     </Screen>
