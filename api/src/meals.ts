@@ -7,6 +7,7 @@ import { signedPhotoUrl } from './photos'
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024
 const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 interface MealRow {
   id: string
@@ -98,7 +99,19 @@ mealRoutes.post('/', async (c) => {
 
   const note = String(form.get('note') ?? '').trim().slice(0, 1000) || null
   const eatenAt = form.get('eaten_at') ? toIso(form.get('eaten_at'), 'eaten_at') : new Date().toISOString()
-  const id = crypto.randomUUID()
+  const origin = new URL(c.req.url).origin
+
+  // client_id: la app genera el id sin conexión y reintenta el envío; si ya llegó, regresamos la misma comida.
+  const clientId = String(form.get('client_id') ?? '')
+  if (clientId && !UUID.test(clientId)) fail(400, 'client_id inválido')
+  if (clientId) {
+    const existing = await getMeal(c.env, clientId)
+    if (existing) {
+      if (existing.user_id !== c.var.user.id) fail(409, 'client_id en uso')
+      return c.json(await toMeal(c.env, origin, existing), 200)
+    }
+  }
+  const id = clientId || crypto.randomUUID()
   const key = `${c.var.user.id}/${id}.${photo.type.split('/')[1].replace('jpeg', 'jpg')}`
 
   await c.env.PHOTOS.put(key, await photo.arrayBuffer(), { httpMetadata: { contentType: photo.type } })
@@ -107,7 +120,9 @@ mealRoutes.post('/', async (c) => {
     .run()
 
   const meal = await getMeal(c.env, id)
-  return c.json(await toMeal(c.env, new URL(c.req.url).origin, meal!), 201)
+  // analyze=1: el análisis arranca aquí mismo y sigue aunque el teléfono pierda la conexión.
+  if (form.get('analyze') === '1') c.executionCtx.waitUntil(runAnalysis(c.env, meal!))
+  return c.json(await toMeal(c.env, origin, meal!), 201)
 })
 
 // Detalle con comentarios
@@ -151,12 +166,22 @@ mealRoutes.post('/:id/comments', async (c) => {
   const meal = await getMeal(c.env, c.req.param('id'))
   if (!meal || !(await canSee(c.env, c.var.user.id, meal.user_id))) fail(404, 'No encontramos esta comida')
 
-  const { body } = await c.req.json<{ body?: string }>().catch(() => ({ body: undefined }))
+  const { body, id: clientId } = await c.req.json<{ body?: string; id?: string }>().catch(() => ({ body: undefined, id: undefined }))
   const text = String(body ?? '').trim()
   if (!text || text.length > 2000) fail(400, 'El comentario debe tener entre 1 y 2000 caracteres')
+  if (clientId !== undefined && !UUID.test(String(clientId))) fail(400, 'id inválido')
+
+  // Igual que las comidas: un comentario reenviado desde la cola sin conexión no se duplica.
+  if (clientId) {
+    const existing = await c.env.DB.prepare('SELECT * FROM meal_comments WHERE id = ?').bind(clientId).first<{ author_id: string }>()
+    if (existing) {
+      if (existing.author_id !== c.var.user.id) fail(409, 'id en uso')
+      return c.json({ ...existing, author_name: c.var.user.full_name, author_role: c.var.user.role }, 200)
+    }
+  }
 
   const comment = {
-    id: crypto.randomUUID(),
+    id: clientId || crypto.randomUUID(),
     meal_id: meal.id,
     author_id: c.var.user.id,
     body: text,

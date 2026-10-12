@@ -237,6 +237,49 @@ describe('análisis con IA (OpenRouter simulado)', () => {
   })
 })
 
+describe('cola sin conexión', () => {
+  it('no duplica una comida reenviada con el mismo client_id', async () => {
+    const token = await login('cola@gmail.com', { full_name: 'Cola', role: 'patient' })
+    const other = await login('cola2@gmail.com', { full_name: 'Otra', role: 'patient' })
+    const id = crypto.randomUUID()
+
+    const first = await call('/meals', { method: 'POST', token, body: photoForm({ client_id: id, eaten_at: '2026-10-11T15:00:00Z' }) })
+    expect(first.status).toBe(201)
+    expect(first.data.id).toBe(id)
+    const again = await call('/meals', { method: 'POST', token, body: photoForm({ client_id: id, eaten_at: '2026-10-11T15:00:00Z' }) })
+    expect(again.status).toBe(200)
+    expect(again.data.id).toBe(id)
+    const { results } = await env.DB.prepare('SELECT id FROM meals WHERE user_id = (SELECT user_id FROM meals WHERE id = ?)').bind(id).all()
+    expect(results).toHaveLength(1)
+
+    expect((await call('/meals', { method: 'POST', token: other, body: photoForm({ client_id: id }) })).status).toBe(409)
+    expect((await call('/meals', { method: 'POST', token, body: photoForm({ client_id: 'no-es-uuid' }) })).status).toBe(400)
+  })
+
+  it('con analyze=1 analiza al recibir la foto, sin otra llamada', async () => {
+    const token = await login('auto@gmail.com', { full_name: 'Auto', role: 'patient' })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json({
+        model: 'test/vision-model',
+        choices: [{ message: { content: '{"items":[{"name":"Manzana","portion_g":150,"calories":78,"protein_g":0.4,"carbs_g":21,"fat_g":0.3}],"meal_type":"snack","summary":"Manzana","confidence":0.9}' } }],
+      }),
+    )
+    const created = await call('/meals', { method: 'POST', token, body: photoForm({ analyze: '1' }) })
+    expect(created.status).toBe(201)
+    const detail = await call(`/meals/${created.data.id}`, { token })
+    expect(detail.data).toMatchObject({ status: 'analyzed', calories: 78 })
+  })
+
+  it('no duplica un comentario reenviado con el mismo id', async () => {
+    const token = await login('comenta@gmail.com', { full_name: 'Comenta', role: 'patient' })
+    const meal = (await call('/meals', { method: 'POST', token, body: photoForm() })).data
+    const id = crypto.randomUUID()
+    expect((await call(`/meals/${meal.id}/comments`, { method: 'POST', token, json: { id, body: 'Sin azúcar' } })).status).toBe(201)
+    expect((await call(`/meals/${meal.id}/comments`, { method: 'POST', token, json: { id, body: 'Sin azúcar' } })).status).toBe(200)
+    expect((await call(`/meals/${meal.id}`, { token })).data.comments).toHaveLength(1)
+  })
+})
+
 describe('CORS', () => {
   it('permite la app y bloquea otros orígenes', async () => {
     const ok = await app.fetch(
