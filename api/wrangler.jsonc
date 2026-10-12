@@ -7,8 +7,8 @@
   "observability": { "enabled": true },
   "vars": {
     // URL pública de la app (para los enlaces de los correos y CORS)
-    "APP_URL": "https://crisio.github.io/avocado/",
-    "ALLOWED_ORIGINS": "https://crisio.github.io,http://localhost:5173",
+    "APP_URL": "https://avocadoapp.cristopherpineda.com/",
+    "ALLOWED_ORIGINS": "https://avocadoapp.cristopherpineda.com,https://crisio.github.io,http://localhost:5173",
     // "resend" envía con tu dominio; "smtp" por Gmail; "log" solo los imprime (desarrollo local)
     "EMAIL_MODE": "resend",
     "EMAIL_FROM": "Avocado <avocado@cristopherpineda.com>"
