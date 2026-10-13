@@ -2,11 +2,12 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Notice, PageHeader, PhotoPicker, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
+import { celebrateMeal } from '../components/Celebration'
 import TopBar from '../components/TopBar'
 import { compressImage } from '../lib/image'
-import { cheer } from '../lib/mascot'
+import { cheer, preloadHd } from '../lib/mascot'
 import { enqueueMeal } from '../lib/outbox'
-import { toLocalInput } from '../lib/format'
+import { firstName, toLocalInput } from '../lib/format'
 import { useOnline } from '../lib/useOnline'
 
 export default function AddMeal() {
@@ -19,6 +20,9 @@ export default function AddMeal() {
   const [eatenAt, setEatenAt] = useState(() => toLocalInput(new Date()))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Las tiras grandes de Avo para la celebración, listas antes de guardar.
+  useEffect(preloadHd, [])
 
   useEffect(() => {
     if (!file) return setPreview(null)
@@ -41,7 +45,15 @@ export default function AddMeal() {
         eaten_at: new Date(eatenAt).toISOString(),
         note: note.trim() || null,
       })
-      cheer('eat', online ? '¡Buen provecho!' : 'La guardo y la analizo al volver la señal', { interrupt: true })
+      // ¡Lo logró! Confeti, su foto como plato y Avo comiendo; encima del detalle de la comida.
+      const name = firstName(user.full_name)
+      celebrateMeal({
+        title: '¡Comida registrada!',
+        message: online
+          ? `¡Buen provecho${name ? `, ${name}` : ''}! Avo ya está analizando tu foto.`
+          : 'Quedó guardada en el teléfono. Avo la analiza en cuanto vuelva la señal.',
+        photoUrl: URL.createObjectURL(job.photo),
+      })
       navigate(`/comida/${job.id}`, { replace: true })
     } catch (err) {
       setError((err as Error).message)

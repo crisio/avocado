@@ -5,7 +5,7 @@ import { POSES, SEQUENCES, setInlineVisible, spriteUrl, tapMascot, useInlineVisi
 import { useOnline } from '../lib/useOnline'
 
 const reducedQuery = typeof window !== 'undefined' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null
-const useReducedMotion = () =>
+export const useReducedMotion = () =>
   useSyncExternalStore(
     (cb) => {
       reducedQuery?.addEventListener('change', cb)
@@ -58,16 +58,20 @@ export interface MascotProps {
   bubble?: 'left' | 'right' | 'top' | 'below'
   /** Es la mascota flotante (no cuenta como "a la vista"). */
   floating?: boolean
+  /** Hace este ánimo en bucle e ignora las reacciones (p. ej. en la celebración de una comida nueva). */
+  play?: Mood
+  /** Usa las tiras en alta resolución (para verla en grande). */
+  hd?: boolean
   className?: string
 }
 
 /** Avo, el aguacate del logo, animado. */
-export function Mascot({ size = 88, base = 'idle', reactive = false, interactive = false, bubble = 'left', floating = false, className }: MascotProps) {
+export function Mascot({ size = 88, base = 'idle', reactive = false, interactive = false, bubble = 'left', floating = false, play, hd = false, className }: MascotProps) {
   const reduced = useReducedMotion()
   const reaction = useReaction()
-  const active = reactive ? reaction : null
-  const mood: Mood = active?.mood ?? base
-  const [frame, lift] = useSteps(mood, active ? `r${active.id}` : base, !active, reduced)
+  const active = reactive && !play ? reaction : null
+  const mood: Mood = play ?? active?.mood ?? base
+  const [frame, lift] = useSteps(mood, active ? `r${active.id}` : `b${mood}`, !active, reduced)
   const ref = useRef<HTMLElement>(null)
   const role = useAuth().user?.role ?? null
 
@@ -99,7 +103,7 @@ export function Mascot({ size = 88, base = 'idle', reactive = false, interactive
       <span className="mascot__lift" style={{ transform: lift ? `translateY(${lift}px)` : undefined }}>
         <span
           className={`mascot__sprite${mood === 'idle' || mood === 'sleepy' ? ' mascot__sprite--breathe' : ''}`}
-          style={{ backgroundImage: `url(${spriteUrl(mood)})`, backgroundPosition: `${(frame * 100) / 3}% 0` }}
+          style={{ backgroundImage: `url(${spriteUrl(mood, hd)})`, backgroundPosition: `${(frame * 100) / 3}% 0` }}
         />
       </span>
       {active?.message && (

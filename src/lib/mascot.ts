@@ -30,7 +30,18 @@ export const SEQUENCES: Record<Mood, readonly Step[]> = {
 /** Cuadro fijo de cada ánimo cuando el sistema pide reducir el movimiento. */
 export const POSES: Record<Mood, number> = { idle: 0, wave: 1, eat: 3, celebrate: 3, think: 0, sleepy: 2, oops: 1, love: 0 }
 
-export const spriteUrl = (mood: Mood) => `${import.meta.env.BASE_URL}mascot/${mood}.png`
+/** Ánimos con tira en alta (256 px por cuadro) para la celebración en grande; las demás son de 192 px. */
+const HD: ReadonlySet<Mood> = new Set(['celebrate', 'eat'])
+
+export const spriteUrl = (mood: Mood, hd = false) => `${import.meta.env.BASE_URL}mascot/${mood}${hd && HD.has(mood) ? '-hd' : ''}.png`
+
+/** Carga las tiras en alta (se llama al abrir "Registrar comida", antes de la celebración). */
+export function preloadHd() {
+  for (const mood of HD) {
+    const img = new Image()
+    img.src = spriteUrl(mood, true)
+  }
+}
 
 // Se cargan todas al inicio para que el cambio de ánimo no parpadee (además quedan en el precache).
 if (typeof window !== 'undefined')
