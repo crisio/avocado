@@ -5,6 +5,8 @@ export interface User {
   email: string
   full_name: string | null
   role: Role | null // null hasta terminar el registro
+  /** Meta diaria de calorías (opcional; la escribe el paciente en Perfil). */
+  daily_kcal_goal?: number | null
 }
 
 export type Person = Pick<User, 'id' | 'email' | 'full_name'>
@@ -66,4 +68,26 @@ export interface MealComment {
 
 export interface MealWithComments extends Meal {
   comments: MealComment[]
+}
+
+/** Consejo de Avo para un antojo ("¿Me lo como?"). No se guarda. */
+export interface Craving {
+  name: string
+  portion_g: number
+  /** De la porción completa de la foto. */
+  calories: number
+  protein_g: number
+  carbs_g: number
+  fat_g: number
+  verdict: 'adelante' | 'un_poco' | 'compartelo' | 'mejor_no'
+  /** Fracción que conviene comer (1 = todo). */
+  suggested_fraction: number
+  suggested_calories: number
+  message: string
+  tips: string[]
+  /** Pregunta de Avo si no supo bien qué es (o null). */
+  question: string | null
+  confidence: number
+  /** pending: comidas de hoy que aún no tienen calorías (analizándose, sin análisis o en el teléfono). */
+  today: { consumed: number; meals: number; pending: number; goal: number | null; remaining: number | null }
 }

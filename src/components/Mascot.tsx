@@ -62,16 +62,19 @@ export interface MascotProps {
   play?: Mood
   /** Usa las tiras en alta resolución (para verla en grande). */
   hd?: boolean
+  /** Se queda quieta en este cuadro (0–3) de su ánimo. */
+  pose?: number
   className?: string
 }
 
 /** Avo, el aguacate del logo, animado. */
-export function Mascot({ size = 88, base = 'idle', reactive = false, interactive = false, bubble = 'left', floating = false, play, hd = false, className }: MascotProps) {
+export function Mascot({ size = 88, base = 'idle', reactive = false, interactive = false, bubble = 'left', floating = false, play, hd = false, pose, className }: MascotProps) {
   const reduced = useReducedMotion()
   const reaction = useReaction()
   const active = reactive && !play ? reaction : null
   const mood: Mood = play ?? active?.mood ?? base
-  const [frame, lift] = useSteps(mood, active ? `r${active.id}` : `b${mood}`, !active, reduced)
+  const [stepFrame, lift] = useSteps(mood, active ? `r${active.id}` : `b${mood}`, !active, reduced || pose !== undefined)
+  const frame = pose ?? stepFrame
   const ref = useRef<HTMLElement>(null)
   const role = useAuth().user?.role ?? null
 

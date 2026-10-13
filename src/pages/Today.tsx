@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Screen, PageHeader } from '@avocado/ui'
 import { useAuth } from '../auth'
+import CravingLink from '../components/CravingLink'
 import DayView from '../components/DayView'
 import InstallCard from '../components/InstallCard'
 import { Mascot } from '../components/Mascot'
@@ -36,7 +37,7 @@ export default function Today() {
         action={<Mascot size={88} base={analyzing ? 'think' : isNight() ? 'sleepy' : 'idle'} reactive interactive />}
       />
       <InstallCard dismissible mobileOnly />
-      <DayView userId={user.id} onAnalyzing={setAnalyzing} />
+      <DayView userId={user.id} onAnalyzing={setAnalyzing} todayExtra={<CravingLink />} />
     </Screen>
   )
 }

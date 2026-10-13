@@ -456,3 +456,161 @@ describe('envío de correos con Resend', () => {
     expect((await res.json<any>()).error).toContain('No pudimos enviar el correo')
   })
 })
+
+describe('¿Me lo como? (antojos)', () => {
+  const aiReply = (content: unknown) =>
+    Response.json({ model: 'test/vision-model', choices: [{ message: { content: typeof content === 'string' ? content : JSON.stringify(content) } }] })
+  const advice = (extra: Record<string, unknown> = {}) =>
+    aiReply({
+      name: 'Pastel de chocolate',
+      portion_g: 120,
+      calories: 450,
+      protein_g: 5,
+      carbs_g: 55,
+      fat_g: 22,
+      verdict: 'un_poco',
+      suggested_fraction: 0.5,
+      message: 'Cris, la mitad son unas 225 kcal.',
+      tips: ['Compártelo', 'Disfrútalo despacio'],
+      question: '',
+      confidence: 0.7,
+      ...extra,
+    })
+  const meal393 = () =>
+    aiReply({
+      items: [
+        { name: 'Arroz', portion_g: 150, calories: 195, protein_g: 4, carbs_g: 42, fat_g: 0.4, eaten: 1 },
+        { name: 'Pollo', portion_g: 120, calories: 198, protein_g: 37, carbs_g: 0, fat_g: 4.3, eaten: 1 },
+      ],
+      meal_type: 'comida',
+      summary: 'Arroz con pollo',
+      confidence: 0.8,
+    })
+  const DAY = { from: '2026-10-12T06:00:00.000Z', to: '2026-10-13T06:00:00.000Z' }
+  const cravingForm = (extra: Record<string, string> = {}) => photoForm({ ...DAY, hour: '21', ...extra })
+  const sentContext = (spy: { mock: { calls: unknown[][] } }, i = 0) => {
+    const body = JSON.parse(String((spy.mock.calls[i][1] as RequestInit).body))
+    return { body, context: body.messages[1].content[0].text as string }
+  }
+
+  it('meta diaria en el perfil: se guarda, se valida y se puede quitar', async () => {
+    const token = await login('meta@gmail.com', { full_name: 'Meta', role: 'patient' })
+    expect((await call('/me', { token })).data.daily_kcal_goal).toBeNull()
+    expect((await call('/me', { method: 'PATCH', token, json: { daily_kcal_goal: 1800 } })).data.daily_kcal_goal).toBe(1800)
+    expect((await call('/me', { token })).data.daily_kcal_goal).toBe(1800)
+    expect((await call('/me', { method: 'PATCH', token, json: { daily_kcal_goal: 100 } })).status).toBe(400)
+    expect((await call('/me', { method: 'PATCH', token, json: { daily_kcal_goal: 'mucho' } })).status).toBe(400)
+    // Cambiar el nombre no borra la meta
+    expect((await call('/me', { method: 'PATCH', token, json: { full_name: 'Otra' } })).data.daily_kcal_goal).toBe(1800)
+    expect((await call('/me', { method: 'PATCH', token, json: { daily_kcal_goal: null } })).data.daily_kcal_goal).toBeNull()
+  })
+
+  it('aconseja con lo que lleva hoy y su meta, sin registrar nada', async () => {
+    const token = await login('antojo@gmail.com', { full_name: 'Cris Pineda', role: 'patient' })
+    await call('/me', { method: 'PATCH', token, json: { daily_kcal_goal: 1800 } })
+    // Hoy: una analizada (393 kcal) y una pendiente (cuenta como comida, no suma). Ayer: no cuenta.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(meal393()).mockResolvedValueOnce(meal393())
+    const today = (await call('/meals', { method: 'POST', token, body: photoForm({ eaten_at: '2026-10-12T15:00:00.000Z' }) })).data
+    await call(`/meals/${today.id}/analyze`, { method: 'POST', token })
+    await call('/meals', { method: 'POST', token, body: photoForm({ eaten_at: '2026-10-12T20:00:00.000Z' }) })
+    const yesterday = (await call('/meals', { method: 'POST', token, body: photoForm({ eaten_at: '2026-10-11T15:00:00.000Z' }) })).data
+    await call(`/meals/${yesterday.id}/analyze`, { method: 'POST', token })
+    vi.restoreAllMocks()
+
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(advice())
+    const res = await call('/cravings', { method: 'POST', token, body: cravingForm({ note: 'pastel de la tía' }) })
+    expect(res.status).toBe(200)
+    expect(res.data).toMatchObject({
+      name: 'Pastel de chocolate',
+      calories: 450,
+      verdict: 'un_poco',
+      suggested_fraction: 0.5,
+      suggested_calories: 225,
+      tips: ['Compártelo', 'Disfrútalo despacio'],
+      question: null,
+      today: { consumed: 393, meals: 2, pending: 1, goal: 1800, remaining: 1407 },
+    })
+
+    const { body, context } = sentContext(spy)
+    expect(body.response_format.json_schema.name).toBe('craving_advice')
+    expect(body.messages[0].content).toContain('nunca restringir ni culpar')
+    expect(context).toContain('Paciente: Cris.')
+    expect(context).toContain('Hora local: 21:00.')
+    expect(context).toContain('Hoy lleva 393 kcal en 2 comidas registradas.')
+    // La pendiente no tiene calorías todavía: Avo sabe que en realidad lleva más
+    expect(context).toContain('Ojo: 1 de esas comidas aún no tiene calorías calculadas')
+    expect(context).toContain('le quedan 1407 kcal')
+    expect(context).toContain('pastel de la tía')
+    expect(body.messages[1].content[1].image_url.url).toMatch(/^data:image\/jpeg;base64,/)
+
+    // No se guardó ninguna comida
+    const list = await call(`/meals?from=${DAY.from}&to=${DAY.to}`, { token })
+    expect(list.data).toHaveLength(2)
+  })
+
+  it('sin meta también aconseja; pasa la pregunta de Avo y la respuesta del paciente', async () => {
+    const token = await login('antojo2@gmail.com', { full_name: 'Ana', role: 'patient' })
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(advice({ question: '¿Es tres leches o de chocolate?', confidence: 0.4 }))
+    const first = await call('/cravings', { method: 'POST', token, body: cravingForm() })
+    expect(first.data.question).toBe('¿Es tres leches o de chocolate?')
+    expect(first.data.today).toEqual({ consumed: 0, meals: 0, pending: 0, goal: null, remaining: null })
+    expect(sentContext(spy).context).toContain('No tiene meta diaria configurada.')
+
+    spy.mockResolvedValueOnce(advice({ name: 'Pastel tres leches', calories: 380 }))
+    const second = await call('/cravings', {
+      method: 'POST',
+      token,
+      body: cravingForm({ question: '¿Es tres leches o de chocolate?', answer: 'tres leches' }),
+    })
+    expect(second.data).toMatchObject({ name: 'Pastel tres leches', suggested_calories: 190 })
+    expect(sentContext(spy, 1).context).toContain('Le preguntaste: "¿Es tres leches o de chocolate?" y respondió: "tres leches".')
+  })
+
+  it('tolera respuestas raras del modelo y avisa si falla', async () => {
+    const token = await login('antojo3@gmail.com', { full_name: 'Leo', role: 'patient' })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(advice({ verdict: 'quien sabe', suggested_fraction: null, tips: 'no es lista', calories: '300' }))
+    const odd = await call('/cravings', { method: 'POST', token, body: cravingForm() })
+    expect(odd.data).toMatchObject({ verdict: 'un_poco', suggested_fraction: 0.5, suggested_calories: 150, tips: [] })
+    // Una fracción que no es número (o fuera de 0–1) usa la del veredicto, nunca "todo"
+    for (const bad of ['1/2', 50, 'mitad']) {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(advice({ verdict: 'mejor_no', suggested_fraction: bad, calories: 400 }))
+      const res = await call('/cravings', { method: 'POST', token, body: cravingForm() })
+      expect(res.data).toMatchObject({ suggested_fraction: 0.1, suggested_calories: 40 })
+    }
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('caído', { status: 503 }))
+    const down = await call('/cravings', { method: 'POST', token, body: cravingForm() })
+    expect(down.status).toBe(502)
+    expect(down.data.error).toContain('Avo no pudo ver tu antojo')
+  })
+
+  it('cuenta las comidas que siguen en el teléfono, avisa si ya pasó su meta y no inventa la hora', async () => {
+    const token = await login('antojo5@gmail.com', { full_name: 'Sol', role: 'patient' })
+    await call('/me', { method: 'PATCH', token, json: { daily_kcal_goal: 1000 } })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(meal393()).mockResolvedValueOnce(meal393()).mockResolvedValueOnce(meal393())
+    for (const at of ['2026-10-12T14:00:00.000Z', '2026-10-12T18:00:00.000Z', '2026-10-12T22:00:00.000Z']) {
+      const m = (await call('/meals', { method: 'POST', token, body: photoForm({ eaten_at: at }) })).data
+      await call(`/meals/${m.id}/analyze`, { method: 'POST', token })
+    }
+    vi.restoreAllMocks()
+
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(advice())
+    const form = photoForm({ ...DAY, queued: '2' }) // sin hora
+    const res = await call('/cravings', { method: 'POST', token, body: form })
+    expect(res.data.today).toEqual({ consumed: 1179, meals: 5, pending: 2, goal: 1000, remaining: -179 })
+    const { context } = sentContext(spy)
+    expect(context).toContain('ya la pasó por 179 kcal')
+    expect(context).toContain('Ojo: 2 de esas comidas aún no tienen')
+    expect(context).not.toContain('Hora local')
+  })
+
+  it('valida la foto, las fechas y la sesión', async () => {
+    const token = await login('antojo4@gmail.com', { full_name: 'Val', role: 'patient' })
+    const noPhoto = new FormData()
+    noPhoto.set('from', DAY.from)
+    noPhoto.set('to', DAY.to)
+    expect((await call('/cravings', { method: 'POST', token, body: noPhoto })).status).toBe(400)
+    expect((await call('/cravings', { method: 'POST', token, body: photoForm({ from: 'ayer', to: DAY.to }) })).status).toBe(400)
+    expect((await call('/cravings', { method: 'POST', body: cravingForm() })).status).toBe(401)
+  })
+})

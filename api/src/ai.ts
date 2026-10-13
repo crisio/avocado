@@ -58,14 +58,14 @@ export interface Analysis {
   correction?: string
 }
 
-function toBase64(buf: ArrayBuffer) {
+export function toBase64(buf: ArrayBuffer) {
   const bytes = new Uint8Array(buf)
   let binary = ''
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
   return btoa(binary)
 }
 
-const num = (v: unknown) => {
+export const num = (v: unknown) => {
   const n = typeof v === 'number' ? v : Number(v)
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 10) / 10 : 0
 }
@@ -171,8 +171,11 @@ export function modelList(env: Env) {
     .filter(Boolean)
 }
 
-/** Una llamada a OpenRouter con nuestras opciones; regresa el análisis ya validado. */
-async function complete(env: Env, messages: unknown[]): Promise<Analysis> {
+/**
+ * Una llamada a OpenRouter con nuestras opciones (y otro formato de respuesta si se pide). Regresa el texto y el
+ * modelo que contestó.
+ */
+export async function chat(env: Env, messages: unknown[], responseFormat: unknown = REQUEST_OPTIONS.response_format) {
   const apiKey = env.OPENROUTER_API_KEY
   const models = modelList(env)
   if (!apiKey) throw new Error('Falta el secreto OPENROUTER_API_KEY')
@@ -186,14 +189,20 @@ async function complete(env: Env, messages: unknown[]): Promise<Analysis> {
       'Content-Type': 'application/json',
       'X-Title': 'Avocado',
     },
-    body: JSON.stringify({ model, ...(fallbacks.length ? { models } : {}), ...REQUEST_OPTIONS, messages }),
+    body: JSON.stringify({ model, ...(fallbacks.length ? { models } : {}), ...REQUEST_OPTIONS, response_format: responseFormat, messages }),
   })
 
   if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`)
   const body = await res.json<{ model?: string; choices?: { message?: { content?: string } }[] }>()
   const text = body.choices?.[0]?.message?.content
   if (!text) throw new Error('OpenRouter no regresó contenido')
-  return parseAnalysis(text, body.model ?? model)
+  return { text, model: body.model ?? model }
+}
+
+/** Una llamada con el formato del análisis de comida; regresa el análisis ya validado. */
+async function complete(env: Env, messages: unknown[]): Promise<Analysis> {
+  const { text, model } = await chat(env, messages)
+  return parseAnalysis(text, model)
 }
 
 export function analyzePhoto(env: Env, photo: ArrayBuffer, contentType: string, note: string | null): Promise<Analysis> {

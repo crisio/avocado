@@ -16,9 +16,12 @@ export default function DayView({
   userId,
   emptyAction,
   onAnalyzing,
+  todayExtra,
 }: {
   userId: string
   emptyAction?: React.ReactNode
+  /** Algo más que mostrar debajo del resumen, solo en el día de hoy (p. ej. "¿Tienes un antojo?"). */
+  todayExtra?: React.ReactNode
   /** Cuántas comidas propias de este día siguen en cola o analizándose (para la mascota). */
   onAnalyzing?: (count: number) => void
 }) {
@@ -139,6 +142,8 @@ export default function DayView({
         />
         <MacroChips protein={totals.protein} carbs={totals.carbs} fat={totals.fat} />
       </section>
+
+      {isToday && todayExtra}
 
       <section aria-labelledby="dia-comidas" className="app-stack">
         <h2 id="dia-comidas" className="av-section-title">

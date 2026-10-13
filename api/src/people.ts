@@ -12,7 +12,7 @@ peopleRoutes.get('/me', (c) => c.json(c.var.user))
 // Nombre editable siempre; el rol solo se elige una vez (al terminar el registro).
 peopleRoutes.patch('/me', async (c) => {
   const user = c.var.user
-  const body = await c.req.json<{ full_name?: unknown; role?: unknown }>().catch(() => ({}) as Record<string, unknown>)
+  const body = await c.req.json<{ full_name?: unknown; role?: unknown; daily_kcal_goal?: unknown }>().catch(() => ({}) as Record<string, unknown>)
 
   let fullName = user.full_name
   if (body.full_name !== undefined) {
@@ -26,8 +26,19 @@ peopleRoutes.patch('/me', async (c) => {
     role = body.role
   }
 
-  await c.env.DB.prepare('UPDATE users SET full_name = ?, role = ? WHERE id = ?').bind(fullName, role, user.id).run()
-  return c.json({ ...user, full_name: fullName, role })
+  // Meta diaria de calorías: vacía (sin meta) o un número razonable.
+  let goal = user.daily_kcal_goal
+  if (body.daily_kcal_goal !== undefined) {
+    if (body.daily_kcal_goal === null || body.daily_kcal_goal === '') goal = null
+    else {
+      const n = Number(body.daily_kcal_goal)
+      if (!Number.isFinite(n) || n < 800 || n > 6000) fail(400, 'La meta diaria debe estar entre 800 y 6,000 kcal')
+      goal = Math.round(n)
+    }
+  }
+
+  await c.env.DB.prepare('UPDATE users SET full_name = ?, role = ?, daily_kcal_goal = ? WHERE id = ?').bind(fullName, role, goal, user.id).run()
+  return c.json({ ...user, full_name: fullName, role, daily_kcal_goal: goal })
 })
 
 // Perfil de otra persona: solo si están vinculados.

@@ -830,6 +830,206 @@ body {
   }
 }
 
+/* "¿Me lo como?" (pages/Craving.tsx) */
+.craving-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 10px 8px;
+  border-radius: var(--av-radius-lg);
+  background: var(--av-tint-breakfast);
+  color: var(--av-ink);
+  text-decoration: none;
+}
+.craving-link:focus-visible {
+  outline: 3px solid var(--av-accent);
+  outline-offset: 2px;
+}
+.craving-link--compact {
+  background: var(--av-surface-sunken);
+  padding: 6px 12px 6px 4px;
+}
+.craving-link__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+  color: var(--av-muted);
+}
+.craving-link__text strong {
+  font-family: var(--av-font-display);
+  font-size: 17px;
+  color: var(--av-ink);
+}
+.craving-link__chevron {
+  flex: none;
+  color: var(--av-muted);
+}
+.craving__lead {
+  margin: 0;
+  color: var(--av-muted);
+}
+.craving__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.craving__head-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.craving__eyebrow {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--av-muted);
+}
+.craving__verdict {
+  margin: 0;
+  font-family: var(--av-font-display);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.craving__numbers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0;
+}
+.craving__numbers > div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: var(--av-radius-md);
+  background: var(--av-surface-sunken);
+}
+.craving__numbers-pick {
+  background: var(--av-warning-soft) !important;
+}
+.craving__numbers dd {
+  margin: 0;
+  font-family: var(--av-font-display);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.craving__numbers dt {
+  font-size: 13px;
+  color: var(--av-muted);
+}
+.craving__nogoal,
+.craving__message {
+  margin: 0;
+}
+.craving__nogoal a {
+  color: var(--av-accent);
+  font-weight: 600;
+}
+.craving__message {
+  font-size: 17px;
+  line-height: 1.45;
+}
+.craving__tips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.craving__tips li {
+  position: relative;
+  padding-left: 22px;
+}
+.craving__tips li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 0.5em;
+  width: 9px;
+  height: 9px;
+  border-radius: 9px 0;
+  background: var(--av-meal-dinner);
+}
+.craving__question {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--av-radius-md);
+  background: var(--av-accent-soft);
+}
+.craving__question p {
+  margin: 0;
+}
+.craving-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.craving-meter__bar {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--av-surface-sunken);
+  overflow: hidden;
+}
+.craving-meter__consumed,
+.craving-meter__add {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.craving-meter__consumed {
+  left: 0;
+  background: var(--av-accent);
+}
+.craving-meter__add {
+  background: #eda100;
+  border-left: 2px solid var(--av-surface);
+}
+.craving-meter__goal {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--av-ink);
+}
+.craving-meter__legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--av-muted);
+}
+.craving-meter__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.craving-meter__key {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.craving-meter__key--consumed {
+  background: var(--av-accent);
+}
+.craving-meter__key--add {
+  background: #eda100;
+}
+.craving-meter__summary {
+  margin: 0;
+  font-size: 15px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .party__plate,
   .party__avo,

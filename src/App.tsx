@@ -16,6 +16,7 @@ const Patients = lazy(() => import('./pages/Patients'))
 const PatientDay = lazy(() => import('./pages/PatientDay'))
 const PatientWeek = lazy(() => import('./pages/PatientWeek'))
 const Week = lazy(() => import('./pages/Week'))
+const Craving = lazy(() => import('./pages/Craving'))
 const Settings = lazy(() => import('./pages/Settings'))
 
 export default function App() {
@@ -54,6 +55,7 @@ export default function App() {
             <Route index element={<Today />} />
             <Route path="nueva" element={<AddMeal />} />
             <Route path="semana" element={<Week />} />
+            <Route path="antojo" element={<Craving />} />
           </>
         )}
         <Route path="comida/:id" element={<MealDetail />} />

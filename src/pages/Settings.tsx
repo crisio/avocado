@@ -5,7 +5,7 @@ import InstallCard from '../components/InstallCard'
 import { Mascot } from '../components/Mascot'
 import { api } from '../lib/api'
 import { useCachedApi } from '../lib/useCachedApi'
-import { displayName, firstName } from '../lib/format'
+import { displayName, firstName, formatNumber } from '../lib/format'
 import { cheer } from '../lib/mascot'
 import type { Person, User } from '../lib/types'
 
@@ -52,6 +52,8 @@ export default function Settings() {
           {saved ? 'Guardado' : 'Guardar'}
         </Button>
       </Card>
+
+      {user?.role === 'patient' && <DailyGoal />}
 
       {user?.role === 'patient' && <MyNutritionists />}
 
@@ -127,6 +129,56 @@ function MyNutritionists() {
         </Button>
       </form>
       {error && <Notice tone="error">{error}</Notice>}
+    </Card>
+  )
+}
+
+/** Meta diaria de calorías: la que le dio su nutrióloga. Avo la usa para aconsejar con los antojos. */
+function DailyGoal() {
+  const { user, setUser } = useAuth()
+  const [value, setValue] = useState(user?.daily_kcal_goal ? String(user.daily_kcal_goal) : '')
+  const [saved, setSaved] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function save(e: FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setBusy(true)
+    try {
+      const goal = value.trim() ? Number(value) : null
+      const updated = await api<User>('/me', { method: 'PATCH', json: { daily_kcal_goal: goal } })
+      setUser(updated)
+      setSaved(true)
+      cheer('love', updated.daily_kcal_goal ? `¡Meta de ${formatNumber(updated.daily_kcal_goal)} kcal guardada!` : 'Listo, sin meta por ahora', { interrupt: true })
+    } catch (err) {
+      setError((err as Error).message)
+    }
+    setBusy(false)
+  }
+
+  return (
+    <Card as="form" padding="lg" onSubmit={save}>
+      <h2 className="av-section-title">Tu meta diaria</h2>
+      <TextField
+        label="Calorías al día"
+        type="number"
+        inputMode="numeric"
+        min={800}
+        max={6000}
+        step={10}
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value)
+          setSaved(false)
+        }}
+        placeholder="Ej. 1800"
+        hint="La que te indicó tu nutrióloga. Avo la usa para aconsejarte con tus antojos. Déjala vacía si no tienes una."
+      />
+      {error && <Notice tone="error">{error}</Notice>}
+      <Button type="submit" variant="secondary" icon={saved ? 'check' : undefined} loading={busy} disabled={saved}>
+        {saved ? 'Guardada' : 'Guardar meta'}
+      </Button>
     </Card>
   )
 }

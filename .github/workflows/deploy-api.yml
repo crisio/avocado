@@ -65,6 +65,15 @@ jobs:
             const out = Object.fromEntries(keys.filter((k) => process.env[k]).map((k) => [k, process.env[k]]))
             require("fs").writeFileSync(process.env.RUNNER_TEMP + "/secrets.json", JSON.stringify(out))
           '
+          # La base primero (los cambios son aditivos: el Worker anterior sigue funcionando con ellos), así el
+          # nuevo nunca corre sin sus columnas. La primera vez la base aún no existe: se crea al publicar.
+          # Si la consulta falla (API caída), el paso falla aquí y no se publica un Worker sin sus columnas.
+          dbs=$(npx wrangler d1 list --json)
+          if echo "$dbs" | grep -Eq '"name": ?"avocado"'; then
+            npx wrangler d1 migrations apply DB --remote
+          else
+            echo "::notice::La base aún no existe; se migra después de publicar."
+          fi
           npx wrangler deploy --secrets-file "$RUNNER_TEMP/secrets.json"
           rm -f "$RUNNER_TEMP/secrets.json"
           npx wrangler d1 migrations apply DB --remote

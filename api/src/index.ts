@@ -3,6 +3,7 @@ import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import type { AppEnv } from './env'
 import { authRoutes, requireUser } from './auth'
+import { cravingRoutes } from './cravings'
 import { mealRoutes } from './meals'
 import { peopleRoutes } from './people'
 import { verifyPhotoSignature } from './photos'
@@ -53,8 +54,10 @@ app.use('/users/*', requireUser)
 app.use('/care/*', requireUser)
 app.use('/meals', requireUser)
 app.use('/meals/*', requireUser)
+app.use('/cravings', requireUser)
 app.route('/', peopleRoutes)
 app.route('/meals', mealRoutes)
+app.route('/cravings', cravingRoutes)
 
 app.notFound((c) => c.json({ error: 'No encontrado' }, 404))
 

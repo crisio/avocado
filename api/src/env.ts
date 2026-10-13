@@ -20,6 +20,8 @@ export interface User {
   email: string
   full_name: string | null
   role: 'patient' | 'nutritionist' | null
+  /** Meta diaria de calorías (opcional). */
+  daily_kcal_goal: number | null
 }
 
 export type AppEnv = { Bindings: Env; Variables: { user: User; sessionHash: string } }

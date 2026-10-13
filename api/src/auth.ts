@@ -81,9 +81,9 @@ authRoutes.post('/verify', async (c) => {
   }
 
   await c.env.DB.prepare('DELETE FROM auth_codes WHERE email = ?').bind(email).run()
-  let user = await c.env.DB.prepare('SELECT id, email, full_name, role FROM users WHERE email = ?').bind(email).first<User>()
+  let user = await c.env.DB.prepare('SELECT id, email, full_name, role, daily_kcal_goal FROM users WHERE email = ?').bind(email).first<User>()
   if (!user) {
-    user = { id: crypto.randomUUID(), email, full_name: null, role: null }
+    user = { id: crypto.randomUUID(), email, full_name: null, role: null, daily_kcal_goal: null }
     await c.env.DB.prepare('INSERT INTO users (id, email) VALUES (?, ?)').bind(user.id, email).run()
   }
 
@@ -103,7 +103,7 @@ export const requireUser = createMiddleware<AppEnv>(async (c, next) => {
   const hash = await sha256(token)
   const now = Date.now()
   const row = await c.env.DB.prepare(
-    `SELECT u.id, u.email, u.full_name, u.role, s.refreshed_at
+    `SELECT u.id, u.email, u.full_name, u.role, u.daily_kcal_goal, s.refreshed_at
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ? AND s.expires_at > ?`,
   )

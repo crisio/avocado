@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Notice, PageHeader, PhotoPicker, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
 import { celebrateMeal } from '../components/Celebration'
+import CravingLink from '../components/CravingLink'
 import TopBar from '../components/TopBar'
 import { compressImage } from '../lib/image'
 import { cheer, preloadHd } from '../lib/mascot'
@@ -89,6 +90,7 @@ export default function AddMeal() {
           {online ? 'Guardar y analizar' : 'Guardar en el teléfono'}
         </Button>
       </form>
+      <CravingLink compact />
     </Screen>
   )
 }
