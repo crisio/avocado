@@ -60,6 +60,11 @@ export default defineConfig({
         start_url: base,
         scope: base,
         // Solo PNG opacos: iOS reciente lee estos íconos y, si no le sirve ninguno, pone la inicial del nombre.
+        // Al mantener presionado el ícono (Android y escritorio): atajos como los del widget de iOS.
+        shortcuts: [
+          { name: 'Registrar comida', short_name: 'Registrar', url: '/nueva', icons: [{ src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Hablar con Avo', short_name: 'Avo', url: '/avo', icons: [{ src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' }] },
+        ],
         icons: [
           { src: 'icon-180-v4.png', sizes: '180x180', type: 'image/png', purpose: 'any' },
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },

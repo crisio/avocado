@@ -4,6 +4,9 @@ import UIKit
 
 /// Registrar comida: foto, hora y nota. Se guarda primero en el teléfono y la cola la sube (y el servidor la analiza).
 struct AddMealView: View {
+    /// Abre la cámara de una vez (cuando se llega desde el widget).
+    var startWithCamera = false
+
     @Environment(\.dismiss) private var dismiss
     @Environment(Session.self) private var session
     @Environment(Outbox.self) private var outbox
@@ -40,7 +43,7 @@ struct AddMealView: View {
     }
 
     @ViewBuilder private var form: some View {
-        PhotoField(photo: $photo) { cheer(.love, "¡Qué rico se ve!") }
+        PhotoField(photo: $photo, autoCamera: startWithCamera) { cheer(.love, "¡Qué rico se ve!") }
 
         DatePicker("¿Cuándo comiste?", selection: $eatenAt, in: ...Date.now)
             .font(.subheadline.weight(.semibold))
@@ -90,6 +93,7 @@ struct AddMealView: View {
         }
         // La racha solo cuenta si es de hoy.
         let streak = Fmt.isToday(eatenAt) ? streaks.afterNewMealToday() : nil
+        if Fmt.isToday(eatenAt) { WidgetSync.mealRegistered(streak: streak) }
         let name = Fmt.firstName(user.fullName)
         CelebrationCenter.shared.show(CelebrationInfo(
             title: "¡Comida registrada!",
@@ -107,6 +111,8 @@ struct AddMealView: View {
 struct PhotoField: View {
     @Binding var photo: UIImage?
     var prompt = "Agrega una foto de tu comida"
+    /// Abre la cámara apenas aparece (si el teléfono tiene).
+    var autoCamera = false
     var onPick: () -> Void = {}
 
     @State private var item: PhotosPickerItem?
@@ -153,6 +159,9 @@ struct PhotoField: View {
                     onPick()
                 }
             }
+        }
+        .task {
+            if autoCamera && hasCamera && photo == nil { showCamera = true }
         }
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker { image in

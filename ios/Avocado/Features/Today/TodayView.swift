@@ -9,6 +9,8 @@ struct TodayView: View {
     @Environment(StreakStore.self) private var streaks
     @State private var day = Fmt.startOfDay(.now)
     @State private var adding = false
+    @State private var addWithCamera = false
+    @State private var route = AppRoute.shared
     @State private var greeted = false
     @State private var reloads = 0
 
@@ -48,7 +50,14 @@ struct TodayView: View {
             .padding(.horizontal, Theme.gutter)
             .padding(.bottom, 8)
         }
-        .sheet(isPresented: $adding) { AddMealView() }
+        .sheet(isPresented: $adding, onDismiss: { addWithCamera = false }) { AddMealView(startWithCamera: addWithCamera) }
+        // Desde el widget: abre "Registrar comida" con la cámara.
+        .onChange(of: route.addMeal, initial: true) {
+            guard route.addMeal else { return }
+            route.addMeal = false
+            addWithCamera = true
+            adding = true
+        }
         .toolbar(.hidden, for: .navigationBar)
         .mealDestinations()
         .navigationDestination(for: CravingRoute.self) { _ in CravingView() }
@@ -253,6 +262,16 @@ struct DayMealsView<Extra: View>: View {
             let feelings = (try? await freshMoods) ?? []
             guard requested == day else { return }
             moods = feelings
+            if Fmt.isToday(requested), userId == session.user?.id {
+                let queuedToday = outbox.jobs.filter { $0.userId == userId && Fmt.isToday($0.eatenAt) }.count
+                WidgetSync.today(
+                    consumed: fresh.reduce(0) { $0 + ($1.calories ?? 0) },
+                    protein: fresh.reduce(0) { $0 + ($1.proteinG ?? 0) },
+                    carbs: fresh.reduce(0) { $0 + ($1.carbsG ?? 0) },
+                    fat: fresh.reduce(0) { $0 + ($1.fatG ?? 0) },
+                    meals: fresh.count + queuedToday
+                )
+            }
             // Avo celebra cuando una comida termina de analizarse mientras la ves.
             if let before = meals, loadedDay == requested {
                 for meal in fresh where meal.status != .pending && before.first(where: { $0.id == meal.id })?.status == .pending {

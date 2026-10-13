@@ -42,6 +42,20 @@ Para volver a producción: `defaults delete com.cristopherpineda.avocado AVOCADO
 guarda en el teléfono y se sube con `client_id` en cuanto hay señal). `Design/` tiene los colores, la fuente, los
 componentes, a Avo animado y la celebración.
 
+## Widget
+
+`AvocadoWidget/` es la extensión del widget y `Shared/` el código que comparte con la app (`WidgetSnapshot`). La app guarda
+los números del día en el App Group `group.com.cristopherpineda.avocado` (`Core/WidgetSync.swift`) y el widget los lee.
+Tocarlo abre `avocado://nueva` (cámara) o `avocado://avo` (chat), que maneja `Core/AppRoute.swift`.
+
+El App Group necesita la cuenta de pago de Apple. Con la gratuita, para instalar en un iPhone:
+
+```bash
+xcodebuild -project Avocado.xcodeproj -scheme Avocado -configuration Release -destination 'generic/platform=iOS' -allowProvisioningUpdates DEVELOPMENT_TEAM=<tu equipo> AVOCADO_BUNDLE_ID=com.cristopherpineda.avocado.dev CODE_SIGN_ENTITLEMENTS= build
+```
+
+(el widget sale sin datos, solo con el acceso a registrar).
+
 ## Publicar
 
 Lo que pide Apple (cuenta de revisión, etiquetas de privacidad, notas para el revisor) está en

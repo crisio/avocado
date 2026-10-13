@@ -77,6 +77,7 @@ final class Session {
         StreakStore.shared.streak = nil
         ImageStore.shared.clear()
         URLCache.shared.removeAllCachedResponses()
+        WidgetSync.clear()
         Keychain.delete()
         api.token = nil
         setUser(nil)

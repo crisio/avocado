@@ -10,6 +10,7 @@ final class StreakStore {
     func load() async {
         if let fresh: Streak = try? await APIClient.shared.request("GET", "/streak", query: ["offset": String(Fmt.timezoneOffset)]) {
             streak = fresh
+            WidgetSync.streak(fresh)
         }
     }
 

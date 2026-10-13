@@ -2,6 +2,11 @@
 
 La web (PWA), la API y la app de iOS llevan la misma versión. Mientras la versión empiece con 0, la app sigue en pruebas.
 
+## 0.5.0 — 13 de octubre de 2026
+
+- **Widget de iOS** (chico, mediano y de pantalla bloqueada): calorías del día contra la meta en un anillo, macros y racha. Tocarlo abre «Registrar comida» con la cámara; el botón Avo abre el chat. Los datos los comparte la app por un App Group (requiere la cuenta de pago de Apple; con la gratuita el widget solo muestra el acceso a registrar).
+- **Atajos de la web instalada** (Android y escritorio): «Registrar comida» y «Hablar con Avo» al mantener presionado el ícono.
+
 ## 0.4.0 — 13 de octubre de 2026
 
 - **¿Cómo te sientes? en un toque:** una fila de emojis; se guarda al tocar. La tarjeta se quita deslizándola (o con la ✕) y no vuelve a salir en Mi día por 3 horas.

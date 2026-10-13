@@ -24,6 +24,7 @@ struct RootView: View {
             }
         }
         .animation(.spring(duration: 0.35), value: celebrations.current)
+        .onOpenURL { AppRoute.shared.open($0) }
         .task { await session.refresh() }
         .onChange(of: scenePhase) {
             guard scenePhase == .active else { return }
@@ -49,6 +50,7 @@ enum AppTab: Hashable {
 struct MainTabs: View {
     @State private var tab: AppTab = .today
     @State private var avoPrompt = AvoPrompt.shared
+    @State private var route = AppRoute.shared
 
     var body: some View {
         TabView(selection: $tab) {
@@ -66,6 +68,11 @@ struct MainTabs: View {
             }
         }
         .onChange(of: avoPrompt.pending) { if avoPrompt.pending != nil { tab = .avo } }
+        .onChange(of: route.tab, initial: true) {
+            guard let next = route.tab else { return }
+            tab = next
+            route.tab = nil
+        }
     }
 }
 
