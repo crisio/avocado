@@ -71,7 +71,7 @@ export default function Settings() {
       <DeleteAccount />
 
       <p className="av-text-muted" style={{ margin: 0, fontSize: 14, textAlign: 'center' }}>
-        <PrivacyLink />
+        <PrivacyLink /> · Avocado {__APP_VERSION__}
       </p>
     </Screen>
   )

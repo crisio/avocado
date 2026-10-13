@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, Chip, CommentBubble, EmptyState, Notice, NutritionTable, Screen, TextField } from '@avocado/ui'
 import AiConsentCard from '../components/AiConsent'
+import MoodCheckIn from '../components/MoodCheckIn'
 import Portions from '../components/Portions'
+import ShareSticker from '../components/ShareSticker'
 import TopBar from '../components/TopBar'
 import { useAuth } from '../auth'
 import { api, type ApiError } from '../lib/api'
@@ -230,9 +232,13 @@ export default function MealDetail() {
               note={a.summary}
             />
           )}
-          <p className="av-nutrition__note">Estimación con IA: puede equivocarse y no es consejo médico. Sigue las indicaciones de tu nutrióloga.</p>
+          {!a.items?.length && (
+            <p className="av-nutrition__note">Estimación con IA: puede equivocarse y no es consejo médico. Sigue las indicaciones de tu nutrióloga.</p>
+          )}
         </Card>
       )}
+
+      {meal.status === 'analyzed' && isOwner && !job && <ShareSticker meal={meal} />}
 
       {meal.status === 'analyzed' && a && isOwner && !job && (
         <Card as="form" padding="lg" onSubmit={correct}>
@@ -252,6 +258,8 @@ export default function MealDetail() {
           </Button>
         </Card>
       )}
+
+      {isOwner && !job && <MoodCheckIn mealId={meal.id} title="¿Cómo te sentiste después de comer?" />}
 
       <section aria-labelledby="comentarios" className="app-stack" style={{ gap: 12 }}>
         <h2 id="comentarios" className="av-section-title">

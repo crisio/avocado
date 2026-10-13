@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CalorieBar, Chip, CommentBubble, DayNav, EmptyState, MacroChips, MealCard } from '@avocado/ui'
 import { useCachedApi } from '../lib/useCachedApi'
@@ -9,7 +9,9 @@ import { jobToMeal, usePhotoUrls } from '../lib/localMeals'
 import { useOnline } from '../lib/useOnline'
 import { addDays, formatAgo, formatDay, fromDayParam, startOfDay, toDayParam } from '../lib/format'
 import { mealDetail, mealKind, mealKindLabel, mealMeta, mealTitle } from '../lib/meals'
-import type { Meal } from '../lib/types'
+import { useMoodsChanged } from '../lib/moods'
+import type { Meal, Mood } from '../lib/types'
+import MoodCard from './MoodCard'
 
 /** Comidas de un usuario en un día: resumen de calorías y macros, y la lista con indicaciones. */
 export default function DayView({
@@ -33,6 +35,11 @@ export default function DayView({
   const { data: serverMeals, error, fresh } = useCachedApi<Meal[]>(`/meals?user_id=${userId}&from=${day.toISOString()}&to=${next.toISOString()}`, 20_000)
   const online = useOnline()
   const { jobs, sending } = useOutbox()
+  // Cómo se sintió en el día (lo ve su nutrióloga): se recarga al registrar uno nuevo.
+  const moodsApi = useCachedApi<Mood[]>(`/moods?user_id=${userId}&from=${day.toISOString()}&to=${next.toISOString()}`, 30_000)
+  const moods = moodsApi.data ?? []
+  const refreshMoods = moodsApi.refresh
+  useMoodsChanged(useCallback(() => void refreshMoods(), [refreshMoods]))
 
   // Comidas que siguen en el teléfono (sin conexión o subiendo) para este usuario y día.
   const queued = useMemo(
@@ -128,6 +135,11 @@ export default function DayView({
     { calories: 0, protein: 0, carbs: 0, fat: 0 },
   )
   const isToday = day.getTime() === startOfDay(new Date()).getTime()
+  // Comidas y ánimo en orden de hora.
+  const timeline: ({ at: string } & ({ meal: Meal; mood?: undefined } | { mood: Mood; meal?: undefined }))[] = [
+    ...(meals ?? []).map((meal) => ({ at: meal.eaten_at, meal })),
+    ...moods.map((mood) => ({ at: mood.felt_at, mood })),
+  ].sort((a, b) => a.at.localeCompare(b.at))
 
   return (
     <>
@@ -147,41 +159,47 @@ export default function DayView({
 
       <section aria-labelledby="dia-comidas" className="app-stack">
         <h2 id="dia-comidas" className="av-section-title">
-          Lo que comiste
+          Comidas y ánimo
         </h2>
         {error && meals === null ? (
           <p className="av-text-muted">{error.message}</p>
         ) : meals === null ? (
           <p className="av-text-muted">Cargando…</p>
-        ) : meals.length === 0 ? (
+        ) : timeline.length === 0 ? (
           <EmptyState icon="camera" title="Sin comidas este día" description="Las fotos que registres aparecerán aquí con su análisis." action={emptyAction} />
         ) : (
           <ul className="app-stack">
-            {meals.map((m) => (
-              <li key={m.id} className="app-stack" style={{ gap: 6 }}>
-                <MealCard
-                  as={Link}
-                  to={`/comida/${m.id}`}
-                  photoUrl={m.photo_url}
-                  kind={mealKind(m)}
-                  meta={mealMeta(m)}
-                  title={queuedIds.has(m.id) ? 'Comida guardada en el teléfono' : mealTitle(m)}
-                  detail={mealDetail(m)}
-                  badge={badge(m)}
-                />
-                {m.last_comment && (
-                  <div style={{ paddingLeft: 16 }}>
-                    <CommentBubble
-                      author={m.last_comment.author_name || 'Sin nombre'}
-                      role={m.last_comment.author_role === 'nutritionist' ? 'nutritionist' : 'patient'}
-                      time={formatAgo(m.last_comment.created_at)}
-                    >
-                      {m.last_comment.body}
-                    </CommentBubble>
-                  </div>
-                )}
-              </li>
-            ))}
+            {timeline.map(({ meal: m, mood }) =>
+              mood ? (
+                <li key={mood.id}>
+                  <MoodCard mood={mood} own={own} />
+                </li>
+              ) : m ? (
+                <li key={m.id} className="app-stack" style={{ gap: 6 }}>
+                  <MealCard
+                    as={Link}
+                    to={`/comida/${m.id}`}
+                    photoUrl={m.photo_url}
+                    kind={mealKind(m)}
+                    meta={mealMeta(m)}
+                    title={queuedIds.has(m.id) ? 'Comida guardada en el teléfono' : mealTitle(m)}
+                    detail={mealDetail(m)}
+                    badge={badge(m)}
+                  />
+                  {m.last_comment && (
+                    <div style={{ paddingLeft: 16 }}>
+                      <CommentBubble
+                        author={m.last_comment.author_name || 'Sin nombre'}
+                        role={m.last_comment.author_role === 'nutritionist' ? 'nutritionist' : 'patient'}
+                        time={formatAgo(m.last_comment.created_at)}
+                      >
+                        {m.last_comment.body}
+                      </CommentBubble>
+                    </div>
+                  )}
+                </li>
+              ) : null,
+            )}
           </ul>
         )}
       </section>

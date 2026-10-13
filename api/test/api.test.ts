@@ -773,3 +773,186 @@ describe('App Store: borrar la cuenta', () => {
     expect((await call(new URL(detail.data.photo_url).pathname + new URL(detail.data.photo_url).search)).status).toBe(200)
   })
 })
+
+describe('¿Cómo te sientes? (ánimo)', () => {
+  const aiReply = (content: unknown) =>
+    Response.json({ model: 'test/vision-model', choices: [{ message: { content: typeof content === 'string' ? content : JSON.stringify(content) } }] })
+  const DAY = { from: '2026-10-12T06:00:00.000Z', to: '2026-10-13T06:00:00.000Z' }
+
+  it('guarda cómo se siente, valida y no se duplica; la nutrióloga vinculada lo ve', async () => {
+    const patient = await login('animo@gmail.com', { full_name: 'Ánimo', role: 'patient', ai_consent: false })
+    const nutri = await login('nutri-animo@gmail.com', { full_name: 'Lic. Ánimo', role: 'nutritionist' })
+    const patientId = (await call('/me', { token: patient })).data.id
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+
+    expect((await call('/moods', { method: 'POST', token: patient, json: { feelings: [] } })).status).toBe(400)
+    expect((await call('/moods', { method: 'POST', token: patient, json: { feelings: ['feliz'] } })).status).toBe(400)
+    expect((await call('/moods', { method: 'POST', token: patient, json: { feelings: ['bien'], energy: 9 } })).status).toBe(400)
+    expect((await call('/moods', { method: 'POST', token: patient, json: { feelings: ['bien'], on_plan: 'tal vez' } })).status).toBe(400)
+
+    const id = crypto.randomUUID()
+    const body = { id, feelings: ['con_hambre', 'ansioso', 'ansioso'], energy: 2, on_plan: 'a_medias', note: 'mucho trabajo', felt_at: '2026-10-12T18:00:00Z', advise: true }
+    const created = await call('/moods', { method: 'POST', token: patient, json: body })
+    expect(created.status).toBe(201)
+    // Sin permiso para la IA se guarda igual, sin consejo y sin llamar a la IA.
+    expect(created.data).toMatchObject({ id, feelings: ['con_hambre', 'ansioso'], energy: 2, on_plan: 'a_medias', note: 'mucho trabajo', advice: null })
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect((await call('/moods', { method: 'POST', token: patient, json: body })).status).toBe(200)
+
+    const range = `/moods?user_id=${patientId}&from=${DAY.from}&to=${DAY.to}`
+    expect((await call(range, { token: patient })).data).toHaveLength(1)
+    expect((await call(range, { token: nutri })).status).toBe(404)
+    await call('/care/nutritionists', { method: 'POST', token: patient, json: { email: 'nutri-animo@gmail.com' } })
+    expect((await call(range, { token: nutri })).data[0]).toMatchObject({ feelings: ['con_hambre', 'ansioso'], on_plan: 'a_medias' })
+
+    // Solo el dueño lo borra; borrar la cuenta también se lo lleva.
+    expect((await call(`/moods/${id}`, { method: 'DELETE', token: nutri })).status).toBe(404)
+    await call('/moods', { method: 'POST', token: patient, json: { feelings: ['bien'] } })
+    expect((await call(`/moods/${id}`, { method: 'DELETE', token: patient })).status).toBe(200)
+    expect((await call('/me', { method: 'DELETE', token: patient })).status).toBe(200)
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM moods WHERE user_id = ?').bind(patientId).first<{ n: number }>())?.n).toBe(0)
+  })
+
+  it('Avo aconseja con la hora, la última comida y cómo se ha sentido', async () => {
+    const token = await login('consejo@gmail.com', { full_name: 'Cris Pineda', role: 'patient' })
+    await call('/me', { method: 'PATCH', token, json: { daily_kcal_goal: 1800 } })
+    const meal = (await call('/meals', { method: 'POST', token, body: photoForm({ eaten_at: new Date(Date.now() - 5 * 3_600_000).toISOString(), note: 'tacos de pastor' }) })).data
+    await call('/moods', { method: 'POST', token, json: { feelings: ['lleno'], meal_id: meal.id } })
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(aiReply({ message: 'Cris, comiste hace 5 horas: toca algo con proteína.', tips: ['Un yogur con fruta', 'Agua'] }))
+    const res = await call('/moods', { method: 'POST', token, json: { feelings: ['con_hambre'], energy: 2, advise: true, offset: 360 } })
+    expect(res.status).toBe(201)
+    expect(res.data.advice).toMatchObject({ message: expect.stringContaining('5 horas'), tips: ['Un yogur con fruta', 'Agua'], model: 'test/vision-model' })
+
+    const sent = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit).body))
+    const context = sent.messages[1].content as string
+    expect(context).toContain('Paciente: Cris.')
+    expect(context).toContain('tacos de pastor')
+    expect(context).toContain('hace 5 h')
+    expect(context).toContain('lleno/a')
+    expect(context).toContain('Ahorita se siente: con hambre; energía 2/5')
+    expect(context).toContain('Su meta diaria es 1800 kcal')
+
+    // Si la IA falla, lo que sintió se guarda igual.
+    fetchSpy.mockResolvedValue(new Response('caído', { status: 500 }))
+    const failed = await call('/moods', { method: 'POST', token, json: { feelings: ['bien'], advise: true } })
+    expect(failed.status).toBe(201)
+    expect(failed.data.advice).toBeNull()
+  })
+
+  it('no acepta una comida de otra persona', async () => {
+    const a = await login('animo-a@gmail.com', { full_name: 'A', role: 'patient' })
+    const b = await login('animo-b@gmail.com', { full_name: 'B', role: 'patient' })
+    const meal = (await call('/meals', { method: 'POST', token: a, body: photoForm() })).data
+    expect((await call('/moods', { method: 'POST', token: b, json: { feelings: ['bien'], meal_id: meal.id } })).status).toBe(400)
+  })
+
+  it('patrones de la semana con la IA: pide permiso, pocos datos y rango válido', async () => {
+    const token = await login('patrones@gmail.com', { full_name: 'Patrones', role: 'patient', ai_consent: false })
+    const nutri = await login('nutri-patrones@gmail.com', { full_name: 'Lic. P', role: 'nutritionist' })
+    const id = (await call('/me', { token })).data.id
+    await call('/care/nutritionists', { method: 'POST', token, json: { email: 'nutri-patrones@gmail.com' } })
+    const week = `from=2026-10-05T06:00:00.000Z&to=2026-10-12T06:00:00.000Z&offset=360`
+
+    expect((await call(`/insights?${week}`, { token })).status).toBe(403)
+    expect((await call(`/insights?user_id=${id}&${week}`, { token: nutri })).data.error).toContain('Tu paciente no ha dado permiso')
+    await call('/me', { method: 'PATCH', token, json: { ai_consent: true } })
+    expect((await call(`/insights?${week}`, { token })).status).toBe(422)
+    expect((await call('/insights?from=2026-09-01T00:00:00Z&to=2026-10-12T00:00:00Z', { token })).status).toBe(400)
+
+    await call('/meals', { method: 'POST', token, body: photoForm({ eaten_at: '2026-10-06T02:30:00Z', note: 'pizza' }) })
+    await call('/moods', { method: 'POST', token, json: { feelings: ['lleno', 'mal'], felt_at: '2026-10-06T03:30:00Z' } })
+    await call('/moods', { method: 'POST', token, json: { feelings: ['cansado'], energy: 1, felt_at: '2026-10-06T15:00:00Z' } })
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      aiReply({ summary: 'Cenas tarde y te sientes pesado.', patterns: [{ title: 'Cenas tarde', detail: 'Cenaste a las 20:30 y te sentiste mal.' }], suggestions: ['Cena antes de las 8'] }),
+    )
+    const res = await call(`/insights?user_id=${id}&${week}`, { token: nutri })
+    expect(res.status).toBe(200)
+    expect(res.data).toMatchObject({ summary: 'Cenas tarde y te sientes pesado.', patterns: [{ title: 'Cenas tarde' }], suggestions: ['Cena antes de las 8'] })
+    const log = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit).body)).messages[1].content as string
+    expect(log).toContain('lunes 20:30 · comió: pizza')
+    expect(log).toContain('lunes 21:30 · se sintió: lleno/a, mal (con malestar)')
+  })
+})
+
+describe('Platicar con Avo', () => {
+  const aiReply = (content: unknown) =>
+    Response.json({ model: 'test/vision-model', choices: [{ message: { content: typeof content === 'string' ? content : JSON.stringify(content) } }] })
+  const noMood = { log: false, feelings: [], energy: 0, on_plan: '', note: '' }
+  const chatForm = (fields: Record<string, string | File>) => {
+    const form = new FormData()
+    for (const [k, v] of Object.entries(fields)) form.set(k, v)
+    return form
+  }
+  const wav = () => new File([new Uint8Array([82, 73, 70, 70, 0, 0, 0, 0, 87, 65, 86, 69])], 'audio.wav', { type: 'audio/wav' })
+
+  it('pide permiso para la IA y algo que decir', async () => {
+    const token = await login('chat-permiso@gmail.com', { full_name: 'Chat', role: 'patient', ai_consent: false })
+    expect((await call('/avo/messages', { method: 'POST', token, body: chatForm({ text: 'hola' }) })).status).toBe(403)
+    await call('/me', { method: 'PATCH', token, json: { ai_consent: true } })
+    expect((await call('/avo/messages', { method: 'POST', token, body: chatForm({}) })).status).toBe(400)
+    const mp3 = new File([new Uint8Array([1, 2, 3])], 'a.mp3', { type: 'audio/mpeg' })
+    expect((await call('/avo/messages', { method: 'POST', token, body: chatForm({ audio: mp3 }) })).status).toBe(400)
+  })
+
+  it('contesta con el contexto y el historial, anota cómo se siente y no duplica', async () => {
+    const token = await login('chat@gmail.com', { full_name: 'Cris Pineda', role: 'patient' })
+    const nutri = await login('nutri-chat@gmail.com', { full_name: 'Lic. Chat', role: 'nutritionist' })
+    const userId = (await call('/me', { token })).data.id
+    await call('/care/nutritionists', { method: 'POST', token, json: { email: 'nutri-chat@gmail.com' } })
+    await call('/meals', { method: 'POST', token, body: photoForm({ eaten_at: new Date(Date.now() - 4 * 3_600_000).toISOString(), note: 'quesadillas' }) })
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(aiReply({ transcript: '', reply: '¡Hola, Cris! ¿Cómo te sientes?', mood: noMood }))
+    const first = await call('/avo/messages', { method: 'POST', token, body: chatForm({ text: 'Hola Avo', offset: '360' }) })
+    expect(first.status).toBe(201)
+    expect(first.data).toMatchObject({ user: { role: 'user', body: 'Hola Avo', via_audio: false }, avo: { role: 'avo', body: '¡Hola, Cris! ¿Cómo te sientes?' }, mood: null })
+    const system = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit).body)).messages[0].content as string
+    expect(system).toContain('Paciente: Cris.')
+    expect(system).toContain('quesadillas')
+
+    fetchSpy.mockResolvedValue(
+      aiReply({
+        transcript: 'Tengo un poquito de hambre y ansiedad, no me llené con la comida',
+        reply: 'Comiste hace 4 horas: toca un snack con proteína.',
+        mood: { log: true, feelings: ['con_hambre', 'ansioso', 'inventado'], energy: 2, on_plan: 'a_medias', note: 'no se llenó' },
+      }),
+    )
+    const id = crypto.randomUUID()
+    const voice = await call('/avo/messages', { method: 'POST', token, body: chatForm({ audio: wav(), id }) })
+    expect(voice.status).toBe(201)
+    expect(voice.data.user).toMatchObject({ id, body: 'Tengo un poquito de hambre y ansiedad, no me llené con la comida', via_audio: true })
+    expect(voice.data.mood).toMatchObject({ feelings: ['con_hambre', 'ansioso'], energy: 2, on_plan: 'a_medias', note: 'no se llenó' })
+    const sent = JSON.parse(String((fetchSpy.mock.calls[1][1] as RequestInit).body)).messages
+    // El historial va como conversación y el audio como input_audio en WAV.
+    expect(sent.slice(1, 3)).toEqual([
+      { role: 'user', content: 'Hola Avo' },
+      { role: 'assistant', content: '¡Hola, Cris! ¿Cómo te sientes?' },
+    ])
+    expect(sent[3].content).toContainEqual({ type: 'input_audio', input_audio: { data: expect.any(String), format: 'wav' } })
+
+    // Reenviar el mismo mensaje no vuelve a llamar a la IA.
+    const again = await call('/avo/messages', { method: 'POST', token, body: chatForm({ audio: wav(), id }) })
+    expect(again.status).toBe(200)
+    expect(again.data.avo.body).toBe('Comiste hace 4 horas: toca un snack con proteína.')
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+
+    // La nutrióloga ve el ánimo que Avo anotó, pero no la conversación.
+    const day = `/moods?user_id=${userId}&from=${new Date(Date.now() - 3_600_000).toISOString()}&to=${new Date(Date.now() + 3_600_000).toISOString()}`
+    expect((await call(day, { token: nutri })).data).toHaveLength(1)
+    const history = await call('/avo/messages', { token })
+    expect(history.data.messages.map((m: { role: string }) => m.role)).toEqual(['user', 'avo', 'user', 'avo'])
+    expect(history.data.messages[3].mood.feelings).toEqual(['con_hambre', 'ansioso'])
+
+    // Si no se entendió el audio, no se guarda nada.
+    fetchSpy.mockResolvedValue(aiReply({ transcript: '', reply: '¿Me repites?', mood: noMood }))
+    expect((await call('/avo/messages', { method: 'POST', token, body: chatForm({ audio: wav() }) })).status).toBe(422)
+    fetchSpy.mockResolvedValue(new Response('caído', { status: 500 }))
+    expect((await call('/avo/messages', { method: 'POST', token, body: chatForm({ text: '¿sigues ahí?' }) })).status).toBe(502)
+    expect((await call('/avo/messages', { token })).data.messages).toHaveLength(4)
+
+    expect((await call('/avo/messages', { method: 'DELETE', token })).status).toBe(200)
+    expect((await call('/avo/messages', { token })).data.messages).toEqual([])
+    expect((await call(day, { token })).data).toHaveLength(1)
+  })
+})

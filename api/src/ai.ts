@@ -190,7 +190,7 @@ export async function chat(env: Env, messages: unknown[], responseFormat: unknow
   if (models.length === 0) throw new Error('Falta la variable AI_MODELS')
   const [model, ...fallbacks] = models
 
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const res = await fetch(env.OPENROUTER_URL || 'https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,

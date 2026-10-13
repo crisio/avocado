@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Screen, PageHeader } from '@avocado/ui'
 import { useAuth } from '../auth'
 import CravingLink from '../components/CravingLink'
+import MoodCheckIn from '../components/MoodCheckIn'
 import DayView from '../components/DayView'
 import InstallCard from '../components/InstallCard'
 import { StreakChip } from '../components/Streak'
@@ -50,7 +51,12 @@ export default function Today() {
       />
       {streak && <StreakChip streak={streak} />}
       <InstallCard dismissible mobileOnly />
-      <DayView userId={user.id} onAnalyzing={setAnalyzing} todayExtra={<CravingLink />} />
+      <DayView userId={user.id} onAnalyzing={setAnalyzing} todayExtra={
+          <>
+            <MoodCheckIn />
+            <CravingLink />
+          </>
+        } />
     </Screen>
   )
 }

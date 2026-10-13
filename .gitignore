@@ -18,3 +18,8 @@ ds-bundle/
 .design-sync/learnings/
 .design-sync/node_modules
 api/bench-results
+
+# iOS (Xcode)
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+ios/build/

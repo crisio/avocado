@@ -93,3 +93,51 @@ export interface Craving {
   /** pending: comidas de hoy que aún no tienen calorías (analizándose, sin análisis o en el teléfono). */
   today: { consumed: number; meals: number; pending: number; goal: number | null; remaining: number | null }
 }
+
+/** Cómo se siente el paciente (lo ve su nutrióloga). Ver src/lib/moods.ts. */
+export type Feeling = 'bien' | 'con_hambre' | 'con_antojo' | 'lleno' | 'ansioso' | 'cansado' | 'mal'
+export type OnPlan = 'si' | 'a_medias' | 'no'
+
+export interface MoodAdvice {
+  message: string
+  tips: string[]
+  model: string
+}
+
+export interface Mood {
+  id: string
+  user_id: string
+  felt_at: string
+  feelings: Feeling[]
+  /** 1 (nada) a 5 (a tope). */
+  energy: number | null
+  /** ¿Va con el plan de su nutrióloga? */
+  on_plan: OnPlan | null
+  note: string | null
+  /** La comida después de la que lo registró. */
+  meal_id: string | null
+  /** Consejo de Avo (solo con permiso para la IA). */
+  advice: MoodAdvice | null
+  created_at: string
+}
+
+/** Patrones de comida y ánimo que encuentra Avo (no se guardan). */
+export interface Insights {
+  summary: string
+  patterns: { title: string; detail: string }[]
+  suggestions: string[]
+  model: string
+}
+
+/** Un mensaje de la conversación con Avo (la conversación es privada; lo que anota de ánimo lo ve su nutrióloga). */
+export interface AvoMessage {
+  id: string
+  role: 'user' | 'avo'
+  body: string
+  /** El paciente lo dijo en un audio (body es la transcripción). */
+  via_audio: boolean
+  mood_id: string | null
+  created_at: string
+  /** Lo que Avo anotó de cómo se siente con este mensaje. */
+  mood: Mood | null
+}

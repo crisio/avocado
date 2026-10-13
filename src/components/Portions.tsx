@@ -198,7 +198,8 @@ export default function Portions({ meal, editable, online, locked = false, onCha
         </p>
       )}
       <p className="av-nutrition__note">
-        Estimación con IA{a?.confidence ? ` (confianza ${Math.round(a.confidence * 100)} %)` : ''}. Puede tener errores.
+        Estimación con IA{a?.confidence ? ` (confianza ${Math.round(a.confidence * 100)} %)` : ''}: puede equivocarse y no es consejo médico. Sigue las indicaciones de tu
+        nutrióloga.
         {a?.correction && <> Corregida con: “{a.correction}”.</>}
       </p>
     </div>

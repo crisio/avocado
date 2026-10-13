@@ -45,9 +45,10 @@ En App Store Connect → **App Privacy**. Avocado no hace *tracking*, no tiene p
 |---|---|
 | Contact Info → Email Address | correo para entrar |
 | Contact Info → Name | nombre (opcional) |
-| Health & Fitness → Health | comidas, calorías, macros y meta diaria |
+| Health & Fitness → Health | comidas, calorías, macros, meta diaria y cómo se siente (ánimo, energía, si va con su plan) |
 | User Content → Photos or Videos | fotos de las comidas |
-| User Content → Other User Content | notas, correcciones y comentarios con la nutrióloga |
+| User Content → Audio Data | audios que el paciente le manda a Avo (se transcriben con la IA y no se guardan) |
+| User Content → Other User Content | notas, correcciones, comentarios con la nutrióloga y la conversación con Avo |
 | Identifiers → User ID | id interno de la cuenta |
 
 Si algún día agregas analítica, reportes de fallos o notificaciones con otro servicio, actualiza esta tabla y la política.

@@ -7,3 +7,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+/** Versión de la app (package.json), la misma de la API y de iOS. */
+declare const __APP_VERSION__: string

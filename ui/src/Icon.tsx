@@ -21,6 +21,8 @@ export type IconName =
   | 'send'
   | 'share'
   | 'download'
+  | 'mic'
+  | 'stop'
 
 const PATHS: Record<IconName, ReactNode> = {
   camera: (
@@ -83,6 +85,13 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   send: <path d="M4.5 12L20 4.5 15 20l-3.2-6.3zM11.8 13.7L20 4.5" />,
+  mic: (
+    <>
+      <rect x="9" y="3.5" width="6" height="11" rx="3" />
+      <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5" />
+    </>
+  ),
+  stop: <rect x="6.5" y="6.5" width="11" height="11" rx="2.5" />,
   share: (
     <>
       <path d="M12 3.5v11M8 7.5l4-4 4 4" />

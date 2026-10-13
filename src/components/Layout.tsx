@@ -14,6 +14,8 @@ export default function Layout({ role }: { role: Role }) {
   }, [pathname])
   // La acción "Registrar comida" solo en la pantalla principal del paciente.
   const showAction = role === 'patient' && pathname === '/'
+  // En el chat con Avo, el cuadro para escribir va en la barra de abajo (la pantalla lo pone aquí con un portal).
+  const showComposer = role === 'patient' && pathname === '/avo'
 
   return (
     <>
@@ -32,11 +34,14 @@ export default function Layout({ role }: { role: Role }) {
             <Button as={Link} to="/nueva" icon="camera" size="lg" fullWidth>
               Registrar comida
             </Button>
+          ) : showComposer ? (
+            <div id="avo-composer" />
           ) : undefined
         }
       >
         <TabBarItem as={NavLink} to="/" end icon={role === 'nutritionist' ? 'users' : 'home'} label={role === 'nutritionist' ? 'Pacientes' : 'Mi día'} />
         {role === 'patient' && <TabBarItem as={NavLink} to="/semana" icon="calendar" label="Semana" />}
+        {role === 'patient' && <TabBarItem as={NavLink} to="/avo" icon="chat" label="Avo" />}
         <TabBarItem as={NavLink} to="/ajustes" icon="user" label="Perfil" />
       </TabBar>
     </>

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -6,8 +7,12 @@ import { VitePWA } from 'vite-plugin-pwa'
 // La app se publica en la raíz de https://avocadoapp.cristopherpineda.com
 const base = '/'
 
+// La versión de package.json (la misma de la API y de la app de iOS; ver CHANGELOG.md), para mostrarla en Perfil.
+const version: string = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
+
 export default defineConfig({
   base,
+  define: { __APP_VERSION__: JSON.stringify(version) },
   resolve: {
     alias: {
       // La app usa el kit directo desde su código fuente (ui/src); ui/dist es solo para Claude Design.
@@ -19,7 +24,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'favicon-32x32.png', 'favicon.svg', 'apple-touch-icon.png', 'apple-touch-icon-precomposed.png', 'icon-180-v3.png'],
+      includeAssets: ['favicon.ico', 'favicon-32x32.png', 'favicon.svg', 'apple-touch-icon.png', 'apple-touch-icon-precomposed.png', 'icon-180-v4.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         // Abrir la app sin internet: cualquier ruta sirve index.html del precache.
@@ -56,7 +61,7 @@ export default defineConfig({
         scope: base,
         // Solo PNG opacos: iOS reciente lee estos íconos y, si no le sirve ninguno, pone la inicial del nombre.
         icons: [
-          { src: 'icon-180-v3.png', sizes: '180x180', type: 'image/png', purpose: 'any' },
+          { src: 'icon-180-v4.png', sizes: '180x180', type: 'image/png', purpose: 'any' },
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           { src: 'maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },

@@ -7,7 +7,9 @@ ve tu día para dejarte indicaciones. Algo como Whoop, pero para nutrición y co
 
 **App:** https://avocadoapp.cristopherpineda.com (se instala en el teléfono como app)
 
-## Qué hace hoy (v0.2)
+## Qué hace hoy (v0.3)
+
+Los cambios de cada versión están en [CHANGELOG.md](CHANGELOG.md). La web, la API y la app de iOS llevan la misma versión.
 
 - **Entrar con código por correo:** escribes tu correo y te llega un código de 6 dígitos (enviado desde `avocado@cristopherpineda.com`). No hay contraseña, y la sesión dura 90 días en el teléfono.
 - **Dos roles:** paciente y nutrióloga. Se elige al crear la cuenta.
@@ -15,6 +17,11 @@ ve tu día para dejarte indicaciones. Algo como Whoop, pero para nutrición y co
 - **Análisis con IA** (vía [OpenRouter](https://openrouter.ai)): alimentos, porciones, calorías, proteína, carbohidratos y grasa.
 - **Mi día:** comidas con horas y totales; puedes navegar a días anteriores.
 - **Nutrióloga:** ve a sus pacientes y el día de cada uno, y comenta cada comida. Los comentarios aparecen solos, sin recargar.
+- **¿Cómo te sientes?:** con hambre, ansioso/a, lleno/a, sin energía…, tu energía y si vas con tu plan. Avo te aconseja con la hora, tu última comida y cómo te has sentido; la nutrióloga lo ve.
+- **Patrones de la semana:** horarios (primera y última comida, huecos largos, cenas tarde), ánimo y, con la IA, qué cambiar.
+- **Chat con Avo** por texto o audio (4.ª pestaña): si le cuentas cómo te sientes, lo anota. La conversación es privada.
+- **Sticker para Instagram** con los macros de la comida, para pegarlo en tu historia.
+- **App de iOS** nativa para pacientes (`ios/`), con la misma API.
 - **Privacidad:** el paciente decide qué nutrióloga lo ve y puede quitarla cuando quiera. Las fotos solo se abren con enlaces firmados que vencen.
   Antes de la primera foto pide permiso para mandarla a la IA (se puede retirar en Perfil), cualquiera puede borrar su cuenta con todo lo
   suyo desde Perfil, y la [política de privacidad](https://avocadoapp.cristopherpineda.com/privacidad.html) está en `public/privacidad.html`.
@@ -34,6 +41,7 @@ Cloudflare Worker  avocado-api (Hono)          ← api/
 ```
 
 ```
+ios/                 la app nativa de iOS (SwiftUI), para pacientes; ver ios/README.md
 src/                 la app (PWA)
   lib/api.ts         cliente de la API + token
   pages/             Login, Onboarding, Today, AddMeal, MealDetail, Patients, PatientDay, Settings

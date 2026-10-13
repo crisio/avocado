@@ -14,6 +14,8 @@ export default defineConfig(async () => {
             AUTH_SECRET: 'test-secret-de-al-menos-32-caracteres!',
             OPENROUTER_API_KEY: 'test-key',
             AI_MODELS: 'test/vision-model',
+            // Sin la URL del simulador que pueda haber en .dev.vars: las pruebas simulan fetch a OpenRouter.
+            OPENROUTER_URL: '',
             REVIEW_EMAIL: 'Revision@Avocado.test',
             REVIEW_CODE: '246810',
           },

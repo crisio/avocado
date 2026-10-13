@@ -13,6 +13,8 @@ export interface Env {
   GMAIL_USER?: string
   GMAIL_APP_PASSWORD?: string
   OPENROUTER_API_KEY?: string
+  /** Solo para desarrollo: otra URL compatible con OpenRouter (p. ej. un simulador local para probar la app sin gastar). */
+  OPENROUTER_URL?: string
   /** Cuenta para la revisión de la App Store: ese correo entra con REVIEW_CODE (6 dígitos) y no se le manda correo. */
   REVIEW_EMAIL?: string
   REVIEW_CODE?: string

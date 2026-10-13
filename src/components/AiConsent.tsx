@@ -41,6 +41,8 @@ export default function AiConsentCard({ onDecline }: { onDecline?: () => void })
         <li>La foto de tu comida y tu nota.</li>
         <li>Tus correcciones («me dejé la mitad…»).</li>
         <li>En «¿Me lo como?»: la foto del antojo, tu primer nombre, lo que llevas hoy y tu meta.</li>
+        <li>Cómo te sientes (hambre, ánimo, energía, si vas con tu plan) y tus últimas comidas, para aconsejarte y encontrar tus patrones.</li>
+        <li>Lo que le escribes o le dices en audio a Avo en el chat (el audio no se guarda, solo lo que dijiste).</li>
       </ul>
       <p style={{ margin: 0 }}>
         Lo reciben <strong>OpenRouter</strong> y los modelos de <strong>Google</strong> (Gemini) y <strong>OpenAI</strong> (GPT), solo para darte el

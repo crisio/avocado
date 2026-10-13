@@ -1220,3 +1220,317 @@ body {
     transition: none;
   }
 }
+
+/* ── ¿Cómo te sientes? ─────────────────── */
+.mood-card {
+  gap: 14px;
+}
+.mood-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mood-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: var(--av-radius-pill);
+  border: 1.5px solid var(--av-line);
+  background: var(--av-surface);
+  color: var(--av-ink);
+  cursor: pointer;
+}
+.mood-chip[aria-pressed='true'] {
+  background: var(--av-accent-soft);
+  border-color: var(--av-accent);
+  color: var(--av-accent-strong);
+}
+.mood-chip:focus-visible {
+  outline: 2px solid var(--av-accent);
+  outline-offset: 2px;
+}
+.mood-label {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--av-muted);
+}
+.mood-advice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.mood-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: var(--av-radius-lg);
+  border-left: 4px solid var(--av-accent);
+  background: var(--av-surface);
+}
+.mood-entry__feelings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mood-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--av-radius-pill);
+  background: var(--av-accent-soft);
+  color: var(--av-accent-strong);
+  font-size: 14px;
+  font-weight: 600;
+}
+.mood-tag--soft {
+  background: var(--av-surface-sunken);
+  color: var(--av-muted);
+}
+.mood-tag--plan-no {
+  background: var(--av-warning-soft);
+  color: var(--av-warning-ink);
+}
+.mood-entry__advice {
+  margin: 0;
+  font-size: 15px;
+}
+.patterns-list {
+  margin: 0;
+  padding-left: 1.2em;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Sticker de macros para compartir */
+.share-sticker__stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  padding: 24px 16px;
+  border-radius: 18px;
+  background-color: #2b3a2d;
+  background-size: cover;
+  background-position: center;
+  /* La foto se ve de fondo, difuminada, como cuando se pega en una historia */
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.share-sticker__stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: inherit;
+  filter: blur(6px) brightness(0.9);
+  transform: scale(1.1);
+  z-index: -1;
+}
+.share-sticker__img {
+  width: min(100%, 300px);
+  height: auto;
+}
+.share-sticker__wait {
+  color: #fff;
+  font-size: 14px;
+}
+.share-sticker__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.share-sticker__download {
+  color: var(--av-accent);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+/* ── Chat con Avo ─────────────────────── */
+.avo-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.avo-chat {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.avo-msg {
+  max-width: 84%;
+  padding: 10px 14px;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 16px;
+  line-height: 1.4;
+}
+.avo-msg p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.avo-msg--avo {
+  align-self: flex-start;
+  background: var(--av-surface);
+  border-bottom-left-radius: 6px;
+}
+.avo-msg--user {
+  align-self: flex-end;
+  background: var(--av-accent);
+  color: var(--av-on-accent);
+  border-bottom-right-radius: 6px;
+}
+.avo-msg--pending {
+  opacity: 0.75;
+}
+.avo-msg__audio {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.avo-msg__mood {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--av-accent-strong);
+  background: var(--av-accent-soft);
+  border-radius: var(--av-radius-pill);
+  padding: 3px 10px;
+  align-self: flex-start;
+}
+.avo-msg__time {
+  font-size: 12px;
+  opacity: 0.6;
+  align-self: flex-end;
+}
+.avo-msg__error {
+  font-size: 13px;
+  font-weight: 600;
+}
+.avo-msg__error button {
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.avo-msg--typing {
+  flex-direction: row;
+  gap: 5px;
+  padding: 14px 16px;
+}
+.avo-msg--typing span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--av-muted);
+  animation: avo-typing 1.2s infinite ease-in-out;
+}
+.avo-msg--typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.avo-msg--typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes avo-typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .avo-msg--typing span {
+    animation: none;
+  }
+}
+.avo-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.avo-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.avo-composer__input {
+  flex: 1;
+  min-height: 48px;
+  max-height: 140px;
+  resize: none;
+  font: inherit;
+  font-size: 16px;
+  padding: 12px 16px;
+  border-radius: 24px;
+  border: 1.5px solid var(--av-line);
+  background: var(--av-surface);
+  color: var(--av-ink);
+  field-sizing: content;
+}
+.avo-composer__input:focus-visible {
+  outline: 2px solid var(--av-accent);
+  outline-offset: 1px;
+}
+.avo-composer__round {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 0;
+  display: grid;
+  place-items: center;
+  background: var(--av-accent-soft);
+  color: var(--av-accent-strong);
+  cursor: pointer;
+}
+.avo-composer__round--send {
+  background: var(--av-accent);
+  color: var(--av-on-accent);
+}
+.avo-composer__round:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.avo-recording {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  font-weight: 600;
+}
+.avo-recording__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--av-danger);
+  animation: avo-rec 1s infinite alternate;
+}
+@keyframes avo-rec {
+  to {
+    opacity: 0.3;
+  }
+}
+.avo-recording > span:nth-child(2) {
+  flex: 1;
+}

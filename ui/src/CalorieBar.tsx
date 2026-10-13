@@ -26,7 +26,7 @@ const fmt = (n: number) => Math.round(n).toLocaleString('es-MX')
  */
 export function CalorieBar({ total, goal, segments }: CalorieBarProps) {
   const scale = Math.max(goal ?? 0, total, 1)
-  const remaining = goal ? goal - total : null
+  const remaining = goal ? goal - Math.round(total) : null
   const summary = segments.map((s) => `${s.label} ${fmt(s.value)} kcal`).join(', ')
   return (
     <div className="av-calorie-bar">

@@ -5,6 +5,7 @@ import { useCachedApi } from '../lib/useCachedApi'
 import { addDays, formatNumber, formatWeekRange, fromDayParam, startOfDay, startOfWeek, toDayParam } from '../lib/format'
 import { cheer, greetOnce } from '../lib/mascot'
 import { mealKind, mealTitle } from '../lib/meals'
+import Patterns from './Patterns'
 import type { Meal } from '../lib/types'
 
 const DAY_SHORT = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
@@ -386,6 +387,8 @@ export default function WeekView({ userId, self, dayHref }: WeekViewProps) {
           </ol>
         </Card>
       )}
+
+      <Patterns userId={userId} self={self} start={start} meals={data ?? []} />
 
       <Card padding="lg">
         <h2 className="av-section-title week-card-title">{you} semana en datos</h2>
