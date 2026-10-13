@@ -55,13 +55,15 @@ jobs:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          REVIEW_EMAIL: ${{ secrets.REVIEW_EMAIL }}
+          REVIEW_CODE: ${{ secrets.REVIEW_CODE }}
         run: |
           if [ ${#AUTH_SECRET} -lt 32 ]; then
             echo "::error::Falta el secreto AUTH_SECRET (mínimo 32 caracteres). Revisa el README."
             exit 1
           fi
           node -e '
-            const keys = ["AUTH_SECRET", "RESEND_API_KEY", "GMAIL_USER", "GMAIL_APP_PASSWORD", "OPENROUTER_API_KEY"]
+            const keys = ["AUTH_SECRET", "RESEND_API_KEY", "GMAIL_USER", "GMAIL_APP_PASSWORD", "OPENROUTER_API_KEY", "REVIEW_EMAIL", "REVIEW_CODE"]
             const out = Object.fromEntries(keys.filter((k) => process.env[k]).map((k) => [k, process.env[k]]))
             require("fs").writeFileSync(process.env.RUNNER_TEMP + "/secrets.json", JSON.stringify(out))
           '

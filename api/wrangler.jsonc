@@ -16,6 +16,8 @@
     // solos si el principal falla. Gemini 3.1 Flash-Lite: ~2 s por foto, ~US$0.90 por cada 1,000 fotos y
     // de los más precisos en calorías entre los modelos baratos. Respaldo de otra empresa: GPT-6 Luna.
     // Para probar otros con tus fotos: cd api && npm run bench (ver scripts/bench-models.ts).
+    // Si cambias de empresa (hoy Google y OpenAI), actualiza el aviso de permiso (src/components/AiConsent.tsx en
+    // la app) y la política de privacidad (public/privacidad.html): la App Store pide nombrar a quién se mandan.
     "AI_MODELS": "google/gemini-3.1-flash-lite,openai/gpt-6-luna"
   },
   // Al publicar por primera vez, Cloudflare crea la base de datos y el bucket automáticamente.
@@ -23,4 +25,5 @@
   "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "avocado-photos" }]
   // Secretos (no van aquí): AUTH_SECRET, RESEND_API_KEY, OPENROUTER_API_KEY
   // (o GMAIL_USER y GMAIL_APP_PASSWORD si usas EMAIL_MODE "smtp")
+  // Opcionales, para la revisión de la App Store: REVIEW_EMAIL y REVIEW_CODE (ver docs/app-store.md)
 }

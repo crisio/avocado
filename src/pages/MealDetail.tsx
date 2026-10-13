@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, Chip, CommentBubble, EmptyState, Notice, NutritionTable, Screen, TextField } from '@avocado/ui'
+import AiConsentCard from '../components/AiConsent'
 import Portions from '../components/Portions'
 import TopBar from '../components/TopBar'
 import { useAuth } from '../auth'
@@ -140,6 +141,8 @@ export default function MealDetail() {
   const isOwner = meal.user_id === user?.id
   const stuck = meal.status === 'pending' && Date.now() - Date.parse(meal.created_at) > STUCK_AFTER_MS
   const canRetry = !job && online && isOwner && !retrying && (meal.status === 'error' || stuck)
+  // Comida que llegó sin permiso para la IA (p. ej. esperaba en la cola): primero el permiso, luego reintentar.
+  const needsConsent = !job && isOwner && !user?.ai_consent_at && meal.status !== 'analyzed'
 
   return (
     <Screen withTabBar>
@@ -199,13 +202,15 @@ export default function MealDetail() {
             </Notice>
           )}
           {stuck && <p className="av-text-muted" style={{ margin: 0 }}>El análisis está tardando más de lo normal.</p>}
-          {canRetry && (
+          {canRetry && !needsConsent && (
             <Button variant="secondary" icon="refresh" onClick={retry}>
               Reintentar análisis
             </Button>
           )}
         </Card>
       )}
+
+      {needsConsent && <AiConsentCard />}
 
       {meal.status === 'analyzed' && a && (
         <Card padding="lg">
@@ -225,6 +230,7 @@ export default function MealDetail() {
               note={a.summary}
             />
           )}
+          <p className="av-nutrition__note">Estimación con IA: puede equivocarse y no es consejo médico. Sigue las indicaciones de tu nutrióloga.</p>
         </Card>
       )}
 

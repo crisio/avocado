@@ -17,3 +17,13 @@ export async function verifyPhotoSignature(env: Env, key: string, exp: string | 
   if (!exp || !sig || Number(exp) < Date.now()) return false
   return safeEqual(sig, await hmac(env.AUTH_SECRET, `photo:${key}:${exp}`))
 }
+
+/** Borra todas las fotos con ese prefijo (las de un usuario: "<user_id>/"), de mil en mil. */
+export async function deletePhotos(env: Env, prefix: string) {
+  let cursor: string | undefined
+  do {
+    const page = await env.PHOTOS.list({ prefix, cursor })
+    if (page.objects.length) await env.PHOTOS.delete(page.objects.map((o) => o.key))
+    cursor = page.truncated ? page.cursor : undefined
+  } while (cursor)
+}

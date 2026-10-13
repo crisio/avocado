@@ -1,12 +1,15 @@
 import { useState, type FormEvent } from 'react'
 import { Button, Card, Notice, PageHeader, PersonRow, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
+import AiConsentCard from '../components/AiConsent'
 import InstallCard from '../components/InstallCard'
 import { Mascot } from '../components/Mascot'
+import PrivacyLink from '../components/PrivacyLink'
 import { api } from '../lib/api'
 import { useCachedApi } from '../lib/useCachedApi'
-import { displayName, firstName, formatNumber } from '../lib/format'
+import { displayName, firstName, formatDay, formatNumber } from '../lib/format'
 import { cheer } from '../lib/mascot'
+import { useOutbox } from '../lib/outbox'
 import type { Person, User } from '../lib/types'
 
 export default function Settings() {
@@ -57,11 +60,19 @@ export default function Settings() {
 
       {user?.role === 'patient' && <MyNutritionists />}
 
+      {user?.role === 'patient' && (user.ai_consent_at ? <AiPermission given={user.ai_consent_at} /> : <AiConsentCard />)}
+
       <InstallCard />
 
       <Button variant="secondary" icon="logout" onClick={signOut}>
         Cerrar sesión
       </Button>
+
+      <DeleteAccount />
+
+      <p className="av-text-muted" style={{ margin: 0, fontSize: 14, textAlign: 'center' }}>
+        <PrivacyLink />
+      </p>
     </Screen>
   )
 }
@@ -179,6 +190,99 @@ function DailyGoal() {
       <Button type="submit" variant="secondary" icon={saved ? 'check' : undefined} loading={busy} disabled={saved}>
         {saved ? 'Guardada' : 'Guardar meta'}
       </Button>
+    </Card>
+  )
+}
+
+/** Permiso para analizar con IA, ya dado: se puede retirar (y volver a dar desde aquí mismo). */
+function AiPermission({ given }: { given: string }) {
+  const { setUser } = useAuth()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const day = formatDay(new Date(given)).toLowerCase()
+  const when = day === 'hoy' || day === 'ayer' ? day : `el ${day}`
+
+  async function revoke() {
+    if (!confirm('Sin este permiso Avo no puede analizar tus fotos ni aconsejarte con tus antojos. ¿Retirarlo?')) return
+    setBusy(true)
+    setError(null)
+    try {
+      setUser(await api<User>('/me', { method: 'PATCH', json: { ai_consent: false } }))
+    } catch (err) {
+      setError((err as Error).message)
+    }
+    setBusy(false)
+  }
+
+  return (
+    <Card padding="lg" as="section" aria-labelledby="permiso-ia">
+      <h2 id="permiso-ia" className="av-section-title">
+        Análisis con IA
+      </h2>
+      <p className="av-text-muted" style={{ margin: 0 }}>
+        Diste permiso {when}. Tus fotos y notas se mandan a modelos de Google y OpenAI (vía OpenRouter) para calcular
+        calorías y macros.
+      </p>
+      {error && <Notice tone="error">{error}</Notice>}
+      <Button variant="secondary" loading={busy} onClick={revoke}>
+        Retirar permiso
+      </Button>
+    </Card>
+  )
+}
+
+/** Borrar la cuenta y todo lo suyo (lo pide la App Store). Dos pasos: primero explica qué se borra. */
+function DeleteAccount() {
+  const { user, deleteAccount } = useAuth()
+  const { jobs } = useOutbox()
+  const [asking, setAsking] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function remove() {
+    setBusy(true)
+    setError(null)
+    try {
+      await deleteAccount()
+    } catch (err) {
+      setError((err as Error).message)
+      cheer('oops', 'No pude borrar tu cuenta', { interrupt: true })
+      setBusy(false)
+    }
+  }
+
+  if (!asking)
+    return (
+      <Button variant="ghost" icon="trash" onClick={() => setAsking(true)}>
+        Borrar mi cuenta
+      </Button>
+    )
+
+  return (
+    <Card padding="lg" as="section" aria-labelledby="borrar-cuenta">
+      <h2 id="borrar-cuenta" className="av-section-title">
+        ¿Borrar tu cuenta?
+      </h2>
+      <p style={{ margin: 0 }}>
+        {user?.role === 'nutritionist'
+          ? 'Se borran tu cuenta, tus comentarios y tus vínculos con pacientes. Las comidas de tus pacientes se quedan con ellos.'
+          : 'Se borran tu cuenta, todas tus comidas y fotos, los comentarios y los vínculos con tu nutrióloga.'}{' '}
+        <strong>No se puede deshacer.</strong>
+      </p>
+      {jobs.length > 0 && (
+        <Notice tone="warning">
+          También se pierden {jobs.length === 1 ? '1 envío que sigue' : `${jobs.length} envíos que siguen`} en el teléfono sin mandar.
+        </Notice>
+      )}
+      {error && <Notice tone="error">{error}</Notice>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+        <Button variant="secondary" onClick={() => setAsking(false)} disabled={busy}>
+          Cancelar
+        </Button>
+        <Button variant="danger" icon="trash" loading={busy} onClick={remove}>
+          Sí, borrar todo
+        </Button>
+      </div>
     </Card>
   )
 }

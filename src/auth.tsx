@@ -8,6 +8,8 @@ interface AuthState {
   user: User | null
   signIn: (token: string, user: User) => void
   signOut: () => Promise<void>
+  /** Borra la cuenta en el servidor y todo lo que quedó en el teléfono. Lanza el error si no se pudo. */
+  deleteAccount: () => Promise<void>
   setUser: (user: User) => void
 }
 
@@ -51,6 +53,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (getToken()) api<User>('/me').then(setUser, () => {})
   }, [])
 
+  // En un teléfono compartido no deben quedar comidas ni datos de otra cuenta
+  async function forgetLocal() {
+    clearCache()
+    await clearOutbox()
+    setToken(null)
+    setUser(null)
+  }
+
   const value: AuthState = {
     user,
     signIn: (token, next) => {
@@ -61,11 +71,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const pending = pendingCount()
       if (pending && !confirm(`Tienes ${pending} ${pending === 1 ? 'envío' : 'envíos'} sin mandar (sin conexión). Si cierras sesión se pierden. ¿Cerrar sesión de todos modos?`)) return
       await api('/auth/logout', { method: 'POST' }).catch(() => {})
-      // En un teléfono compartido no deben quedar comidas ni datos de otra cuenta
-      clearCache()
-      await clearOutbox()
-      setToken(null)
-      setUser(null)
+      await forgetLocal()
+    },
+    deleteAccount: async () => {
+      await api('/me', { method: 'DELETE', timeoutMs: 60_000 })
+      await forgetLocal()
     },
     setUser,
   }

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacidad · Avocado</title>
+    <meta name="description" content="Qué datos guarda Avocado, con quién los comparte y cómo borrarlos." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        --ground: #f5f7f2;
+        --surface: #ffffff;
+        --ink: #18221b;
+        --muted: #56645a;
+        --line: #e2e7df;
+        --accent: #2f7a3a;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ground: #121814;
+          --surface: #1b231d;
+          --ink: #e8eee6;
+          --muted: #a3b0a6;
+          --line: #2c372f;
+          --accent: #7cc286;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--ground);
+        color: var(--ink);
+        font: 17px/1.55 -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 32px 16px 64px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+      header img {
+        width: 44px;
+        height: 44px;
+      }
+      h1 {
+        font-size: 30px;
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+        margin: 0;
+      }
+      h2 {
+        font-size: 20px;
+        letter-spacing: -0.01em;
+        margin: 32px 0 8px;
+      }
+      p,
+      ul {
+        margin: 0 0 12px;
+      }
+      ul {
+        padding-left: 1.2em;
+      }
+      li {
+        margin-bottom: 6px;
+      }
+      a {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .updated {
+        color: var(--muted);
+        margin-bottom: 24px;
+      }
+      .box {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 16px 20px;
+        margin: 16px 0;
+      }
+      .box p:last-child,
+      .box ul:last-child {
+        margin-bottom: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="/favicon.svg" alt="" />
+        <h1>Política de privacidad</h1>
+      </header>
+      <p class="updated">Avocado: nutrición con foto · Actualizada el 12 de octubre de 2026</p>
+
+      <div class="box">
+        <p><strong>En corto:</strong></p>
+        <ul>
+          <li>Guardamos lo que registras (tus comidas y fotos) para mostrártelo a ti y a la nutrióloga que tú elijas.</li>
+          <li>Las fotos y notas se analizan con IA de otras empresas solo si das tu permiso, y puedes retirarlo.</li>
+          <li>No vendemos tus datos, no hay publicidad y no te rastreamos en otras apps o sitios.</li>
+          <li>Puedes borrar tu cuenta y todo lo tuyo desde <strong>Perfil → Borrar mi cuenta</strong>.</li>
+        </ul>
+      </div>
+
+      <h2>Quién es responsable</h2>
+      <p>
+        Avocado es una app de Cristopher Pineda. Para cualquier duda sobre tus datos, escribe a
+        <a href="mailto:avocado@cristopherpineda.com">avocado@cristopherpineda.com</a>.
+      </p>
+
+      <h2>Qué datos guardamos</h2>
+      <ul>
+        <li><strong>Tu cuenta:</strong> correo, nombre (si lo escribes), si eres paciente o nutrióloga y tu meta diaria de calorías (opcional).</li>
+        <li><strong>Tus comidas:</strong> la foto, la hora, tu nota, el análisis (alimentos, porciones, calorías y macros) y tus correcciones.</li>
+        <li><strong>Comentarios</strong> entre tú y tu nutrióloga, y con quién estás vinculado.</li>
+        <li><strong>Tu sesión:</strong> un identificador cifrado para que no tengas que entrar cada vez.</li>
+        <li>
+          <strong>«¿Me lo como?»:</strong> la foto del antojo se analiza y se descarta; no se guarda, salvo que decidas registrarlo como comida.
+        </li>
+      </ul>
+      <p>
+        En el teléfono, la app guarda una copia de tus datos recientes para abrir rápido y funcionar sin conexión. Se borra al cerrar sesión o al
+        borrar tu cuenta.
+      </p>
+
+      <h2>Para qué los usamos</h2>
+      <p>
+        Solo para que la app funcione: mostrarte tu día y tu semana, calcular calorías y rachas, y que tu nutrióloga vea tus comidas y te deje
+        indicaciones. No usamos tus datos para publicidad ni los vendemos.
+      </p>
+
+      <h2>Análisis con inteligencia artificial</h2>
+      <p>Con tu permiso (te lo pedimos antes de tu primera foto), Avocado manda a un modelo de IA:</p>
+      <ul>
+        <li>la foto de tu comida y tu nota;</li>
+        <li>tus correcciones («me dejé la mitad…») junto con el análisis anterior;</li>
+        <li>en «¿Me lo como?», la foto del antojo, tu primer nombre, las calorías que llevas hoy y tu meta.</li>
+      </ul>
+      <p>
+        Lo recibe <strong>OpenRouter</strong>, que lo pasa a los modelos de <strong>Google</strong> (Gemini) o, si ese falla,
+        <strong>OpenAI</strong> (GPT). Lo mandamos solo para obtener el resultado. No les mandamos tu correo. Sin tu permiso no se manda nada y
+        puedes retirarlo en <strong>Perfil → Análisis con IA</strong>.
+      </p>
+
+      <h2>Con quién se comparten</h2>
+      <ul>
+        <li><strong>Tu nutrióloga</strong>, solo si tú la vinculas. Puedes quitarla cuando quieras y deja de ver tus comidas.</li>
+        <li><strong>Cloudflare</strong>: aloja el servidor, la base de datos y las fotos.</li>
+        <li><strong>Resend</strong>: envía el código para entrar (recibe tu correo).</li>
+        <li><strong>OpenRouter, Google y OpenAI</strong>: el análisis con IA descrito arriba, solo con tu permiso.</li>
+        <li><strong>GitHub</strong>: aloja la versión web de la app.</li>
+      </ul>
+      <p>Las fotos solo se abren con enlaces firmados que vencen en un par de horas.</p>
+
+      <h2>Cuánto tiempo los guardamos</h2>
+      <p>
+        Mientras tengas tu cuenta. Si borras una comida, se borran su foto y sus comentarios. Si borras tu cuenta, se borra todo de inmediato; las
+        copias de seguridad automáticas del proveedor se eliminan solas en un máximo de 30 días.
+      </p>
+
+      <h2>Tus derechos</h2>
+      <ul>
+        <li><strong>Ver y corregir</strong> tus datos en la app (nombre, meta, comidas y porciones).</li>
+        <li><strong>Borrar</strong> una comida o tu cuenta completa desde la app.</li>
+        <li><strong>Retirar</strong> el permiso para la IA o dejar de compartir con tu nutrióloga.</li>
+        <li>Para cualquier otra cosa, escríbenos a <a href="mailto:avocado@cristopherpineda.com">avocado@cristopherpineda.com</a>.</li>
+      </ul>
+
+      <h2>Salud</h2>
+      <p>
+        Las calorías y los macros son estimaciones hechas con IA a partir de una foto y pueden equivocarse. Avocado no da consejo médico ni
+        sustituye a tu nutrióloga o a tu médico.
+      </p>
+
+      <h2>Menores de edad</h2>
+      <p>Avocado no está pensada para menores de 13 años.</p>
+
+      <h2>Cambios</h2>
+      <p>Si esta política cambia, lo verás aquí con la fecha de arriba actualizada.</p>
+    </main>
+  </body>
+</html>

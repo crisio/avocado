@@ -4,3 +4,6 @@ AUTH_SECRET=cambia-esto-por-un-texto-aleatorio-de-32-caracteres-o-mas
 # Opcional en local: para probar el análisis con IA
 OPENROUTER_API_KEY=
 OPENROUTER_MODEL=
+# Opcional: cuenta para la revisión de la App Store (entra con este código fijo y no se le manda correo)
+REVIEW_EMAIL=
+REVIEW_CODE=

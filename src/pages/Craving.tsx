@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card, Notice, PageHeader, PhotoPicker, Screen, Segmented, TextField, type SegmentedOption } from '@avocado/ui'
 import { useAuth } from '../auth'
+import AiConsentCard from '../components/AiConsent'
 import { celebrateMeal } from '../components/Celebration'
 import { Mascot } from '../components/Mascot'
 import TopBar from '../components/TopBar'
@@ -142,6 +143,15 @@ export default function CravingPage() {
     setError(null)
     window.scrollTo({ top: 0 })
   }
+
+  if (!user?.ai_consent_at)
+    return (
+      <Screen withTabBar>
+        <TopBar onBack={() => navigate(-1)} />
+        <PageHeader title="¿Me lo como?" compact />
+        <AiConsentCard onDecline={() => navigate('/', { replace: true })} />
+      </Screen>
+    )
 
   return (
     <Screen withTabBar>
@@ -303,7 +313,7 @@ function Advice({ craving: c, photoUrl, busy, online, answer, onAnswerChange, on
           </form>
         )}
         {error && <Notice tone="error">{error}</Notice>}
-        <p className="av-nutrition__note">Estimación con IA. No se registró en tu día.</p>
+        <p className="av-nutrition__note">Estimación con IA: puede equivocarse y no es consejo médico. No se registró en tu día.</p>
       </Card>
     </>
   )

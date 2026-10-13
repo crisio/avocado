@@ -29,6 +29,25 @@ body {
   flex: 1;
 }
 
+.app-link {
+  color: var(--av-accent);
+  font-weight: 600;
+}
+
+.ai-consent__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ai-consent__list {
+  margin: 0;
+  padding-left: 1.2em;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .app-note {
   margin: 0;
   font-style: italic;

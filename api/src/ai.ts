@@ -1,7 +1,15 @@
-import type { Env } from './env'
+import type { Env, User } from './env'
+import { fail } from './errors'
 
 // Analiza la foto de una comida con un modelo de visión vía OpenRouter.
 // Modelo: ver AI_MODELS en wrangler.jsonc (elegido por precisión en fotos de comida, velocidad y costo).
+
+export const AI_CONSENT_REQUIRED = 'Para analizar con IA necesitamos tu permiso. Puedes darlo en Perfil.'
+
+/** Las fotos y notas van a modelos de otras empresas (Google, OpenAI): solo con el permiso del paciente. */
+export function requireAiConsent(user: User) {
+  if (!user.ai_consent_at) fail(403, AI_CONSENT_REQUIRED)
+}
 
 const ANSWER_FORMAT = `Responde SOLO con un objeto JSON válido, sin texto adicional, con esta forma exacta:
 {

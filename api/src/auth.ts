@@ -23,6 +23,15 @@ function normalizeEmail(value: unknown) {
 
 const codeHash = (env: Env, email: string, code: string) => hmac(env.AUTH_SECRET, `login:${email}:${code}`)
 
+/**
+ * Cuenta para la revisión de la App Store: los revisores de Apple no reciben nuestros correos, así que ese correo
+ * (REVIEW_EMAIL) entra con un código fijo (REVIEW_CODE, secreto). Los límites de envíos e intentos siguen igual.
+ */
+function reviewCode(env: Env, email: string) {
+  const code = env.REVIEW_CODE ?? ''
+  return env.REVIEW_EMAIL && email === env.REVIEW_EMAIL.trim().toLowerCase() && /^\d{6}$/.test(code) ? code : null
+}
+
 interface CodeRow {
   code_hash: string
   expires_at: number
@@ -45,7 +54,8 @@ authRoutes.post('/code', async (c) => {
   const sameWindow = prev && now - prev.window_start < 60 * MINUTE
   if (sameWindow && prev.sends_in_window >= MAX_SENDS_PER_HOUR) fail(429, 'Pediste muchos códigos. Intenta en una hora.')
 
-  const code = randomCode()
+  const fixed = reviewCode(c.env, email)
+  const code = fixed ?? randomCode()
   await c.env.DB.prepare(
     `INSERT INTO auth_codes (email, code_hash, expires_at, attempts, sent_at, window_start, sends_in_window)
      VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6)
@@ -54,6 +64,7 @@ authRoutes.post('/code', async (c) => {
   )
     .bind(email, await codeHash(c.env, email, code), now + CODE_TTL, now, sameWindow ? prev.window_start : now, sameWindow ? prev.sends_in_window + 1 : 1)
     .run()
+  if (fixed) return c.json({ ok: true })
 
   try {
     await sendMail(c.env, loginCodeMail(email, code, c.env.APP_URL))
@@ -81,9 +92,9 @@ authRoutes.post('/verify', async (c) => {
   }
 
   await c.env.DB.prepare('DELETE FROM auth_codes WHERE email = ?').bind(email).run()
-  let user = await c.env.DB.prepare('SELECT id, email, full_name, role, daily_kcal_goal FROM users WHERE email = ?').bind(email).first<User>()
+  let user = await c.env.DB.prepare('SELECT id, email, full_name, role, daily_kcal_goal, ai_consent_at FROM users WHERE email = ?').bind(email).first<User>()
   if (!user) {
-    user = { id: crypto.randomUUID(), email, full_name: null, role: null, daily_kcal_goal: null }
+    user = { id: crypto.randomUUID(), email, full_name: null, role: null, daily_kcal_goal: null, ai_consent_at: null }
     await c.env.DB.prepare('INSERT INTO users (id, email) VALUES (?, ?)').bind(user.id, email).run()
   }
 
@@ -103,7 +114,7 @@ export const requireUser = createMiddleware<AppEnv>(async (c, next) => {
   const hash = await sha256(token)
   const now = Date.now()
   const row = await c.env.DB.prepare(
-    `SELECT u.id, u.email, u.full_name, u.role, u.daily_kcal_goal, s.refreshed_at
+    `SELECT u.id, u.email, u.full_name, u.role, u.daily_kcal_goal, u.ai_consent_at, s.refreshed_at
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ? AND s.expires_at > ?`,
   )

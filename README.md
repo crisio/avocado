@@ -16,6 +16,9 @@ ve tu día para dejarte indicaciones. Algo como Whoop, pero para nutrición y co
 - **Mi día:** comidas con horas y totales; puedes navegar a días anteriores.
 - **Nutrióloga:** ve a sus pacientes y el día de cada uno, y comenta cada comida. Los comentarios aparecen solos, sin recargar.
 - **Privacidad:** el paciente decide qué nutrióloga lo ve y puede quitarla cuando quiera. Las fotos solo se abren con enlaces firmados que vencen.
+  Antes de la primera foto pide permiso para mandarla a la IA (se puede retirar en Perfil), cualquiera puede borrar su cuenta con todo lo
+  suyo desde Perfil, y la [política de privacidad](https://avocadoapp.cristopherpineda.com/privacidad.html) está en `public/privacidad.html`.
+  Lo que pide la App Store está en [docs/app-store.md](docs/app-store.md).
 
 ## Arquitectura (todo en planes gratis)
 
@@ -93,6 +96,7 @@ En el repo: **Settings → Secrets and variables → Actions → New repository 
 | `AUTH_SECRET` | texto aleatorio de 32+ caracteres. En la Terminal de tu Mac: `openssl rand -hex 32` |
 | `RESEND_API_KEY` | la API key de Resend del paso 2 |
 | `OPENROUTER_API_KEY` | tu API key de OpenRouter |
+| `REVIEW_EMAIL` y `REVIEW_CODE` | opcionales: la cuenta para la revisión de la App Store (ver [docs/app-store.md](docs/app-store.md)) |
 
 El modelo de IA no es secreto: está en `AI_MODELS` dentro de `api/wrangler.jsonc` (hoy Gemini 3.1 Flash-Lite, con GPT-6 Luna de respaldo).
 Para comparar modelos con tus propias fotos: `cd api && OPENROUTER_API_KEY=... npm run bench -- --photos ../fotos --models a,b,c`.

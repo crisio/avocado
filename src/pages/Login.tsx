@@ -3,6 +3,7 @@ import { Button, Card, CodeInput, Notice, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
 import InstallCard from '../components/InstallCard'
 import { Mascot } from '../components/Mascot'
+import PrivacyLink from '../components/PrivacyLink'
 import { api } from '../lib/api'
 import { cheer, greetOnce } from '../lib/mascot'
 import type { User } from '../lib/types'
@@ -124,6 +125,10 @@ export default function Login() {
 
       {/* Mejor instalar antes de entrar: en iPhone la app instalada no comparte la sesión de Safari. */}
       {step === 'email' && <InstallCard dismissible mobileOnly />}
+
+      <p className="av-text-muted" style={{ margin: 0, fontSize: 14, textAlign: 'center' }}>
+        ¿Qué hacemos con tus datos? Lee la <PrivacyLink>política de privacidad</PrivacyLink>.
+      </p>
     </Screen>
   )
 }

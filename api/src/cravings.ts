@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { AppEnv } from './env'
-import { chat, num, toBase64 } from './ai'
+import { chat, num, requireAiConsent, toBase64 } from './ai'
 import { fail } from './errors'
 
 /**
@@ -112,6 +112,7 @@ export const cravingRoutes = new Hono<AppEnv>()
 // hour (0–23) y queued (comidas de hoy que siguen en el teléfono, sin llegar al servidor)
 cravingRoutes.post('/', async (c) => {
   const user = c.var.user
+  requireAiConsent(user)
   const form = await c.req.formData().catch(() => fail(400, 'Formulario inválido'))
   const photo = form.get('photo')
   if (!(photo instanceof File)) fail(400, 'Falta la foto')

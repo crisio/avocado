@@ -7,6 +7,8 @@ export interface User {
   role: Role | null // null hasta terminar el registro
   /** Meta diaria de calorías (opcional; la escribe el paciente en Perfil). */
   daily_kcal_goal?: number | null
+  /** Cuándo aceptó que sus fotos y notas se analicen con IA (null o ausente = no ha aceptado). */
+  ai_consent_at?: string | null
 }
 
 export type Person = Pick<User, 'id' | 'email' | 'full_name'>

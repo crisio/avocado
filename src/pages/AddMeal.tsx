@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Notice, PageHeader, PhotoPicker, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
+import AiConsentCard from '../components/AiConsent'
 import { celebrateMeal } from '../components/Celebration'
 import CravingLink from '../components/CravingLink'
 import TopBar from '../components/TopBar'
@@ -67,6 +68,16 @@ export default function AddMeal() {
       setBusy(false)
     }
   }
+
+  // Antes de la primera foto, el permiso para analizarla con IA.
+  if (!user?.ai_consent_at)
+    return (
+      <Screen withTabBar>
+        <TopBar onBack={() => navigate(-1)} />
+        <PageHeader title="Registrar comida" compact />
+        <AiConsentCard onDecline={() => navigate('/', { replace: true })} />
+      </Screen>
+    )
 
   return (
     <Screen withTabBar>

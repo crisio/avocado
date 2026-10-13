@@ -27,12 +27,15 @@ const lastCodeFor = (email: string) => {
   return mail?.subject.match(/^(\d{6})/)?.[1]
 }
 
-/** Registra (o entra con) una cuenta y regresa su token. */
-async function login(email: string, profile?: { full_name: string; role: 'patient' | 'nutritionist' }) {
+/**
+ * Registra (o entra con) una cuenta y regresa su token. Los pacientes ya aceptaron analizar con IA, salvo que se pida
+ * lo contrario con ai_consent: false.
+ */
+async function login(email: string, profile?: { full_name: string; role: 'patient' | 'nutritionist'; ai_consent?: boolean }) {
   await env.DB.prepare('DELETE FROM auth_codes WHERE email = ?').bind(email).run() // evita el límite de 1 min
   expect((await call('/auth/code', { method: 'POST', json: { email } })).status).toBe(200)
   const { data } = await call('/auth/verify', { method: 'POST', json: { email, code: lastCodeFor(email) } })
-  if (profile) await call('/me', { method: 'PATCH', token: data.token, json: profile })
+  if (profile) await call('/me', { method: 'PATCH', token: data.token, json: { ai_consent: profile.role === 'patient', ...profile } })
   return data.token as string
 }
 
@@ -655,5 +658,118 @@ describe('rachas', () => {
 
     expect((await call('/streak?offset=9999', { token })).status).toBe(400)
     expect((await call('/streak?offset=360')).status).toBe(401)
+  })
+})
+
+describe('App Store: cuenta de revisión', () => {
+  it('el correo de revisión entra con el código fijo, sin mandar correo y con los mismos límites', async () => {
+    const before = devOutbox.length
+    expect((await call('/auth/code', { method: 'POST', json: { email: ' REVISION@avocado.test' } })).status).toBe(200)
+    expect(devOutbox.length).toBe(before)
+
+    const wrong = await call('/auth/verify', { method: 'POST', json: { email: 'revision@avocado.test', code: '111111' } })
+    expect(wrong.status).toBe(400)
+    const ok = await call('/auth/verify', { method: 'POST', json: { email: 'revision@avocado.test', code: '246810' } })
+    expect(ok.status).toBe(200)
+    expect(ok.data.user.email).toBe('revision@avocado.test')
+
+    // Sigue el límite de un código por minuto
+    expect((await call('/auth/code', { method: 'POST', json: { email: 'revision@avocado.test' } })).status).toBe(200)
+    expect((await call('/auth/code', { method: 'POST', json: { email: 'revision@avocado.test' } })).status).toBe(429)
+  })
+
+  it('el código fijo no sirve para otros correos', async () => {
+    await call('/auth/code', { method: 'POST', json: { email: 'normal@gmail.com' } })
+    const code = lastCodeFor('normal@gmail.com')
+    expect(code).toMatch(/^\d{6}$/)
+    if (code !== '246810') {
+      expect((await call('/auth/verify', { method: 'POST', json: { email: 'normal@gmail.com', code: '246810' } })).status).toBe(400)
+    }
+  })
+})
+
+describe('App Store: permiso para la IA', () => {
+  const aiReply = () =>
+    Response.json({
+      model: 'test/vision-model',
+      choices: [{ message: { content: '{"items":[{"name":"Manzana","portion_g":150,"calories":78,"protein_g":0.4,"carbs_g":21,"fat_g":0.3}],"meal_type":"snack","summary":"Manzana","confidence":0.9}' } }],
+    })
+
+  it('sin permiso no manda nada a la IA; con permiso sí, y se puede retirar', async () => {
+    const token = await login('permiso@gmail.com', { full_name: 'Permiso', role: 'patient', ai_consent: false })
+    expect((await call('/me', { token })).data.ai_consent_at).toBeNull()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => aiReply())
+
+    // La comida se guarda igual (p. ej. venía en la cola), pero queda con el aviso en lugar de analizarse
+    const created = await call('/meals', { method: 'POST', token, body: photoForm({ analyze: '1' }) })
+    expect(created.status).toBe(201)
+    expect(created.data).toMatchObject({ status: 'error', analysis: { error: expect.stringContaining('permiso') } })
+    expect((await call(`/meals/${created.data.id}/analyze`, { method: 'POST', token })).status).toBe(403)
+    expect((await call('/cravings', { method: 'POST', token, body: photoForm({ from: '2026-10-12T06:00:00Z', to: '2026-10-13T06:00:00Z' }) })).status).toBe(403)
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    expect((await call('/me', { method: 'PATCH', token, json: { ai_consent: 'sí' } })).status).toBe(400)
+    const given = (await call('/me', { method: 'PATCH', token, json: { ai_consent: true } })).data.ai_consent_at
+    expect(Date.parse(given)).not.toBeNaN()
+    // Aceptar otra vez conserva la fecha original; cambiar otra cosa no lo toca
+    expect((await call('/me', { method: 'PATCH', token, json: { ai_consent: true } })).data.ai_consent_at).toBe(given)
+    expect((await call('/me', { method: 'PATCH', token, json: { full_name: 'Otro' } })).data.ai_consent_at).toBe(given)
+
+    const analyzed = await call(`/meals/${created.data.id}/analyze`, { method: 'POST', token })
+    expect(analyzed.data).toMatchObject({ status: 'analyzed', calories: 78 })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+
+    expect((await call('/me', { method: 'PATCH', token, json: { ai_consent: false } })).data.ai_consent_at).toBeNull()
+    expect((await call(`/meals/${created.data.id}/correct`, { method: 'POST', token, json: { text: 'era pera' } })).status).toBe(403)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('App Store: borrar la cuenta', () => {
+  it('el paciente borra su cuenta con fotos, comidas, comentarios y vínculos', async () => {
+    const patient = await login('borrame@gmail.com', { full_name: 'Bórrame', role: 'patient' })
+    const nutri = await login('nutri-queda@gmail.com', { full_name: 'Lic. Queda', role: 'nutritionist' })
+    const patientId = (await call('/me', { token: patient })).data.id
+    await call('/care/nutritionists', { method: 'POST', token: patient, json: { email: 'nutri-queda@gmail.com' } })
+    const meals = []
+    for (let i = 0; i < 2; i++) meals.push((await call('/meals', { method: 'POST', token: patient, body: photoForm() })).data.id)
+    await call(`/meals/${meals[0]}/comments`, { method: 'POST', token: nutri, json: { body: 'Muy bien' } })
+    await call(`/meals/${meals[0]}/comments`, { method: 'POST', token: patient, json: { body: 'Gracias' } })
+    expect((await env.PHOTOS.list({ prefix: `${patientId}/` })).objects).toHaveLength(2)
+
+    expect((await call('/me', { method: 'DELETE', token: patient })).status).toBe(200)
+
+    expect((await call('/me', { token: patient })).status).toBe(401)
+    expect((await env.PHOTOS.list({ prefix: `${patientId}/` })).objects).toHaveLength(0)
+    const count = (sql: string) => env.DB.prepare(sql).bind(patientId).first<{ n: number }>().then((r) => r?.n)
+    expect(await count('SELECT count(*) AS n FROM users WHERE id = ?')).toBe(0)
+    expect(await count('SELECT count(*) AS n FROM meals WHERE user_id = ?')).toBe(0)
+    expect(await count('SELECT count(*) AS n FROM care_links WHERE patient_id = ?')).toBe(0)
+    expect(await count('SELECT count(*) AS n FROM sessions WHERE user_id = ?')).toBe(0)
+    const comments = await env.DB.prepare('SELECT count(*) AS n FROM meal_comments WHERE meal_id IN (?, ?)').bind(meals[0], meals[1]).first<{ n: number }>()
+    expect(comments?.n).toBe(0)
+
+    // La nutrióloga sigue, ya sin ese paciente; el mismo correo vuelve a empezar de cero
+    expect((await call('/care/patients', { token: nutri })).data).toEqual([])
+    const again = await login('borrame@gmail.com')
+    const fresh = (await call('/me', { token: again })).data
+    expect(fresh.id).not.toBe(patientId)
+    expect(fresh.role).toBeNull()
+  })
+
+  it('si la nutrióloga borra su cuenta, sus pacientes conservan sus comidas', async () => {
+    const patient = await login('se-queda@gmail.com', { full_name: 'Se queda', role: 'patient' })
+    const nutri = await login('nutri-se-va@gmail.com', { full_name: 'Lic. Se va', role: 'nutritionist' })
+    await call('/care/nutritionists', { method: 'POST', token: patient, json: { email: 'nutri-se-va@gmail.com' } })
+    const meal = (await call('/meals', { method: 'POST', token: patient, body: photoForm() })).data
+    await call(`/meals/${meal.id}/comments`, { method: 'POST', token: nutri, json: { body: 'Agrega fruta' } })
+
+    expect((await call('/me', { method: 'DELETE', token: nutri })).status).toBe(200)
+
+    const detail = await call(`/meals/${meal.id}`, { token: patient })
+    expect(detail.status).toBe(200)
+    expect(detail.data.comments).toEqual([])
+    expect((await call('/care/nutritionists', { token: patient })).data).toEqual([])
+    expect((await call(new URL(detail.data.photo_url).pathname + new URL(detail.data.photo_url).search)).status).toBe(200)
   })
 })

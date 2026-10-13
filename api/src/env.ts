@@ -13,6 +13,9 @@ export interface Env {
   GMAIL_USER?: string
   GMAIL_APP_PASSWORD?: string
   OPENROUTER_API_KEY?: string
+  /** Cuenta para la revisión de la App Store: ese correo entra con REVIEW_CODE (6 dígitos) y no se le manda correo. */
+  REVIEW_EMAIL?: string
+  REVIEW_CODE?: string
 }
 
 export interface User {
@@ -22,6 +25,8 @@ export interface User {
   role: 'patient' | 'nutritionist' | null
   /** Meta diaria de calorías (opcional). */
   daily_kcal_goal: number | null
+  /** Cuándo aceptó que sus fotos y notas se analicen con IA de terceros (null = no ha aceptado). */
+  ai_consent_at: string | null
 }
 
 export type AppEnv = { Bindings: Env; Variables: { user: User; sessionHash: string } }

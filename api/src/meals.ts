@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { AppEnv, Env } from './env'
 import { canSee } from './access'
-import { analyzePhoto, correctAnalysis, fraction, withTotals, type Analysis } from './ai'
+import { AI_CONSENT_REQUIRED, analyzePhoto, correctAnalysis, fraction, requireAiConsent, withTotals, type Analysis } from './ai'
 import { fail } from './errors'
 import { signedPhotoUrl } from './photos'
 
@@ -75,6 +75,12 @@ async function ownAnalyzedMeal(env: Env, id: string, userId: string) {
   return { meal, raw: meal.analysis, analysis: withTotals({ ...stored, items }) }
 }
 
+async function saveError(env: Env, mealId: string, message: string) {
+  await env.DB.prepare(`UPDATE meals SET status = 'error', analysis = ? WHERE id = ?`)
+    .bind(JSON.stringify({ error: message }), mealId)
+    .run()
+}
+
 /** Corre el análisis y guarda el resultado (o el error) en la comida. */
 async function runAnalysis(env: Env, meal: MealRow) {
   try {
@@ -85,9 +91,7 @@ async function runAnalysis(env: Env, meal: MealRow) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error('analyze', meal.id, message)
-    await env.DB.prepare(`UPDATE meals SET status = 'error', analysis = ? WHERE id = ?`)
-      .bind(JSON.stringify({ error: message }), meal.id)
-      .run()
+    await saveError(env, meal.id, message)
   }
 }
 
@@ -145,10 +149,13 @@ mealRoutes.post('/', async (c) => {
     .bind(id, c.var.user.id, eatenAt, key, note)
     .run()
 
-  const meal = await getMeal(c.env, id)
-  // analyze=1: el análisis arranca aquí mismo y sigue aunque el teléfono pierda la conexión.
-  if (form.get('analyze') === '1') c.executionCtx.waitUntil(runAnalysis(c.env, meal!))
-  return c.json(await toMeal(c.env, origin, meal!), 201)
+  // analyze=1: el análisis arranca aquí mismo y sigue aunque el teléfono pierda la conexión. Sin permiso para la IA
+  // (p. ej. una comida que esperaba en la cola desde antes de pedirlo) se guarda igual, con el aviso como error.
+  if (form.get('analyze') === '1') {
+    if (c.var.user.ai_consent_at) c.executionCtx.waitUntil(runAnalysis(c.env, (await getMeal(c.env, id))!))
+    else await saveError(c.env, id, AI_CONSENT_REQUIRED)
+  }
+  return c.json(await toMeal(c.env, origin, (await getMeal(c.env, id))!), 201)
 })
 
 // Detalle con comentarios
@@ -170,6 +177,7 @@ mealRoutes.get('/:id', async (c) => {
 mealRoutes.post('/:id/analyze', async (c) => {
   const meal = await getMeal(c.env, c.req.param('id'))
   if (!meal || meal.user_id !== c.var.user.id) fail(404, 'No encontramos esta comida')
+  requireAiConsent(c.var.user)
 
   await c.env.DB.prepare(`UPDATE meals SET status = 'pending' WHERE id = ?`).bind(meal.id).run()
   const job = runAnalysis(c.env, meal)
@@ -201,6 +209,7 @@ mealRoutes.patch('/:id/portions', async (c) => {
 // Corrección en palabras del paciente ("me dejé la mitad de la ensalada…"): la IA ajusta el análisis sin volver a ver la foto.
 mealRoutes.post('/:id/correct', async (c) => {
   const { meal, raw, analysis } = await ownAnalyzedMeal(c.env, c.req.param('id'), c.var.user.id)
+  requireAiConsent(c.var.user)
   const { text } = await c.req.json<{ text?: unknown }>().catch(() => ({ text: undefined }))
   const correction = String(text ?? '').trim()
   if (!correction || correction.length > 1000) fail(400, 'Cuéntanos qué cambió (máximo 1000 caracteres)')
