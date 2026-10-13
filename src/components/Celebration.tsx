@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { SEQUENCES } from '../lib/mascot'
+import Flame from './Flame'
 import { Mascot, useReducedMotion } from './Mascot'
 
 /**
@@ -13,6 +14,8 @@ interface Party {
   message: string
   /** URL blob: de la foto; se libera al cerrar. */
   photoUrl: string | null
+  /** Racha después de esta comida (se muestra con su fueguito). */
+  streak?: { current: number; extended: boolean; milestone: boolean } | null
 }
 
 let party: Party | null = null
@@ -90,6 +93,18 @@ function PartyView({ party }: { party: Party }) {
           </span>
         </div>
         <h2 className="party__title">{party.title}</h2>
+        {party.streak && party.streak.current > 0 && (
+          <span className={`party__streak${party.streak.extended ? ' party__streak--up' : ''}${party.streak.milestone ? ' party__streak--milestone' : ''}`}>
+            <Flame size={party.streak.milestone ? 34 : 26} />
+            {party.streak.current === 1
+              ? party.streak.extended
+                ? '¡Empezaste tu racha!'
+                : '1 día de racha'
+              : party.streak.milestone
+                ? `¡${party.streak.current} días seguidos!`
+                : `${party.streak.current} días seguidos`}
+          </span>
+        )}
         <p className="party__message">{party.message}</p>
         <span className="party__hint" aria-hidden="true">
           Toca para continuar

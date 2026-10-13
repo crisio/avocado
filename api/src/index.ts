@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception'
 import type { AppEnv } from './env'
 import { authRoutes, requireUser } from './auth'
 import { cravingRoutes } from './cravings'
+import { streakRoutes } from './streaks'
 import { mealRoutes } from './meals'
 import { peopleRoutes } from './people'
 import { verifyPhotoSignature } from './photos'
@@ -55,9 +56,11 @@ app.use('/care/*', requireUser)
 app.use('/meals', requireUser)
 app.use('/meals/*', requireUser)
 app.use('/cravings', requireUser)
+app.use('/streak', requireUser)
 app.route('/', peopleRoutes)
 app.route('/meals', mealRoutes)
 app.route('/cravings', cravingRoutes)
+app.route('/streak', streakRoutes)
 
 app.notFound((c) => c.json({ error: 'No encontrado' }, 404))
 

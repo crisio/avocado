@@ -1,15 +1,18 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Button, PageHeader, Screen } from '@avocado/ui'
 import DayView from '../components/DayView'
+import { StreakChip } from '../components/Streak'
 import TopBar from '../components/TopBar'
 import { useCachedApi } from '../lib/useCachedApi'
 import { displayName } from '../lib/format'
+import { useStreak } from '../lib/streak'
 import type { User } from '../lib/types'
 
 export default function PatientDay() {
   const { id = '' } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const patient = useCachedApi<User>(`/users/${id}`, 300_000).data ?? null
+  const { streak } = useStreak(id)
 
   return (
     <Screen withTabBar>
@@ -19,6 +22,11 @@ export default function PatientDay() {
         title={displayName(patient)}
         compact
       />
+      {streak && (
+        <div>
+          <StreakChip streak={streak} self={false} />
+        </div>
+      )}
       <div>
         <Button as={Link} to={`/paciente/${id}/semana`} variant="secondary" icon="calendar">
           Ver su semana

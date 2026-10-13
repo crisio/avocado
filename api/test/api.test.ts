@@ -614,3 +614,46 @@ describe('¿Me lo como? (antojos)', () => {
     expect((await call('/cravings', { method: 'POST', body: cravingForm() })).status).toBe(401)
   })
 })
+
+describe('rachas', () => {
+  it('calcula la racha actual, la mejor y la semana (función pura)', async () => {
+    const { streakFrom } = await import('../src/streaks')
+    const days = new Set(['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-09', '2026-10-10', '2026-10-11'])
+    // Hoy (12) aún sin registro: la racha de 3 sigue viva
+    expect(streakFrom(days, '2026-10-12')).toMatchObject({ current: 3, best: 4, logged_today: false })
+    // Con registro hoy: 4
+    expect(streakFrom(new Set([...days, '2026-10-12']), '2026-10-12')).toMatchObject({ current: 4, logged_today: true })
+    // Si ayer tampoco registró, se perdió
+    expect(streakFrom(days, '2026-10-13').current).toBe(0)
+    const week = streakFrom(days, '2026-10-12').week
+    expect(week.map((d) => d.date)).toEqual(['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11', '2026-10-12'])
+    expect(week.map((d) => d.logged)).toEqual([false, false, false, true, true, true, false])
+    expect(streakFrom(new Set(), '2026-10-12')).toMatchObject({ current: 0, best: 0, logged_today: false })
+  })
+
+  it('usa el día del teléfono y solo la ve el paciente o su nutrióloga', async () => {
+    const token = await login('racha@gmail.com', { full_name: 'Racha', role: 'patient' })
+    const now = Date.now()
+    const offset = 360 // UTC-6
+    // Hoy y los dos días anteriores, a las 23:30 hora local (en UTC ya es el día siguiente)
+    for (const back of [0, 1, 2]) {
+      const local = new Date(now - offset * 60_000 - back * 86_400_000)
+      const day = local.toISOString().slice(0, 10)
+      const eatenUtc = new Date(Date.parse(`${day}T23:30:00Z`) + offset * 60_000)
+      if (eatenUtc.getTime() > now) eatenUtc.setTime(now - 60_000) // no en el futuro
+      await call('/meals', { method: 'POST', token, body: photoForm({ eaten_at: eatenUtc.toISOString() }) })
+    }
+    const mine = await call(`/streak?offset=${offset}`, { token })
+    expect(mine.status).toBe(200)
+    expect(mine.data).toMatchObject({ current: 3, best: 3, logged_today: true })
+
+    const me = (await call('/me', { token })).data
+    const nutri = await login('nutri-racha@gmail.com', { full_name: 'Nutri', role: 'nutritionist' })
+    expect((await call(`/streak?user_id=${me.id}&offset=${offset}`, { token: nutri })).status).toBe(404)
+    await call('/care/nutritionists', { method: 'POST', token, json: { email: 'nutri-racha@gmail.com' } })
+    expect((await call(`/streak?user_id=${me.id}&offset=${offset}`, { token: nutri })).data.current).toBe(3)
+
+    expect((await call('/streak?offset=9999', { token })).status).toBe(400)
+    expect((await call('/streak?offset=360')).status).toBe(401)
+  })
+})

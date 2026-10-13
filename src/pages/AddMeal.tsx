@@ -7,14 +7,16 @@ import CravingLink from '../components/CravingLink'
 import TopBar from '../components/TopBar'
 import { compressImage } from '../lib/image'
 import { cheer, preloadHd } from '../lib/mascot'
-import { enqueueMeal } from '../lib/outbox'
-import { firstName, toLocalInput } from '../lib/format'
+import { enqueueMeal, useOutbox } from '../lib/outbox'
+import { streakAfterNewMeal } from '../lib/streak'
+import { firstName, toDayParam, toLocalInput } from '../lib/format'
 import { useOnline } from '../lib/useOnline'
 
 export default function AddMeal() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const online = useOnline()
+  const { jobs } = useOutbox()
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [note, setNote] = useState('')
@@ -38,6 +40,8 @@ export default function AddMeal() {
     setBusy(true)
     setError(null)
     try {
+      // Cómo queda la racha (antes de ponerla en la cola, para saber si es la primera de hoy). Solo si es de hoy.
+      const streak = toDayParam(new Date(eatenAt)) === toDayParam(new Date()) ? streakAfterNewMeal(user.id, jobs) : null
       // Primero se guarda en el teléfono; la cola la sube (y el servidor la analiza) en cuanto hay señal.
       const job = await enqueueMeal({
         id: crypto.randomUUID(),
@@ -50,6 +54,7 @@ export default function AddMeal() {
       const name = firstName(user.full_name)
       celebrateMeal({
         title: '¡Comida registrada!',
+        streak,
         message: online
           ? `¡Buen provecho${name ? `, ${name}` : ''}! Avo ya está analizando tu foto.`
           : 'Quedó guardada en el teléfono. Avo la analiza en cuanto vuelva la señal.',

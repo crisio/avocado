@@ -10,6 +10,7 @@ import { addDays, firstName, formatNumber, startOfDay } from '../lib/format'
 import { compressImage } from '../lib/image'
 import { cheer, preloadHd, type Mood } from '../lib/mascot'
 import { enqueueMeal, useOutbox } from '../lib/outbox'
+import { streakAfterNewMeal } from '../lib/streak'
 import { useOnline } from '../lib/useOnline'
 import type { Craving } from '../lib/types'
 
@@ -110,6 +111,7 @@ export default function CravingPage() {
     setSaving(true)
     try {
       const photo = await compressImage(file)
+      const streak = streakAfterNewMeal(user.id, jobs)
       const what = result.name ? ` (${result.name})` : ''
       const job = await enqueueMeal({
         id: crypto.randomUUID(),
@@ -121,6 +123,7 @@ export default function CravingPage() {
       const name = firstName(user.full_name)
       celebrateMeal({
         title: '¡Antojo registrado!',
+        streak,
         message: `Te diste el gusto con cabeza${name ? `, ${name}` : ''}. ¡Disfrútalo!`,
         photoUrl: URL.createObjectURL(photo),
       })
