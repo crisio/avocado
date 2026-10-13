@@ -1,6 +1,7 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Button, IconButton, PageHeader, Screen } from '@avocado/ui'
+import { Button, PageHeader, Screen } from '@avocado/ui'
 import DayView from '../components/DayView'
+import TopBar from '../components/TopBar'
 import { useCachedApi } from '../lib/useCachedApi'
 import { displayName } from '../lib/format'
 import type { User } from '../lib/types'
@@ -12,9 +13,7 @@ export default function PatientDay() {
 
   return (
     <Screen withTabBar>
-      <div>
-        <IconButton icon="chevron-left" label="Volver a pacientes" plain onClick={() => navigate('/')} />
-      </div>
+      <TopBar onBack={() => navigate('/')} backLabel="Volver a pacientes" />
       <PageHeader
         eyebrow="Paciente"
         title={displayName(patient)}

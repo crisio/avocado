@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, IconButton, Notice, PageHeader, PhotoPicker, Screen, TextField } from '@avocado/ui'
+import { Button, Notice, PageHeader, PhotoPicker, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
+import TopBar from '../components/TopBar'
 import { compressImage } from '../lib/image'
 import { cheer } from '../lib/mascot'
 import { enqueueMeal } from '../lib/outbox'
@@ -51,9 +52,7 @@ export default function AddMeal() {
 
   return (
     <Screen withTabBar>
-      <div>
-        <IconButton icon="chevron-left" label="Volver" plain onClick={() => navigate(-1)} />
-      </div>
+      <TopBar onBack={() => navigate(-1)} />
       <PageHeader title="Registrar comida" compact />
       <form className="app-stack" style={{ gap: 18 }} onSubmit={onSubmit}>
         <PhotoPicker

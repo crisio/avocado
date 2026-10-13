@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Button, Card, Chip, CommentBubble, EmptyState, IconButton, Notice, NutritionTable, Screen, TextField } from '@avocado/ui'
-import { Mascot } from '../components/Mascot'
+import { Button, Card, Chip, CommentBubble, EmptyState, Notice, NutritionTable, Screen, TextField } from '@avocado/ui'
 import Portions from '../components/Portions'
+import TopBar from '../components/TopBar'
 import { useAuth } from '../auth'
 import { api, type ApiError } from '../lib/api'
 import { useCachedApi } from '../lib/useCachedApi'
@@ -117,11 +117,9 @@ export default function MealDetail() {
     }
   }
 
-  const back = (
-    <div>
-      <IconButton icon="chevron-left" label="Volver" plain onClick={() => navigate(-1)} />
-    </div>
-  )
+  // Avo piensa mientras la comida está en cola o analizándose.
+  const thinking = job ? !job.error : meal?.status === 'pending'
+  const back = <TopBar onBack={() => navigate(-1)} thinking={thinking} />
 
   if (meal === undefined)
     return (
@@ -157,8 +155,7 @@ export default function MealDetail() {
         </h1>
         {meal.note && <p className="app-note">“{meal.note}”</p>}
         {job ? (
-          <div className="mascot-status">
-            {!job.error && <Mascot size={52} base="think" />}
+          <div>
             {job.error ? (
               <Chip tone="danger" icon="alert">
                 No se pudo enviar
@@ -175,8 +172,7 @@ export default function MealDetail() {
           </div>
         ) : (
           meal.status === 'pending' && (
-            <div className="mascot-status">
-              <Mascot size={52} base="think" />
+            <div>
               <Chip tone="warning" icon="clock">
                 La IA está analizando la foto
               </Chip>

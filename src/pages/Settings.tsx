@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Button, Card, Notice, PageHeader, PersonRow, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
 import InstallCard from '../components/InstallCard'
+import { Mascot } from '../components/Mascot'
 import { api } from '../lib/api'
 import { useCachedApi } from '../lib/useCachedApi'
 import { displayName, firstName } from '../lib/format'
@@ -30,7 +31,11 @@ export default function Settings() {
 
   return (
     <Screen withTabBar>
-      <PageHeader eyebrow={user?.role === 'nutritionist' ? 'Nutrióloga / nutriólogo' : 'Paciente'} title="Perfil" />
+      <PageHeader
+        eyebrow={user?.role === 'nutritionist' ? 'Nutrióloga / nutriólogo' : 'Paciente'}
+        title="Perfil"
+        action={<Mascot size={80} reactive interactive />}
+      />
 
       <Card as="form" padding="lg" onSubmit={saveName}>
         <TextField

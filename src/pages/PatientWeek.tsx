@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom'
-import { IconButton, PageHeader, Screen } from '@avocado/ui'
+import { PageHeader, Screen } from '@avocado/ui'
+import TopBar from '../components/TopBar'
 import WeekView, { weekDayHref } from '../components/WeekView'
 import { useCachedApi } from '../lib/useCachedApi'
 import { displayName } from '../lib/format'
@@ -13,9 +14,7 @@ export default function PatientWeek() {
 
   return (
     <Screen withTabBar>
-      <div>
-        <IconButton icon="chevron-left" label="Volver al día del paciente" plain onClick={() => navigate(`/paciente/${id}`)} />
-      </div>
+      <TopBar onBack={() => navigate(`/paciente/${id}`)} backLabel="Volver al día del paciente" />
       <PageHeader eyebrow={`Semana de ${displayName(patient)}`} title="Resumen semanal" compact />
       <WeekView userId={id} self={false} dayHref={weekDayHref(`/paciente/${id}`)} />
     </Screen>

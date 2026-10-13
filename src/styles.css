@@ -626,6 +626,16 @@ body {
   left: calc(50% - 5px);
   transform: rotate(135deg);
 }
+.mascot__bubble--below {
+  top: 92%;
+  right: 6px;
+  transform-origin: top right;
+}
+.mascot__bubble--below::after {
+  top: -6px;
+  right: 20px;
+  transform: rotate(-45deg);
+}
 @keyframes mascot-pop {
   from {
     opacity: 0;
@@ -661,15 +671,39 @@ body {
   }
 }
 
-/* Mientras la IA analiza (detalle de la comida); el aviso puede ser largo y bajar de renglón */
-.mascot-status {
-  display: flex;
+/* Barra de las pantallas secundarias (components/TopBar.tsx): volver, la marca y Avo; fija al bajar */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: 56px 1fr 56px;
   align-items: center;
-  gap: 4px;
+  margin: calc(-24px - env(safe-area-inset-top)) -20px 0;
+  padding: calc(8px + env(safe-area-inset-top)) 16px 4px;
+  background: var(--av-ground);
+  border-bottom: 1px solid transparent;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
-.mascot-status .av-chip {
-  min-width: 0;
-  white-space: normal;
+.topbar--scrolled {
+  border-bottom-color: var(--av-line);
+  box-shadow: 0 6px 16px rgba(24, 34, 27, 0.06);
+}
+.topbar__brand {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--av-font-display);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--av-ink);
+}
+.topbar > .mascot {
+  justify-self: end;
 }
 
 /* Mascota centrada arriba (entrada y bienvenida), con espacio para el globo encima */

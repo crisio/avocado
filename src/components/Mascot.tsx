@@ -55,7 +55,7 @@ export interface MascotProps {
   /** Se puede tocar (cada toque, una reacción). */
   interactive?: boolean
   /** De qué lado sale el globo de texto. */
-  bubble?: 'left' | 'right' | 'top'
+  bubble?: 'left' | 'right' | 'top' | 'below'
   /** Es la mascota flotante (no cuenta como "a la vista"). */
   floating?: boolean
   className?: string
