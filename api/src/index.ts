@@ -8,6 +8,7 @@ import { streakRoutes } from './streaks'
 import { mealRoutes } from './meals'
 import { insightRoutes, moodRoutes } from './moods'
 import { avoRoutes } from './avo'
+import { budgetRoutes } from './budget'
 import { peopleRoutes } from './people'
 import { verifyPhotoSignature } from './photos'
 
@@ -63,6 +64,7 @@ app.use('/moods', requireUser)
 app.use('/moods/*', requireUser)
 app.use('/insights', requireUser)
 app.use('/avo/*', requireUser)
+app.use('/budget', requireUser)
 app.route('/', peopleRoutes)
 app.route('/meals', mealRoutes)
 app.route('/cravings', cravingRoutes)
@@ -70,6 +72,7 @@ app.route('/streak', streakRoutes)
 app.route('/moods', moodRoutes)
 app.route('/insights', insightRoutes)
 app.route('/avo', avoRoutes)
+app.route('/budget', budgetRoutes)
 
 app.notFound((c) => c.json({ error: 'No encontrado' }, 404))
 

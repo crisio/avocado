@@ -3,6 +3,7 @@ import type { AppEnv, Env, User } from './env'
 import { canSee } from './access'
 import { chat } from './ai'
 import { fail } from './errors'
+import { describeBudget, weekBudget } from './budget'
 
 /**
  * "¿Cómo te sientes?": el paciente registra cómo se siente (con hambre, ansioso, lleno…), su energía y si va con el
@@ -110,6 +111,7 @@ Usa el contexto: hora y día, cuánto hace de su última comida y qué fue, lo q
 - Cansado/a o con poca energía: revisa si lleva mucho sin comer o si comió muy pesado/azucarado; agua, proteína, descanso.
 - Bien: felicítalo y refuerza lo que está haciendo bien (horarios, porciones).
 - Si no va con su plan, anímale a retomarlo en la siguiente comida, sin regañar. Nunca contradigas el plan de su nutrióloga.
+- Con antojo o ganas de algo rico: si tiene saldo para una comida libre (cheat meal), díselo y sugiere cómo usarlo bien; si no, una opción rica más ligera.
 - Nunca uses "prohibido", "malo", "culpa" ni hables de quemar calorías con ejercicio. No des diagnósticos médicos.
 "message": 1 a 3 frases, por su nombre, mencionando algo concreto del contexto (p. ej. "comiste hace 5 horas").
 "tips": hasta 3 ideas cortas y prácticas para ahorita o para la próxima comida; lista vacía si no hacen falta.
@@ -164,7 +166,7 @@ export async function patientContext(env: Env, user: User, offset: number, skipM
   const local = new Date(now - offset * 60_000)
   const dayStart = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) + offset * 60_000
   const db = env.DB
-  const [today, lastMeals, lastMoods] = await Promise.all([
+  const [today, lastMeals, lastMoods, budget] = await Promise.all([
     db
       .prepare(
         `SELECT coalesce(sum(CASE WHEN status = 'analyzed' THEN calories END), 0) AS consumed, count(*) AS meals
@@ -183,6 +185,7 @@ export async function patientContext(env: Env, user: User, offset: number, skipM
       .prepare('SELECT * FROM moods WHERE user_id = ? AND id <> ? ORDER BY felt_at DESC LIMIT 4')
       .bind(user.id, skipMoodId ?? '')
       .all<MoodRow>(),
+    weekBudget(env, user, offset, now),
   ])
   const consumed = Math.round(today?.consumed ?? 0)
   const goal = user.daily_kcal_goal
@@ -191,6 +194,7 @@ export async function patientContext(env: Env, user: User, offset: number, skipM
     name ? `Paciente: ${name}.` : null,
     `Ahora es ${localLabel(new Date(now).toISOString(), offset)} (hora del teléfono).`,
     `Hoy lleva ${consumed} kcal en ${today?.meals ?? 0} comidas registradas.${goal ? ` Su meta diaria es ${goal} kcal (le quedan ${goal - consumed}).` : ' No tiene meta diaria.'}`,
+    describeBudget(budget),
     lastMeals.results.length
       ? `Sus últimas comidas:\n${lastMeals.results.map((m) => `- ${localLabel(m.eaten_at, offset)} (${ago(m.eaten_at, now)}): ${describeMeal(m)}`).join('\n')}`
       : 'No ha registrado comidas todavía.',

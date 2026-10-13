@@ -956,3 +956,53 @@ describe('Platicar con Avo', () => {
     expect((await call(day, { token })).data).toHaveLength(1)
   })
 })
+
+describe('Saldo de la semana y comida libre', () => {
+  it('cuenta solo los días completos y topa la comida libre a media meta', async () => {
+    const { computeBudget } = await import('../src/budget')
+    const days = [
+      { date: '2026-10-05', consumed: 1700, meals: 3 }, // −300 bajo la meta
+      { date: '2026-10-06', consumed: 1800, meals: 4 }, // −200
+      { date: '2026-10-07', consumed: 600, meals: 1 }, // incompleto: no cuenta
+      { date: '2026-10-08', consumed: 2100, meals: 3 }, // +100 sobre la meta
+    ]
+    const b = computeBudget(2000, 'bajar', days, 900)
+    expect(b.balance).toBe(400)
+    expect(b.skipped).toBe(1)
+    expect(b.days.map((d) => d.counted)).toEqual([true, true, false, true])
+    expect(b.extra).toBe(400)
+    expect(b.today_budget).toBe(1100 + 400)
+
+    // Tope: media meta diaria; menos de 150 kcal no alcanza para una comida libre; sin objetivo, tampoco.
+    expect(computeBudget(2000, 'bajar', [1, 2, 3, 4, 5].map((i) => ({ date: `2026-10-0${i}`, consumed: 1600, meals: 3 })), 0).extra).toBe(1000)
+    expect(computeBudget(2000, 'mantener', [{ date: '2026-10-05', consumed: 1900, meals: 3 }], 0).extra).toBe(0)
+    expect(computeBudget(2000, null, days, 0).extra).toBe(0)
+    // Se pasó en la semana: saldo negativo y sin comida libre.
+    const over = computeBudget(2000, 'bajar', [{ date: '2026-10-05', consumed: 2600, meals: 4 }], 0)
+    expect(over).toMatchObject({ balance: -600, extra: 0, today_budget: 2000 })
+    // Subir: lo que faltó es lo que conviene completar.
+    expect(computeBudget(3000, 'subir', [{ date: '2026-10-05', consumed: 2400, meals: 4 }], 1000)).toMatchObject({ balance: 600, extra: 600, today_budget: 2600 })
+  })
+
+  it('objetivo en el perfil, saldo por la API y lo sabe Avo', async () => {
+    const token = await login('saldo@gmail.com', { full_name: 'Cris', role: 'patient' })
+    expect((await call('/me', { method: 'PATCH', token, json: { goal: 'flaco' } })).status).toBe(400)
+    expect((await call('/me', { method: 'PATCH', token, json: { goal: 'bajar' } })).data.goal).toBe('bajar')
+    expect((await call('/budget?offset=360', { token })).data).toBeNull() // sin meta diaria
+    await call('/me', { method: 'PATCH', token, json: { daily_kcal_goal: 2000 } })
+    const budget = await call('/budget?offset=360', { token })
+    expect(budget.status).toBe(200)
+    expect(budget.data).toMatchObject({ goal: 'bajar', daily_kcal_goal: 2000 })
+    expect(budget.data.days).toHaveLength(7)
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json({ model: 'test/vision-model', choices: [{ message: { content: JSON.stringify({ transcript: '', reply: 'Va', mood: { log: false, feelings: [], energy: 0, on_plan: '', note: '' } }) } }] }),
+    )
+    const form = new FormData()
+    form.set('text', '¿Me puedo dar un cheat meal?')
+    expect((await call('/avo/messages', { method: 'POST', token, body: form })).status).toBe(201)
+    const system = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit).body)).messages[0].content as string
+    expect(system).toContain('Su objetivo: bajar de peso.')
+    expect(system).toContain('Comida libre (cheat meal)')
+  })
+})

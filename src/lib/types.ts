@@ -9,6 +9,25 @@ export interface User {
   daily_kcal_goal?: number | null
   /** Cuándo aceptó que sus fotos y notas se analicen con IA (null o ausente = no ha aceptado). */
   ai_consent_at?: string | null
+  /** Objetivo: bajar de peso, mantener o subir (volumen). Define la comida libre de la semana. */
+  goal?: Goal | null
+}
+
+export type Goal = 'bajar' | 'mantener' | 'subir'
+
+/** Saldo de los últimos 7 días (sin hoy) y comida libre de hoy. Ver api/src/budget.ts. */
+export interface Budget {
+  goal: Goal | null
+  daily_kcal_goal: number
+  days: { date: string; consumed: number; meals: number; counted: boolean }[]
+  /** Positivo = quedó por debajo de la meta en los días que cuentan. */
+  balance: number
+  /** Días incompletos (menos de 60 % de la meta registrada) que no cuentan. */
+  skipped: number
+  today_consumed: number
+  /** Kcal extra para hoy: comida libre (bajar/mantener) o lo que conviene completar (subir). */
+  extra: number
+  today_budget: number
 }
 
 export type Person = Pick<User, 'id' | 'email' | 'full_name'>

@@ -3,6 +3,7 @@ import { useAuth } from '../auth'
 import { useStreak } from '../lib/streak'
 import { Mascot } from '../components/Mascot'
 import { StreakCard } from '../components/Streak'
+import WeekBudget from '../components/WeekBudget'
 import WeekView, { weekDayHref } from '../components/WeekView'
 
 /** Resumen semanal del paciente. */
@@ -14,6 +15,7 @@ export default function Week() {
     <Screen withTabBar>
       <PageHeader eyebrow="Resumen" title="Tu semana" action={<Mascot size={80} reactive interactive />} />
       {streak && <StreakCard streak={streak} />}
+      <WeekBudget userId={user.id} self />
       <WeekView userId={user.id} self dayHref={weekDayHref('/')} />
     </Screen>
   )

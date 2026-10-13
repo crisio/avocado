@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { PageHeader, Screen } from '@avocado/ui'
 import { StreakCard } from '../components/Streak'
+import WeekBudget from '../components/WeekBudget'
 import TopBar from '../components/TopBar'
 import WeekView, { weekDayHref } from '../components/WeekView'
 import { useCachedApi } from '../lib/useCachedApi'
@@ -20,6 +21,7 @@ export default function PatientWeek() {
       <TopBar onBack={() => navigate(`/paciente/${id}`)} backLabel="Volver al día del paciente" />
       <PageHeader eyebrow={`Semana de ${displayName(patient)}`} title="Resumen semanal" compact />
       {streak && <StreakCard streak={streak} self={false} />}
+      <WeekBudget userId={id} self={false} />
       <WeekView userId={id} self={false} dayHref={weekDayHref(`/paciente/${id}`)} />
     </Screen>
   )

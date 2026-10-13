@@ -26,6 +26,7 @@ struct WeekView: View {
                     nextDisabled: isCurrent
                 )
                 if isCurrent, let streak = streaks.streak { StreakCard(streak: streak) }
+                if isCurrent { WeekBudgetCard(reloadKey: outbox.syncedCount) }
 
                 if loadedStart == start, let meals {
                     summary(WeekStats(meals: meals, start: start))

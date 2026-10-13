@@ -2,6 +2,13 @@
 
 La web (PWA), la API y la app de iOS llevan la misma versión. Mientras la versión empiece con 0, la app sigue en pruebas.
 
+## 0.4.0 — 13 de octubre de 2026
+
+- **¿Cómo te sientes? en un toque:** una fila de emojis; se guarda al tocar. La tarjeta se quita deslizándola (o con la ✕) y no vuelve a salir en Mi día por 3 horas.
+- **Objetivo** en Perfil (bajar, mantener o subir) y **saldo de los últimos 7 días** en la semana: si vas por debajo de tu meta, la comida libre (cheat meal) que te puedes dar hoy, con tope de media meta diaria; si estás en volumen, lo que te falta. «Recomiéndame un cheat meal» le pregunta a Avo. Avo usa el saldo en el chat, en ¿Me lo como? y en sus consejos.
+- **Ver la foto en grande** y guardarla o compartirla (también desde la tarjeta del sticker).
+- **Sticker:** 5 temas (Día, Noche, Cena romántica, Cheat meal y Fresco) y transparencia de 0 a 70 %.
+
 ## 0.3.0 — 13 de octubre de 2026
 
 - **App de iOS** nativa en SwiftUI (`ios/`) para pacientes, con la misma API y la misma marca.

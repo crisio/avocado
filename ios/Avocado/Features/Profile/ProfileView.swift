@@ -55,6 +55,19 @@ struct ProfileView: View {
             }
 
             Section {
+                Picker("Tu objetivo", selection: Binding(get: { session.user?.goal }, set: { g in if let g { Task { await setObjective(g) } } })) {
+                    ForEach(Goal.allCases) { Text($0.label).tag(Optional($0)) }
+                }
+                .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+            } header: {
+                Text("Tu objetivo")
+            } footer: {
+                Text("Con tu meta y tu objetivo, Avo calcula tu saldo de la semana y si te alcanza para una comida libre.")
+            }
+
+            Section {
                 if nutritionists.isEmpty {
                     Text("Vincula a tu nutrióloga para que vea tus comidas y te deje indicaciones.").foregroundStyle(Theme.muted)
                 }
@@ -170,6 +183,15 @@ struct ProfileView: View {
             } else {
                 cheer(.love, "Listo, sin meta por ahora")
             }
+            return nil
+        }
+    }
+
+    private func setObjective(_ goal: Goal) async {
+        await run("objective") {
+            try await session.update(["goal": goal.rawValue])
+            let lines: [Goal: String] = [.bajar: "¡A bajar con todo!", .mantener: "¡A mantenernos!", .subir: "¡A ganar volumen!"]
+            cheer(.love, lines[goal] ?? "¡Listo!")
             return nil
         }
     }

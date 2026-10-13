@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, Icon, Notice, Screen } from '@avocado/ui'
 import { useAuth } from '../auth'
 import AiConsentCard from '../components/AiConsent'
@@ -40,6 +41,9 @@ export default function AvoChat() {
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   const bottom = useRef<HTMLDivElement>(null)
   const name = firstName(user?.full_name)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const ask = (location.state as { ask?: string } | null)?.ask
 
   // El cuadro para escribir va en la barra de abajo (Layout deja un hueco en esta pantalla).
   useEffect(() => {
@@ -69,6 +73,13 @@ export default function AvoChat() {
   useEffect(() => {
     if (recording && seconds >= MAX_SECONDS) void finishRecording()
   }, [seconds])
+
+  // Pregunta que llega de otra pantalla ("Que Avo me recomiende un cheat meal"): se manda sola, una vez.
+  useEffect(() => {
+    if (!ask || messages === null || pending) return
+    navigate('/avo', { replace: true, state: null })
+    void send({ id: crypto.randomUUID(), text: ask, audio: null })
+  }, [ask, messages === null])
 
   async function send(message: Pending) {
     setPending({ ...message, error: undefined })

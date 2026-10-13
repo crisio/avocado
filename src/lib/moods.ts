@@ -3,16 +3,17 @@ import { formatTime } from './format'
 import type { Feeling, Meal, Mood, OnPlan } from './types'
 
 /** Cómo te sientes: misma lista y mismo orden que la API (api/src/moods.ts) y la app de iOS. */
-export const FEELINGS: { key: Feeling; emoji: string; label: string }[] = [
-  { key: 'bien', emoji: '😊', label: 'Bien' },
-  { key: 'con_hambre', emoji: '🍽️', label: 'Con hambre' },
-  { key: 'con_antojo', emoji: '🍩', label: 'Con antojo' },
-  { key: 'lleno', emoji: '😮‍💨', label: 'Lleno/a' },
-  { key: 'ansioso', emoji: '😬', label: 'Ansioso/a' },
-  { key: 'cansado', emoji: '😴', label: 'Sin energía' },
-  { key: 'mal', emoji: '🤢', label: 'Mal' },
+/** `short` es el texto bajo el emoji en la fila de "¿Cómo te sientes?" (cabe en un séptimo de la pantalla). */
+export const FEELINGS: { key: Feeling; emoji: string; label: string; short: string }[] = [
+  { key: 'bien', emoji: '😊', label: 'Bien', short: 'Bien' },
+  { key: 'con_hambre', emoji: '🍽️', label: 'Con hambre', short: 'Hambre' },
+  { key: 'con_antojo', emoji: '🍩', label: 'Con antojo', short: 'Antojo' },
+  { key: 'lleno', emoji: '😮‍💨', label: 'Lleno/a', short: 'Lleno' },
+  { key: 'ansioso', emoji: '😬', label: 'Ansioso/a', short: 'Ansioso' },
+  { key: 'cansado', emoji: '😴', label: 'Sin energía', short: 'Cansado' },
+  { key: 'mal', emoji: '🤢', label: 'Mal', short: 'Mal' },
 ]
-export const feelingOf = (key: Feeling) => FEELINGS.find((f) => f.key === key) ?? { key, emoji: '•', label: key }
+export const feelingOf = (key: Feeling) => FEELINGS.find((f) => f.key === key) ?? { key, emoji: '•', label: key, short: key }
 
 export const PLANS: { value: OnPlan; label: string }[] = [
   { value: 'si', label: 'Sí' },

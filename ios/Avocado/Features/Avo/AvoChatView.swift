@@ -25,6 +25,7 @@ struct AvoChatView: View {
     @State private var recorder = AudioRecorder()
     @State private var micError: String?
     @State private var confirmClear = false
+    @State private var avoPrompt = AvoPrompt.shared
     @FocusState private var typing: Bool
 
     private var busy: Bool { pending != nil && pending?.error == nil }
@@ -46,7 +47,11 @@ struct AvoChatView: View {
         }
         .screenBackground()
         .toolbar(.hidden, for: .navigationBar)
-        .task(id: session.user?.aiConsentAt) { await load() }
+        .task(id: session.user?.aiConsentAt) {
+            await load()
+            sendPendingPrompt()
+        }
+        .onChange(of: avoPrompt.pending) { sendPendingPrompt() }
         .confirmationDialog("¿Borrar la conversación con Avo?", isPresented: $confirmClear, titleVisibility: .visible) {
             Button("Borrar conversación", role: .destructive) { Task { await clear() } }
         } message: {
@@ -230,6 +235,13 @@ struct AvoChatView: View {
         } catch {
             loadError = error.localizedDescription
         }
+    }
+
+    /// Pregunta que llega de otra pantalla: se manda sola, una vez, cuando ya cargó la conversación.
+    private func sendPendingPrompt() {
+        guard let text = avoPrompt.pending, messages != nil, !busy, session.user?.aiConsentAt != nil else { return }
+        avoPrompt.pending = nil
+        send(Pending(id: UUID().uuidString.lowercased(), text: text, audio: nil))
     }
 
     private func submit() {

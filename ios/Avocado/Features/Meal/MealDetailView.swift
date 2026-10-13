@@ -23,6 +23,7 @@ struct MealDetailView: View {
     @State private var savingPortions = false
     @State private var portionsTask: Task<Void, Never>?
     @State private var confirmed: Meal?
+    @State private var viewingPhoto = false
 
     private let api = APIClient.shared
     private var job: MealJob? { outbox.jobs.first { $0.id == mealId } }
@@ -71,6 +72,13 @@ struct MealDetailView: View {
         } message: {
             Text("Se borran la foto, el análisis y los comentarios.")
         }
+        .fullScreenCover(isPresented: $viewingPhoto) {
+            if let job {
+                PhotoViewer(image: outbox.photo(job.id), canSave: true)
+            } else if let meal {
+                PhotoViewer(url: meal.photoUrl, canSave: isOwner)
+            }
+        }
         .alert(alert ?? "", isPresented: Binding(get: { alert != nil }, set: { if !$0 { alert = nil } })) {
             Button("OK", role: .cancel) {}
         }
@@ -97,6 +105,10 @@ struct MealDetailView: View {
         .frame(height: 300)
         .frame(maxWidth: .infinity)
         .clipShape(.rect(cornerRadius: Theme.radius))
+        .contentShape(.rect)
+        .onTapGesture { viewingPhoto = true }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Abre la foto en grande")
 
         VStack(alignment: .leading, spacing: 6) {
             Text("\(Fmt.day(job.eatenAt)) · \(Fmt.time(job.eatenAt))").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
@@ -132,6 +144,10 @@ struct MealDetailView: View {
             .frame(height: 300)
             .frame(maxWidth: .infinity)
             .clipShape(.rect(cornerRadius: Theme.radius))
+            .contentShape(.rect)
+            .onTapGesture { viewingPhoto = true }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Abre la foto en grande")
 
         VStack(alignment: .leading, spacing: 6) {
             Text("\(Fmt.day(meal.eatenDate)) · \(Fmt.time(meal.eatenDate)) · \(meal.kind.label)")

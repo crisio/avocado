@@ -23,6 +23,7 @@ export type IconName =
   | 'download'
   | 'mic'
   | 'stop'
+  | 'close'
 
 const PATHS: Record<IconName, ReactNode> = {
   camera: (
@@ -92,6 +93,7 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   stop: <rect x="6.5" y="6.5" width="11" height="11" rx="2.5" />,
+  close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
   share: (
     <>
       <path d="M12 3.5v11M8 7.5l4-4 4 4" />

@@ -15,6 +15,43 @@ struct User: Codable, Equatable {
     var dailyKcalGoal: Int?
     /// Cuándo aceptó que sus fotos y notas se analicen con IA (nil = no ha aceptado).
     var aiConsentAt: String?
+    /// Objetivo: bajar de peso, mantener o subir (volumen). Define la comida libre de la semana.
+    var goal: Goal?
+}
+
+enum Goal: String, Codable, CaseIterable, Identifiable {
+    case bajar, mantener, subir
+
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .bajar: "Bajar"
+        case .mantener: "Mantener"
+        case .subir: "Subir"
+        }
+    }
+}
+
+/// Saldo de los últimos 7 días (sin hoy) y comida libre de hoy. Ver api/src/budget.ts.
+struct Budget: Codable, Equatable {
+    struct Day: Codable, Equatable {
+        var date: String
+        var consumed: Double
+        var meals: Int
+        var counted: Bool
+    }
+
+    var goal: Goal?
+    var dailyKcalGoal: Double
+    var days: [Day]
+    /// Positivo = quedó por debajo de la meta en los días que cuentan.
+    var balance: Double
+    /// Días incompletos (menos de 60 % de la meta registrada) que no cuentan.
+    var skipped: Int
+    var todayConsumed: Double
+    /// Kcal extra para hoy: comida libre (bajar/mantener) o lo que conviene completar (subir).
+    var extra: Double
+    var todayBudget: Double
 }
 
 struct Person: Codable, Identifiable, Hashable {
@@ -201,6 +238,19 @@ enum Feeling: String, Codable, CaseIterable, Identifiable {
         case .ansioso: "😬"
         case .cansado: "😴"
         case .mal: "🤢"
+        }
+    }
+
+    /// Texto bajo el emoji en la fila de "¿Cómo te sientes?" (cabe en un séptimo de la pantalla).
+    var short: String {
+        switch self {
+        case .bien: "Bien"
+        case .conHambre: "Hambre"
+        case .conAntojo: "Antojo"
+        case .lleno: "Lleno"
+        case .ansioso: "Ansioso"
+        case .cansado: "Cansado"
+        case .mal: "Mal"
         }
     }
 

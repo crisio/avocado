@@ -1,100 +1,103 @@
 import SwiftUI
 
 /**
- "¿Cómo te sientes?" en un toque: eliges cómo te sientes (puedes elegir varios) y, si quieres, tu energía, si vas con tu
- plan y una nota. Avo te aconseja según la hora, tu última comida y cómo te has sentido. Lo ve tu nutrióloga.
+ "¿Cómo te sientes?" en un toque: una fila de emojis; al tocar uno se guarda y Avo te aconseja según la hora, tu última
+ comida y cómo te has sentido. Lo ve tu nutrióloga. La tarjeta se quita deslizándola (o con la ✕); en Mi día
+ (`remember`) no vuelve a salir por 3 horas. Para contar más (energía, si vas con tu plan…), el chat con Avo.
  */
 struct MoodCheckInView: View {
     var mealId: String?
     var title = "¿Cómo te sientes?"
+    var remember: Bool?
+
+    private static let hideFor: TimeInterval = 3 * 3600
 
     @Environment(Session.self) private var session
     @Environment(Connectivity.self) private var connectivity
-    @State private var feelings: [Feeling] = []
-    @State private var energy: Int?
-    @State private var plan: OnPlan?
-    @State private var note = ""
-    @State private var busy = false
-    @State private var error: String?
+    @AppStorage("avocado.moodHiddenUntil") private var hiddenUntil: Double = 0
+    @State private var sending: Feeling?
     @State private var saved: MoodEntry?
+    @State private var error: String?
+    @State private var dismissed = false
 
+    private var remembers: Bool { remember ?? (mealId == nil) }
     private var hasConsent: Bool { session.user?.aiConsentAt != nil }
-
-    var body: some View {
-        Group {
-            if let saved { result(saved) } else { form }
-        }
-        .card()
-        .sensoryFeedback(.success, trigger: saved?.id)
+    /// En Mi día se esconde un rato después de registrar o quitarla (pero el consejo recién dado se queda a la vista).
+    private var hidden: Bool {
+        dismissed || (remembers && saved == nil && sending == nil && Date.now.timeIntervalSince1970 < hiddenUntil)
     }
 
-    @ViewBuilder private var form: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionTitle(title)
-            FlowLayout(spacing: 8) {
+    var body: some View {
+        if !hidden {
+            Group {
+                if let saved { result(saved) } else { picker }
+            }
+            .card(padding: 16)
+            .swipeToDismiss(dismiss)
+            .sensoryFeedback(.success, trigger: saved?.id)
+            .transition(.opacity.combined(with: .move(edge: .leading)))
+        }
+    }
+
+    private var closeButton: some View {
+        Button(action: dismiss) {
+            Image(systemName: "xmark").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted).frame(width: 32, height: 32)
+        }
+        .accessibilityLabel("Quitar esta tarjeta")
+    }
+
+    private var picker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                SectionTitle(title)
+                Spacer(minLength: 8)
+                closeButton
+            }
+            HStack(spacing: 0) {
                 ForEach(Feeling.allCases) { f in
-                    let on = feelings.contains(f)
-                    Button {
-                        if on { feelings.removeAll { $0 == f } } else { feelings.append(f) }
-                    } label: {
-                        Text("\(f.emoji) \(f.label)")
-                            .font(.subheadline.weight(.semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .foregroundStyle(on ? Theme.accentStrong : Theme.ink)
-                            .background(on ? Theme.accentSoft : Theme.surface, in: .capsule)
-                            .overlay(Capsule().stroke(on ? Theme.accent : Theme.line, lineWidth: 1.5))
+                    Button { Task { await pick(f) } } label: {
+                        VStack(spacing: 3) {
+                            Text(f.emoji)
+                                .font(.system(size: 28))
+                                .scaleEffect(sending == f ? 1.18 : 1)
+                                .animation(sending == f ? .easeInOut(duration: 0.5).repeatForever() : .default, value: sending)
+                            Text(f.short)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Theme.muted)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 58)
+                        .background(sending == f ? Theme.accentSoft : .clear, in: .rect(cornerRadius: 14))
+                        .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityAddTraits(on ? .isSelected : [])
+                    .disabled(sending != nil || !connectivity.online)
+                    .opacity(sending != nil && sending != f ? 0.45 : 1)
+                    .accessibilityLabel(f.label)
                 }
             }
-            if !feelings.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Tu energía (1 = nada, 5 = a tope)").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
-                    Picker("Tu energía", selection: $energy) {
-                        ForEach(1...5, id: \.self) { Text("\($0)").tag(Optional($0)) }
-                    }
-                    .pickerStyle(.segmented)
-                }
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("¿Vas con tu plan?").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
-                    Picker("¿Vas con tu plan?", selection: $plan) {
-                        ForEach(OnPlan.allCases) { Text($0.label).tag(Optional($0)) }
-                    }
-                    .pickerStyle(.segmented)
-                }
-                TextField("¿Algo más? Ej. dormí poco, mucho estrés…", text: $note, axis: .vertical)
-                    .lineLimit(1...3)
-                    .padding(12)
-                    .background(Theme.sunken, in: .rect(cornerRadius: 14))
-                if !connectivity.online { Notice(text: "Sin conexión: necesitas internet para guardarlo.", tone: .warning) }
-                if let error { Notice(text: error, tone: .danger) }
-                Button {
-                    Task { await save() }
-                } label: {
-                    Group {
-                        if busy { ProgressView().tint(.white) } else { Label(hasConsent ? "Guardar y pedirle consejo a Avo" : "Guardar", systemImage: "checkmark") }
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .primaryButton()
-                .disabled(busy || !connectivity.online)
-            }
+            if sending != nil { FinePrint("Avo está pensando…") }
+            if !connectivity.online { Notice(text: "Sin conexión: necesitas internet para guardarlo.", tone: .warning) }
+            if let error { Notice(text: error, tone: .danger) }
         }
     }
 
     @ViewBuilder private func result(_ mood: MoodEntry) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
-                MascotView(mood: mood.feelings.contains(.bien) ? .celebrate : .love, size: 64, pose: 3)
+                MascotView(mood: mood.feelings.contains(.bien) ? .celebrate : .love, size: 56, pose: 3)
                 VStack(alignment: .leading, spacing: 6) {
-                    SectionTitle("¡Anotado!")
+                    HStack {
+                        SectionTitle("¡Anotado!")
+                        Spacer(minLength: 8)
+                        closeButton
+                    }
                     if let advice = mood.advice {
                         Text(advice.message).font(.body).foregroundStyle(Theme.ink)
                     } else {
                         Text(hasConsent
-                            ? "Avo no pudo darte un consejo ahorita, pero quedó guardado y tu nutrióloga lo verá."
+                            ? "Quedó guardado y tu nutrióloga lo verá."
                             : "Quedó guardado y tu nutrióloga lo verá. Da permiso para la IA en Perfil y Avo te aconsejará.")
                             .font(.subheadline)
                             .foregroundStyle(Theme.muted)
@@ -111,47 +114,79 @@ struct MoodCheckInView: View {
                     }
                 }
             }
-            if mood.advice != nil {
-                FinePrint("Consejo con IA: puede equivocarse y no es consejo médico. Sigue las indicaciones de tu nutrióloga.")
-            }
-            Button("Registrar otra vez") { reset() }.frame(maxWidth: .infinity)
+            FinePrint((mood.advice != nil ? "Consejo con IA: puede equivocarse y no es consejo médico. " : "") + "Desliza la tarjeta para quitarla.")
         }
     }
 
-    private func reset() {
-        feelings = []
-        energy = nil
-        plan = nil
-        note = ""
-        saved = nil
-        error = nil
+    private func dismiss() {
+        if remembers { hiddenUntil = Date.now.timeIntervalSince1970 + Self.hideFor }
+        withAnimation(.easeOut(duration: 0.2)) { dismissed = true }
     }
 
-    private func save() async {
-        guard !feelings.isEmpty else { return }
-        busy = true
+    private func pick(_ feeling: Feeling) async {
+        guard sending == nil else { return }
+        sending = feeling
         error = nil
         if hasConsent { cheer(.think, "Déjame pensar…") }
-        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
         let body: [String: Any] = [
             "id": UUID().uuidString.lowercased(),
-            "feelings": feelings.map(\.rawValue),
-            "energy": energy.map { $0 as Any } ?? NSNull(),
-            "on_plan": plan?.rawValue ?? NSNull(),
-            "note": trimmed.isEmpty ? NSNull() : trimmed,
+            "feelings": [feeling.rawValue],
             "meal_id": mealId ?? NSNull(),
             "advise": true,
             "offset": Fmt.timezoneOffset,
         ]
         do {
-            saved = try await APIClient.shared.request("POST", "/moods", json: body, timeout: 60)
+            let mood: MoodEntry = try await APIClient.shared.request("POST", "/moods", json: body, timeout: 60)
+            withAnimation(.spring(duration: 0.35)) { saved = mood }
+            if remembers { hiddenUntil = Date.now.timeIntervalSince1970 + Self.hideFor }
             MoodsSignal.shared.bump()
-            cheer(feelings.contains(.bien) ? .celebrate : .love, "¡Anotado!")
+            cheer(feeling == .bien ? .celebrate : .love, "¡Anotado!")
         } catch {
             self.error = error.localizedDescription
             cheer(.oops, "No pude guardarlo")
         }
-        busy = false
+        sending = nil
+    }
+}
+
+extension View {
+    /// Se quita deslizándola a la izquierda o a la derecha (como una notificación), sin estorbar el scroll vertical.
+    func swipeToDismiss(_ onDismiss: @escaping () -> Void) -> some View {
+        modifier(SwipeToDismiss(onDismiss: onDismiss))
+    }
+}
+
+private struct SwipeToDismiss: ViewModifier {
+    let onDismiss: () -> Void
+    @State private var offset: CGFloat = 0
+    @State private var horizontal: Bool?
+
+    func body(content: Content) -> some View {
+        content
+            .offset(x: offset)
+            .opacity(1 - min(abs(offset) / 320, 0.6))
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 16)
+                    .onChanged { value in
+                        if horizontal == nil { horizontal = abs(value.translation.width) > abs(value.translation.height) }
+                        if horizontal == true { offset = value.translation.width }
+                    }
+                    .onEnded { value in
+                        defer { horizontal = nil }
+                        guard horizontal == true else { return }
+                        let dx = value.translation.width + (value.predictedEndTranslation.width - value.translation.width) * 0.3
+                        if abs(dx) > 110 {
+                            withAnimation(.easeOut(duration: 0.2)) { offset = dx > 0 ? 600 : -600 }
+                            Task {
+                                try? await Task.sleep(for: .milliseconds(200))
+                                onDismiss()
+                            }
+                        } else {
+                            withAnimation(.spring(duration: 0.3)) { offset = 0 }
+                        }
+                    }
+            )
+            .accessibilityAction(named: "Quitar", onDismiss)
     }
 }
 

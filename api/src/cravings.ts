@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from './env'
 import { chat, num, requireAiConsent, toBase64 } from './ai'
 import { fail } from './errors'
+import { describeBudget, weekBudget } from './budget'
 
 /**
  * "¿Me lo como?": el paciente le toma foto a un antojo y Avo le dice cuántas calorías tiene y cuánto le conviene
@@ -23,6 +24,7 @@ Tu objetivo es educar sobre el valor calórico de las cosas y ayudarle a darse e
   "adelante" (cabe bien), "un_poco" (una porción más pequeña), "compartelo" (mejor compartirlo) o "mejor_no" (hoy solo una probadita o guárdalo para mañana).
 - Con meta diaria: compara con lo que le queda. Si cabe, adelante. Si se pasa un poco (hasta ~10 % de su meta) y es su última comida del día (tarde o noche), está bien pasarse un poquito: díselo con cariño. Si se pasa mucho, sugiere la mitad, compartirlo o unas probadas, sin regañar.
 - Sin meta: orienta con porciones razonables y lo que ya comió hoy, y menciona que puede poner su meta en Perfil.
+- Si en el contexto tiene saldo para una comida libre (cheat meal) esta semana, puede usarlo: un antojo que se pasa de lo que le queda hoy pero cabe con su saldo puede ser "adelante" o "un_poco"; díselo ("esta semana vas X kcal abajo, te alcanza"). Si su objetivo es subir, anímale a completar lo que le falta.
 - "message": 1 a 3 frases, por su nombre, con una equivalencia que enseñe (p. ej. "la mitad son unas 220 kcal, como una tortilla con frijoles") y tu recomendación.
 - "tips": hasta 3 ideas cortas y prácticas (compartir, acompañarlo con café sin azúcar o fruta, disfrutarlo despacio, guardarlo para mañana…). Lista vacía si no hacen falta.
 - "question": si no puedes saber qué es y eso cambia mucho las calorías (p. ej. tipo de pastel o relleno), haz UNA pregunta corta; si no, cadena vacía. Aun así da tu mejor estimación.
@@ -144,6 +146,11 @@ cravingRoutes.post('/', async (c) => {
   const goal = user.daily_kcal_goal
   const remaining = goal ? goal - consumed : null
 
+  // La diferencia con UTC sale de la medianoche local que manda el teléfono (from).
+  const fromDate = new Date(from)
+  const minutes = fromDate.getUTCHours() * 60 + fromDate.getUTCMinutes()
+  const budget = await weekBudget(c.env, user, minutes <= 720 ? minutes : minutes - 1440)
+
   const name = (user.full_name ?? '').trim().split(/\s+/)[0] || null
   const context = [
     name ? `Paciente: ${name}.` : null,
@@ -157,6 +164,7 @@ cravingRoutes.post('/', async (c) => {
         ? `Su meta diaria es ${goal} kcal: le quedan ${remaining} kcal.`
         : `Su meta diaria es ${goal} kcal: ya la pasó por ${-remaining!} kcal.`
       : 'No tiene meta diaria configurada.',
+    describeBudget(budget),
     note ? `El paciente dice qué es: ${note}` : null,
     question && answer ? `Le preguntaste: "${question}" y respondió: "${answer}".` : answer ? `El paciente agrega: ${answer}` : null,
   ]

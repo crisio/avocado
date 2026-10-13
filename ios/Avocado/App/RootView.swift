@@ -48,6 +48,7 @@ enum AppTab: Hashable {
 
 struct MainTabs: View {
     @State private var tab: AppTab = .today
+    @State private var avoPrompt = AvoPrompt.shared
 
     var body: some View {
         TabView(selection: $tab) {
@@ -64,6 +65,7 @@ struct MainTabs: View {
                 NavigationStack { ProfileView() }
             }
         }
+        .onChange(of: avoPrompt.pending) { if avoPrompt.pending != nil { tab = .avo } }
     }
 }
 

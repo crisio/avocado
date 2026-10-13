@@ -3,6 +3,7 @@ import type { AppEnv, User } from './env'
 import { areLinked } from './access'
 import { fail } from './errors'
 import { deletePhotos } from './photos'
+import { GOALS, type Goal } from './budget'
 
 type PublicUser = Pick<User, 'id' | 'email' | 'full_name'>
 
@@ -14,7 +15,7 @@ peopleRoutes.get('/me', (c) => c.json(c.var.user))
 peopleRoutes.patch('/me', async (c) => {
   const user = c.var.user
   const body = await c.req
-    .json<{ full_name?: unknown; role?: unknown; daily_kcal_goal?: unknown; ai_consent?: unknown }>()
+    .json<{ full_name?: unknown; role?: unknown; daily_kcal_goal?: unknown; ai_consent?: unknown; goal?: unknown }>()
     .catch(() => ({}) as Record<string, unknown>)
 
   let fullName = user.full_name
@@ -47,10 +48,17 @@ peopleRoutes.patch('/me', async (c) => {
     consent = body.ai_consent ? (consent ?? new Date().toISOString()) : null
   }
 
-  await c.env.DB.prepare('UPDATE users SET full_name = ?, role = ?, daily_kcal_goal = ?, ai_consent_at = ? WHERE id = ?')
-    .bind(fullName, role, goal, consent, user.id)
+  // Objetivo: bajar de peso, mantener o subir (volumen); null lo quita.
+  let objective = user.goal
+  if (body.goal !== undefined) {
+    if (body.goal !== null && !GOALS.includes(body.goal as Goal)) fail(400, 'El objetivo debe ser bajar, mantener o subir')
+    objective = body.goal as Goal | null
+  }
+
+  await c.env.DB.prepare('UPDATE users SET full_name = ?, role = ?, daily_kcal_goal = ?, ai_consent_at = ?, goal = ? WHERE id = ?')
+    .bind(fullName, role, goal, consent, objective, user.id)
     .run()
-  return c.json({ ...user, full_name: fullName, role, daily_kcal_goal: goal, ai_consent_at: consent })
+  return c.json({ ...user, full_name: fullName, role, daily_kcal_goal: goal, ai_consent_at: consent, goal: objective })
 })
 
 // Borrar la cuenta y todo lo suyo: fotos, comidas, cómo se ha sentido, comentarios, vínculos y sesiones. No se puede deshacer.

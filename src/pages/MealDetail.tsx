@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, Chip, CommentBubble, EmptyState, Notice, NutritionTable, Screen, TextField } from '@avocado/ui'
 import AiConsentCard from '../components/AiConsent'
 import MoodCheckIn from '../components/MoodCheckIn'
+import PhotoViewer from '../components/PhotoViewer'
 import Portions from '../components/Portions'
 import ShareSticker from '../components/ShareSticker'
 import TopBar from '../components/TopBar'
@@ -32,6 +33,7 @@ export default function MealDetail() {
   const [correcting, setCorrecting] = useState(false)
   const [correctError, setCorrectError] = useState<string | null>(null)
   const [portionsSaving, setPortionsSaving] = useState(false)
+  const [viewing, setViewing] = useState(false)
 
   // Comida que sigue en el teléfono (recién registrada o sin conexión)
   const job = jobs.find((j): j is MealJob => j.kind === 'meal' && j.id === id)
@@ -149,7 +151,8 @@ export default function MealDetail() {
   return (
     <Screen withTabBar>
       {back}
-      <img className="av-hero-photo" src={meal.photo_url} alt="Foto de la comida" />
+      <img className="av-hero-photo" src={meal.photo_url} alt="Foto de la comida" onClick={() => setViewing(true)} style={{ cursor: 'zoom-in' }} />
+      {viewing && <PhotoViewer src={meal.photo_url} local={job?.photo} canSave={isOwner} onClose={() => setViewing(false)} />}
 
       <div className="app-stack" style={{ gap: 6 }}>
         <span className="av-meal-card__meta">

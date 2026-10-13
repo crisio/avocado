@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Button, Card, Notice, PageHeader, PersonRow, Screen, TextField } from '@avocado/ui'
+import { Button, Card, Notice, PageHeader, PersonRow, Screen, Segmented, TextField, type SegmentedOption } from '@avocado/ui'
 import { useAuth } from '../auth'
 import AiConsentCard from '../components/AiConsent'
 import InstallCard from '../components/InstallCard'
@@ -10,7 +10,7 @@ import { useCachedApi } from '../lib/useCachedApi'
 import { displayName, firstName, formatDay, formatNumber } from '../lib/format'
 import { cheer } from '../lib/mascot'
 import { useOutbox } from '../lib/outbox'
-import type { Person, User } from '../lib/types'
+import type { Goal, Person, User } from '../lib/types'
 
 export default function Settings() {
   const { user, setUser, signOut } = useAuth()
@@ -144,7 +144,13 @@ function MyNutritionists() {
   )
 }
 
-/** Meta diaria de calorías: la que le dio su nutrióloga. Avo la usa para aconsejar con los antojos. */
+const GOAL_OPTIONS: SegmentedOption<Goal>[] = [
+  { value: 'bajar', label: 'Bajar', ariaLabel: 'Bajar de peso' },
+  { value: 'mantener', label: 'Mantener' },
+  { value: 'subir', label: 'Subir', ariaLabel: 'Subir (volumen)' },
+]
+
+/** Meta diaria de calorías (la que le dio su nutrióloga) y objetivo. Avo los usa para los antojos y la comida libre. */
 function DailyGoal() {
   const { user, setUser } = useAuth()
   const [value, setValue] = useState(user?.daily_kcal_goal ? String(user.daily_kcal_goal) : '')
@@ -190,7 +196,35 @@ function DailyGoal() {
       <Button type="submit" variant="secondary" icon={saved ? 'check' : undefined} loading={busy} disabled={saved}>
         {saved ? 'Guardada' : 'Guardar meta'}
       </Button>
+      <GoalPicker />
     </Card>
+  )
+}
+
+/** Objetivo: se guarda al tocarlo. */
+function GoalPicker() {
+  const { user, setUser } = useAuth()
+  const [error, setError] = useState<string | null>(null)
+
+  async function choose(goal: Goal) {
+    setError(null)
+    try {
+      setUser(await api<User>('/me', { method: 'PATCH', json: { goal } }))
+      cheer('love', { bajar: '¡A bajar con todo!', mantener: '¡A mantenernos!', subir: '¡A ganar volumen!' }[goal], { interrupt: true })
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  return (
+    <div className="app-stack" style={{ gap: 6 }}>
+      <span className="mood-label">Tu objetivo</span>
+      <Segmented label="Tu objetivo" options={GOAL_OPTIONS} value={user?.goal ?? null} onChange={(g) => void choose(g)} />
+      <span className="av-text-muted" style={{ fontSize: 13 }}>
+        Con tu meta y tu objetivo, Avo calcula tu saldo de la semana y si te alcanza para una comida libre.
+      </span>
+      {error && <Notice tone="error">{error}</Notice>}
+    </div>
   )
 }
 

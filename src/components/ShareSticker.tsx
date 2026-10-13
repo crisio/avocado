@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button, Card, Notice } from '@avocado/ui'
+import { savePhoto } from './PhotoViewer'
 import { cheer, spriteUrl } from '../lib/mascot'
 import { formatLongDate, formatTime } from '../lib/format'
 import { mealTitle } from '../lib/meals'
@@ -10,10 +11,38 @@ const PAD = 56
 const RADIUS = 64
 const FONT = '"Bricolage Grotesque Variable", system-ui, sans-serif'
 const MACROS = [
-  { key: 'protein_g', label: 'Proteína', color: '#8DBB6A', kcalPerGram: 4 },
-  { key: 'carbs_g', label: 'Carbs', color: '#F2C14E', kcalPerGram: 4 },
-  { key: 'fat_g', label: 'Grasa', color: '#EE8E7E', kcalPerGram: 9 },
+  { key: 'protein_g', label: 'Proteína', kcalPerGram: 4 },
+  { key: 'carbs_g', label: 'Carbs', kcalPerGram: 4 },
+  { key: 'fat_g', label: 'Grasa', kcalPerGram: 9 },
 ] as const
+
+/** Estilo del sticker: fondo (color o degradado), texto y los tres anillos, con contraste entre sí. */
+export interface StickerTheme {
+  id: string
+  name: string
+  /** Fondo de la tarjeta: un color o dos para el degradado diagonal. */
+  bg: [string, string?]
+  text: string
+  /** Fecha y hora. */
+  soft: string
+  /** Pista del anillo. */
+  track: string
+  /** Proteína, carbs y grasa. */
+  rings: [string, string, string]
+  /** Texto de la marca (por defecto "Avocado") y su color. */
+  brand?: string
+  brandColor?: string
+}
+
+export const THEMES: StickerTheme[] = [
+  { id: 'dia', name: 'Día', bg: ['#FFFBF0'], text: '#18221B', soft: 'rgba(24,34,27,0.66)', track: 'rgba(24,34,27,0.12)', rings: ['#3F8F2A', '#E0A100', '#E2573F'], brandColor: '#2F7A3A' },
+  { id: 'noche', name: 'Noche', bg: ['#122D13'], text: '#FFFFFF', soft: 'rgba(255,255,255,0.78)', track: 'rgba(255,255,255,0.2)', rings: ['#8DBB6A', '#F2C14E', '#EE8E7E'] },
+  { id: 'romantica', name: 'Cena romántica', bg: ['#4A0D26', '#7E1D40'], text: '#FFEDEF', soft: 'rgba(255,237,239,0.78)', track: 'rgba(255,237,239,0.18)', rings: ['#FF8FB5', '#F6C76B', '#FF6F7D'], brandColor: '#F6C76B' },
+  { id: 'cheat', name: 'Cheat meal', bg: ['#FF8A00', '#E6007E'], text: '#FFFFFF', soft: 'rgba(255,255,255,0.88)', track: 'rgba(255,255,255,0.28)', rings: ['#D9FF5C', '#FFF176', '#FFFFFF'], brand: 'Cheat meal 🍕' },
+  { id: 'fresco', name: 'Fresco', bg: ['#E6F8EC', '#BFEBD2'], text: '#0F3B24', soft: 'rgba(15,59,36,0.7)', track: 'rgba(15,59,36,0.13)', rings: ['#2A9148', '#D68A00', '#E0503F'], brandColor: '#1D7A3C' },
+]
+
+export const DEFAULT_THEME = 'dia'
 
 function loadImage(src: string) {
   return new Promise<HTMLImageElement | null>((resolve) => {
@@ -52,8 +81,8 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, max
   return lines
 }
 
-/** Dibuja el sticker de macros (PNG con fondo transparente) y regresa la imagen. */
-export async function drawSticker(meal: Meal): Promise<Blob> {
+/** Dibuja el sticker de macros (PNG con fondo transparente) y regresa la imagen. `transparency` (0–1) solo afecta el fondo de la tarjeta. */
+export async function drawSticker(meal: Meal, theme: StickerTheme = THEMES[0], transparency = 0): Promise<Blob> {
   await document.fonts.load('700 48px "Bricolage Grotesque Variable"').catch(() => undefined)
   const mascot = await loadImage(spriteUrl('love'))
 
@@ -79,12 +108,20 @@ export async function drawSticker(meal: Meal): Promise<Blob> {
   canvas.height = height
   const ctx = canvas.getContext('2d')!
 
-  ctx.fillStyle = 'rgba(18, 45, 19, 0.74)'
+  let fill: string | CanvasGradient = theme.bg[0]
+  if (theme.bg[1]) {
+    fill = ctx.createLinearGradient(0, 0, WIDTH, height)
+    fill.addColorStop(0, theme.bg[0])
+    fill.addColorStop(1, theme.bg[1])
+  }
+  ctx.globalAlpha = 1 - Math.min(Math.max(transparency, 0), 0.7)
+  ctx.fillStyle = fill
   ctx.beginPath()
   ctx.roundRect(0, 0, WIDTH, height, RADIUS)
   ctx.fill()
+  ctx.globalAlpha = 1
 
-  ctx.fillStyle = '#fff'
+  ctx.fillStyle = theme.text
   ctx.textBaseline = 'alphabetic'
   let y = PAD
 
@@ -97,8 +134,10 @@ export async function drawSticker(meal: Meal): Promise<Blob> {
   }
   ctx.textAlign = 'left'
   ctx.font = `700 34px ${FONT}`
-  ctx.fillText('Avocado', brandX, y + brandH * 0.68)
+  ctx.fillStyle = theme.brandColor ?? theme.text
+  ctx.fillText(theme.brand ?? 'Avocado', brandX, y + brandH * 0.68)
   y += brandH + 32
+  ctx.fillStyle = theme.text
 
   // Título
   ctx.font = `700 54px ${FONT}`
@@ -125,18 +164,18 @@ export async function drawSticker(meal: Meal): Promise<Blob> {
     const r = (ringD - stroke) / 2
     ctx.lineWidth = stroke
     ctx.lineCap = 'round'
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'
+    ctx.strokeStyle = theme.track
     ctx.beginPath()
     ctx.arc(cx, cy, r, 0, Math.PI * 2)
     ctx.stroke()
     const share = total > 0 ? kcals[i] / total : 0
     if (share > 0) {
-      ctx.strokeStyle = m.color
+      ctx.strokeStyle = theme.rings[i]
       ctx.beginPath()
       ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(share, 0.999))
       ctx.stroke()
     }
-    ctx.fillStyle = '#fff'
+    ctx.fillStyle = theme.text
     ctx.textAlign = 'center'
     ctx.font = `700 48px ${FONT}`
     ctx.fillText(`${Math.round(grams[i])} g`, cx, cy + 17)
@@ -148,11 +187,25 @@ export async function drawSticker(meal: Meal): Promise<Blob> {
   // Fecha y hora
   const when = new Date(meal.eaten_at)
   ctx.textAlign = 'left'
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.78)'
+  ctx.fillStyle = theme.soft
   ctx.font = `600 28px ${FONT}`
   ctx.fillText(`${formatLongDate(when)} · ${formatTime(meal.eaten_at)}`, PAD, y + 26)
 
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('No se pudo crear la imagen'))), 'image/png'))
+}
+
+const STYLE_KEY = 'avocado.stickerStyle'
+
+/** Último estilo que eligió el usuario. Por defecto, el de día y sólido. */
+function loadStyle(): { theme: string; transparency: number } {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STYLE_KEY) ?? '{}')
+    const theme = THEMES.some((t) => t.id === saved.theme) ? saved.theme : DEFAULT_THEME
+    const transparency = Number.isFinite(saved.transparency) ? Math.min(Math.max(Math.round(saved.transparency), 0), 70) : 0
+    return { theme, transparency }
+  } catch {
+    return { theme: DEFAULT_THEME, transparency: 0 }
+  }
 }
 
 /** Sticker de macros para pegar en una historia de Instagram. */
@@ -161,14 +214,23 @@ export default function ShareSticker({ meal }: { meal: Meal }) {
   const [url, setUrl] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [themeId, setThemeId] = useState(() => loadStyle().theme)
+  const [transparency, setTransparency] = useState(() => loadStyle().transparency)
+  const theme = THEMES.find((t) => t.id === themeId) ?? THEMES[0]
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STYLE_KEY, JSON.stringify({ theme: themeId, transparency }))
+    } catch {
+      // Sin almacenamiento: simplemente no se recuerda
+    }
+  }, [themeId, transparency])
 
   useEffect(() => {
     let cancelled = false
     let objectUrl: string | null = null
-    setBlob(null)
-    setUrl(null)
     setFailed(false)
-    drawSticker(meal)
+    drawSticker(meal, theme, transparency / 100)
       .then((b) => {
         if (cancelled) return
         objectUrl = URL.createObjectURL(b)
@@ -180,7 +242,7 @@ export default function ShareSticker({ meal }: { meal: Meal }) {
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [meal.id, meal.eaten_at, meal.calories, meal.protein_g, meal.carbs_g, meal.fat_g, meal.analysis?.summary, meal.note])
+  }, [meal.id, meal.eaten_at, meal.calories, meal.protein_g, meal.carbs_g, meal.fat_g, meal.analysis?.summary, meal.note, themeId, transparency])
 
   const file = blob ? new File([blob], 'avocado-sticker.png', { type: 'image/png' }) : null
   const canShare = !!file && !!navigator.canShare?.({ files: [file] })
@@ -207,12 +269,34 @@ export default function ShareSticker({ meal }: { meal: Meal }) {
     }
   }
 
+  async function savePhotoToDevice() {
+    try {
+      if (await savePhoto(meal.photo_url)) cheer('love', '¡Foto lista!', { interrupt: true })
+    } catch {
+      setNotice('No se pudo guardar la foto.')
+    }
+  }
+
   return (
     <Card padding="lg">
       <h2 className="av-section-title">Sticker para tu historia</h2>
       <div className="share-sticker__stage" style={meal.photo_url ? { backgroundImage: `url("${meal.photo_url}")` } : undefined}>
         {url ? <img className="share-sticker__img" src={url} alt="Vista previa del sticker con proteína, carbohidratos, grasa y calorías" /> : <span className="share-sticker__wait">{failed ? 'No se pudo crear el sticker.' : 'Preparando…'}</span>}
       </div>
+      <div className="share-sticker__themes" role="radiogroup" aria-label="Estilo del sticker">
+        {THEMES.map((t) => (
+          <button key={t.id} type="button" role="radio" aria-checked={t.id === themeId} className="share-sticker__theme" onClick={() => setThemeId(t.id)}>
+            <span className="share-sticker__swatch" style={{ background: t.bg[1] ? `linear-gradient(135deg, ${t.bg[0]}, ${t.bg[1]})` : t.bg[0] }} />
+            {t.name}
+          </button>
+        ))}
+      </div>
+      <label className="share-sticker__slider">
+        <span>
+          Transparencia <strong>{transparency} %</strong>
+        </span>
+        <input type="range" min={0} max={70} step={5} value={transparency} onChange={(e) => setTransparency(Number(e.target.value))} />
+      </label>
       <div className="share-sticker__actions">
         {canShare && (
           <Button icon="share" onClick={share}>
@@ -228,6 +312,11 @@ export default function ShareSticker({ meal }: { meal: Meal }) {
           <a className="share-sticker__download" href={url} download="avocado-sticker.png" onClick={() => cheer('love', '¡Sticker listo!', { interrupt: true })}>
             Descargar sticker (PNG)
           </a>
+        )}
+        {meal.photo_url && (
+          <Button variant="secondary" icon="download" onClick={savePhotoToDevice}>
+            Guardar foto
+          </Button>
         )}
       </div>
       {notice && <Notice tone="info">{notice}</Notice>}

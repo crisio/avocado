@@ -29,6 +29,8 @@ export interface User {
   daily_kcal_goal: number | null
   /** Cuándo aceptó que sus fotos y notas se analicen con IA de terceros (null = no ha aceptado). */
   ai_consent_at: string | null
+  /** Objetivo: bajar de peso, mantener o subir (volumen); define la comida libre (ver budget.ts). */
+  goal: 'bajar' | 'mantener' | 'subir' | null
 }
 
 export type AppEnv = { Bindings: Env; Variables: { user: User; sessionHash: string } }
