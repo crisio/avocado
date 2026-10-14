@@ -1,6 +1,6 @@
 {
   "name": "@avocado/ui",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Kit de componentes de Avocado (estilo Fresco)",
   "private": true,
   "type": "module",

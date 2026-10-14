@@ -89,7 +89,7 @@ export default function InviteCard({ center = false, intro }: { center?: boolean
           </div>
         </>
       )}
-      <p className="av-text-muted invite-card__beta">Avocado es gratis para nutriólogas durante la beta.</p>
+      <p className="av-text-muted invite-card__beta">Por ahora Avocado es gratis para nutriólogas y pacientes.</p>
     </Card>
   )
 }

@@ -2,6 +2,11 @@
 
 La web (PWA), la API y la app de iOS llevan la misma versión. Mientras la versión empiece con 0, la app sigue en pruebas.
 
+## 0.6.1 — 14 de octubre de 2026
+
+- **Página de soporte** (`/soporte.html`) con contacto y preguntas frecuentes, para la ficha de la App Store.
+- Avocado queda gratis para todos (nutriólogas y pacientes) hasta nuevo aviso; se quita la mención a la beta.
+
 ## 0.6.0 — 13 de octubre de 2026
 
 - **Vista de la nutrióloga** (web e iOS), gratis durante la beta:

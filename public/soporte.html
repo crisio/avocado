@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Soporte · Avocado</title>
+    <meta name="description" content="Ayuda y contacto de Avocado: nutrición con foto." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        --ground: #f5f7f2;
+        --surface: #ffffff;
+        --ink: #18221b;
+        --muted: #56645a;
+        --line: #e2e7df;
+        --accent: #2f7a3a;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ground: #121814;
+          --surface: #1b231d;
+          --ink: #e8eee6;
+          --muted: #a3b0a6;
+          --line: #2c372f;
+          --accent: #7cc286;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--ground);
+        color: var(--ink);
+        font: 17px/1.55 -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 32px 16px 64px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+      header img {
+        width: 44px;
+        height: 44px;
+      }
+      h1 {
+        font-size: 30px;
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+        margin: 0;
+      }
+      h2 {
+        font-size: 19px;
+        margin: 28px 0 6px;
+      }
+      p {
+        margin: 0 0 12px;
+      }
+      a {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .box {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 16px 20px;
+        margin: 16px 0;
+      }
+      .muted {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="/favicon.svg" alt="" />
+        <h1>Soporte</h1>
+      </header>
+      <p class="muted">Avocado: nutrición con foto</p>
+
+      <div class="box">
+        <p><strong>¿Necesitas ayuda?</strong> Escríbenos a <a href="mailto:avocado@cristopherpineda.com">avocado@cristopherpineda.com</a> y te contestamos lo antes posible.</p>
+        <p class="muted" style="margin: 0">Si es posible, dinos qué teléfono usas y manda una captura de pantalla.</p>
+      </div>
+
+      <h2>¿Cómo entro?</h2>
+      <p>Escribe tu correo y te mandamos un código de 6 dígitos. No hay contraseña. Si no llega, revisa la carpeta de spam o de promociones.</p>
+
+      <h2>¿Cómo registro una comida?</h2>
+      <p>Toca «Registrar comida», tómale foto a tu plato y guárdala. La IA estima los alimentos, las calorías y los macros; si algo no cuadra, ajusta las porciones o cuéntale qué cambió.</p>
+
+      <h2>¿Cómo comparto mis comidas con mi nutrióloga?</h2>
+      <p>Abre el enlace o el código QR que te dio, o ve a Perfil → Mi nutrióloga y escribe su correo o su código. Puedes quitarla cuando quieras.</p>
+
+      <h2>¿Las calorías son exactas?</h2>
+      <p>Son estimaciones hechas con IA a partir de una foto y pueden equivocarse. No son consejo médico: sigue las indicaciones de tu nutrióloga.</p>
+
+      <h2>¿Cómo borro mi cuenta?</h2>
+      <p>En Perfil → Borrar mi cuenta. Se borran tu cuenta, tus comidas, tus fotos y todo lo demás, y no se puede deshacer.</p>
+
+      <h2>Privacidad</h2>
+      <p>Lee qué datos guardamos y con quién los compartimos en la <a href="/privacidad.html">política de privacidad</a>.</p>
+    </main>
+  </body>
+</html>

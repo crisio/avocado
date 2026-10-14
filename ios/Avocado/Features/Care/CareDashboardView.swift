@@ -32,7 +32,7 @@ struct CareDashboardView: View {
                 }
 
                 if let error, patients != nil { Notice(text: error, tone: .warning) }
-                FinePrint("Avocado es gratis para nutriólogas durante la beta.")
+                FinePrint("Por ahora Avocado es gratis para nutriólogas y pacientes.")
             }
             .padding(.horizontal, Theme.gutter)
             .padding(.bottom, 32)

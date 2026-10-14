@@ -51,7 +51,7 @@ struct CareProfileView: View {
                 AccountActions(inForm: true)
             } footer: {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Avocado es gratis para nutriólogas durante la beta.")
+                    Text("Por ahora Avocado es gratis para nutriólogas y pacientes.")
                     Text("Avocado \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
                 }
             }

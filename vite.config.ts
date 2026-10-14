@@ -30,7 +30,7 @@ export default defineConfig({
         // Abrir la app sin internet: cualquier ruta sirve index.html del precache.
         navigateFallback: 'index.html',
         // Menos la política de privacidad, que es una página aparte (la App Store pide un enlace que abra).
-        navigateFallbackDenylist: [/^\/privacidad/],
+        navigateFallbackDenylist: [/^\/privacidad/, /^\/soporte/],
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
