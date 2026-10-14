@@ -2,6 +2,16 @@
 
 La web (PWA), la API y la app de iOS llevan la misma versión. Mientras la versión empiece con 0, la app sigue en pruebas.
 
+## 0.6.0 — 13 de octubre de 2026
+
+- **Vista de la nutrióloga** (web e iOS), gratis durante la beta:
+  - **Tablero** con cómo va cada paciente hoy (calorías contra su meta, racha, última comida, días registrados, si va con el plan) y alertas primero: sin registrar, se sintió mal, fuera del plan o muy arriba de su meta.
+  - **Metas por paciente:** calorías, objetivo y macros (con «Sugerir macros»). Mientras estén vinculados, el paciente las ve como puestas por su nutrióloga y no las cambia; Avo las toma en cuenta.
+  - **Invitar pacientes** con un enlace, un QR o un código; el paciente lo acepta al entrar o en Perfil → Mi nutrióloga.
+  - **Reporte de los últimos 7 días** para la consulta: tabla por día, macros contra metas, racha, saldo, ánimo y horarios; se guarda en PDF.
+- La app del paciente muestra sus macros contra las metas.
+- Widget de iOS con datos (App Group registrado en la cuenta de Apple).
+
 ## 0.5.0 — 13 de octubre de 2026
 
 - **Widget de iOS** (chico, mediano y de pantalla bloqueada): calorías del día contra la meta en un anillo, macros y racha. Tocarlo abre «Registrar comida» con la cámara; el botón Avo abre el chat. Los datos los comparte la app por un App Group (requiere la cuenta de pago de Apple; con la gratuita el widget solo muestra el acceso a registrar).

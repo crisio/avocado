@@ -19,8 +19,14 @@ export default function DayView({
   emptyAction,
   onAnalyzing,
   todayExtra,
+  goal,
+  macroGoals,
 }: {
   userId: string
+  /** Meta diaria de calorías de quien se ve (la barra muestra lo que falta). */
+  goal?: number | null
+  /** Metas de macros en gramos (los chips muestran "74 / 120 g"). */
+  macroGoals?: { protein?: number | null; carbs?: number | null; fat?: number | null }
   emptyAction?: React.ReactNode
   /** Algo más que mostrar debajo del resumen, solo en el día de hoy (p. ej. "¿Tienes un antojo?"). */
   todayExtra?: React.ReactNode
@@ -148,11 +154,12 @@ export default function DayView({
       <section aria-label="Resumen del día" className="app-stack">
         <CalorieBar
           total={totals.calories}
+          goal={goal || undefined}
           segments={list
             .filter((m) => m.status === 'analyzed')
             .map((m) => ({ value: m.calories ?? 0, kind: mealKind(m), label: mealKindLabel(mealKind(m)) }))}
         />
-        <MacroChips protein={totals.protein} carbs={totals.carbs} fat={totals.fat} />
+        <MacroChips protein={totals.protein} carbs={totals.carbs} fat={totals.fat} goals={macroGoals} />
       </section>
 
       {isToday && todayExtra}

@@ -2,7 +2,14 @@ import Charts
 import SwiftUI
 
 /// "Tu semana" (lunes a domingo): racha, calorías por día, promedio, macros y lo que más comiste.
+/// Con `userId` es la semana de un paciente, vista por su nutrióloga (en tercera persona).
 struct WeekView: View {
+    var userId: String?
+    /// Metas del paciente (la nutrióloga las ve en la gráfica y en los macros).
+    var goals: CareGoals?
+    /// Nombre de pila del paciente, para el encabezado.
+    var patientName: String?
+
     @Environment(Session.self) private var session
     @Environment(StreakStore.self) private var streaks
     @Environment(Outbox.self) private var outbox
@@ -10,13 +17,17 @@ struct WeekView: View {
     @State private var meals: [Meal]?
     @State private var loadedStart: Date?
     @State private var error: String?
+    @State private var patientStreak: Streak?
+
+    private var own: Bool { userId == nil }
+    private var streak: Streak? { own ? streaks.streak : patientStreak }
 
     private var isCurrent: Bool { start == Fmt.startOfWeek(.now) }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                PageHeader(eyebrow: Fmt.weekRange(start), title: "Tu semana") {
+                PageHeader(eyebrow: patientName.flatMap { $0.isEmpty ? nil : "\($0) · \(Fmt.weekRange(start))" } ?? Fmt.weekRange(start), title: own ? "Tu semana" : "Su semana") {
                     MascotView(mood: .idle, size: 80, reactive: true, bubbleEdge: .bottom)
                 }
                 DayNav(
@@ -25,8 +36,8 @@ struct WeekView: View {
                     onNext: { start = Fmt.addDays(start, 7) },
                     nextDisabled: isCurrent
                 )
-                if isCurrent, let streak = streaks.streak { StreakCard(streak: streak) }
-                if isCurrent { WeekBudgetCard(reloadKey: outbox.syncedCount) }
+                if isCurrent, let streak { StreakCard(streak: streak, own: own) }
+                if isCurrent { WeekBudgetCard(reloadKey: outbox.syncedCount, userId: userId) }
 
                 if loadedStart == start, let meals {
                     summary(WeekStats(meals: meals, start: start))
@@ -42,22 +53,24 @@ struct WeekView: View {
         .screenBackground()
         .refreshable {
             await load()
-            await streaks.load()
+            if own { await streaks.load() } else { await loadPatientStreak() }
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .toolbar(own ? .hidden : .automatic, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
         .mealDestinations()
+        .task(id: userId) { if !own { await loadPatientStreak() } }
         .task(id: "\(start.timeIntervalSince1970)-\(outbox.syncedCount)") { await load() }
     }
 
     @ViewBuilder private func summary(_ stats: WeekStats) -> some View {
-        let goal = session.user?.dailyKcalGoal
+        let goal = own ? session.user?.dailyKcalGoal : goals?.dailyKcalGoal
 
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(Fmt.number(stats.average.calories)).font(.display(40, weight: 800, relativeTo: .largeTitle))
                 Text("kcal al día en promedio").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
             }
-            Text(stats.logged == 0 ? "Sin comidas analizadas esta semana." : "Registraste \(Fmt.days(stats.logged)) de \(stats.elapsed).")
+            Text(stats.logged == 0 ? "Sin comidas analizadas esta semana." : "\(own ? "Registraste" : "Registró") \(Fmt.days(stats.logged)) de \(stats.elapsed).")
                 .font(.subheadline)
                 .foregroundStyle(Theme.muted)
             Chart {
@@ -80,16 +93,21 @@ struct WeekView: View {
         }
         .card()
 
-        if let userId = session.user?.id {
-            PatternsCard(userId: userId, start: start, meals: meals ?? [])
+        if let userId = userId ?? session.user?.id {
+            PatternsCard(userId: userId, start: start, meals: meals ?? [], own: own)
         }
 
         SectionTitle("Promedio de macros al día")
-        MacroChips(protein: stats.average.proteinG, carbs: stats.average.carbsG, fat: stats.average.fatG)
+        MacroChips(
+            protein: stats.average.proteinG, carbs: stats.average.carbsG, fat: stats.average.fatG,
+            proteinGoal: own ? session.user?.proteinGGoal : goals?.proteinGGoal,
+            carbsGoal: own ? session.user?.carbsGGoal : goals?.carbsGGoal,
+            fatGoal: own ? session.user?.fatGGoal : goals?.fatGGoal
+        )
 
         if !stats.topFoods.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                SectionTitle("Lo que más comiste")
+                SectionTitle(own ? "Lo que más comiste" : "Lo que más comió")
                 ForEach(stats.topFoods, id: \.name) { food in
                     HStack {
                         Text(food.name).font(.body)
@@ -104,7 +122,7 @@ struct WeekView: View {
         SectionTitle("Día por día")
         VStack(spacing: 0) {
             ForEach(stats.days.filter { !$0.future }.reversed()) { day in
-                NavigationLink(value: DayRoute(day: day.date)) {
+                NavigationLink(value: DayRoute(day: day.date, userId: userId, goals: goals)) {
                     HStack {
                         Text(day.long).font(.body).foregroundStyle(Theme.ink)
                         Spacer()
@@ -124,12 +142,19 @@ struct WeekView: View {
         .background(Theme.surface, in: .rect(cornerRadius: Theme.radius))
     }
 
+    private func loadPatientStreak() async {
+        guard let userId else { return }
+        if let fresh: Streak = try? await APIClient.shared.request("GET", "/streak", query: ["user_id": userId, "offset": String(Fmt.timezoneOffset)]) {
+            patientStreak = fresh
+        }
+    }
+
     private func load() async {
         let requested = start
         do {
             let fresh: [Meal] = try await APIClient.shared.request(
                 "GET", "/meals",
-                query: ["user_id": session.user?.id ?? "", "from": Fmt.iso(requested), "to": Fmt.iso(Fmt.addDays(requested, 7))]
+                query: ["user_id": userId ?? session.user?.id ?? "", "from": Fmt.iso(requested), "to": Fmt.iso(Fmt.addDays(requested, 7))]
             )
             guard requested == start else { return }
             meals = fresh
@@ -216,23 +241,28 @@ struct WeekStats {
 /// La racha: la actual, la mejor y los fueguitos de los últimos 7 días.
 struct StreakCard: View {
     let streak: Streak
+    /// false = texto en tercera persona.
+    var own = true
 
     private static let milestones = [3, 7, 14, 30, 60, 100, 200, 365]
     private static let initials = ["D", "L", "M", "M", "J", "V", "S"]
 
     var body: some View {
         let next = Self.milestones.first { $0 > streak.current }
-        let hint =
-            streak.current == 0 ? "Registra una comida hoy y empieza tu racha."
-            : !streak.loggedToday ? "Registra algo hoy para llegar a \(Fmt.days(streak.current + 1))."
-            : next.map { "Te faltan \(Fmt.days($0 - streak.current)) para llegar a \($0)." } ?? "¡Racha legendaria!"
+        let hint = own
+            ? (streak.current == 0 ? "Registra una comida hoy y empieza tu racha."
+                : !streak.loggedToday ? "Registra algo hoy para llegar a \(Fmt.days(streak.current + 1))."
+                : next.map { "Te faltan \(Fmt.days($0 - streak.current)) para llegar a \($0)." } ?? "¡Racha legendaria!")
+            : (streak.current == 0 ? "Aún no empieza su racha."
+                : !streak.loggedToday ? "Todavía no registra nada hoy."
+                : next.map { "Le faltan \(Fmt.days($0 - streak.current)) para llegar a \($0)." } ?? "¡Racha legendaria!")
 
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 14) {
                 Flame(lit: streak.current > 0, size: 50)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(Text("\(streak.current)").font(.display(34, weight: 800))) \(Text(streak.current == 1 ? "día seguido" : "días seguidos").font(.headline))")
-                    Text("Tu mejor racha: \(Fmt.days(streak.best))").font(.subheadline).foregroundStyle(Theme.muted)
+                    Text("\(own ? "Tu" : "Su") mejor racha: \(Fmt.days(streak.best))").font(.subheadline).foregroundStyle(Theme.muted)
                 }
             }
             HStack {

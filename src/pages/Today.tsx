@@ -4,6 +4,7 @@ import { useAuth } from '../auth'
 import CravingLink from '../components/CravingLink'
 import MoodCheckIn from '../components/MoodCheckIn'
 import DayView from '../components/DayView'
+import InviteConfirm from '../components/InviteConfirm'
 import InstallCard from '../components/InstallCard'
 import { StreakChip } from '../components/Streak'
 import { Mascot } from '../components/Mascot'
@@ -50,13 +51,20 @@ export default function Today() {
         action={<Mascot size={88} base={analyzing ? 'think' : isNight() ? 'sleepy' : 'idle'} reactive interactive />}
       />
       {streak && <StreakChip streak={streak} />}
+      <InviteConfirm />
       <InstallCard dismissible mobileOnly />
-      <DayView userId={user.id} onAnalyzing={setAnalyzing} todayExtra={
+      <DayView
+        userId={user.id}
+        goal={user.daily_kcal_goal}
+        macroGoals={{ protein: user.protein_g_goal, carbs: user.carbs_g_goal, fat: user.fat_g_goal }}
+        onAnalyzing={setAnalyzing}
+        todayExtra={
           <>
             <MoodCheckIn />
             <CravingLink />
           </>
-        } />
+        }
+      />
     </Screen>
   )
 }

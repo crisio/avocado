@@ -31,6 +31,15 @@ export interface User {
   ai_consent_at: string | null
   /** Objetivo: bajar de peso, mantener o subir (volumen); define la comida libre (ver budget.ts). */
   goal: 'bajar' | 'mantener' | 'subir' | null
+  /** Metas de macros al día, en gramos (las pone la nutrióloga). */
+  protein_g_goal: number | null
+  carbs_g_goal: number | null
+  fat_g_goal: number | null
+  /** Nutrióloga que fijó las metas: mientras estén vinculados, el paciente no las cambia. */
+  goals_set_by: string | null
 }
+
+/** Columnas del usuario que viajan con la sesión y en /me. */
+export const USER_COLUMNS = 'id, email, full_name, role, daily_kcal_goal, ai_consent_at, goal, protein_g_goal, carbs_g_goal, fat_g_goal, goals_set_by'
 
 export type AppEnv = { Bindings: Env; Variables: { user: User; sessionHash: string } }

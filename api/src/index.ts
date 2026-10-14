@@ -9,6 +9,7 @@ import { mealRoutes } from './meals'
 import { insightRoutes, moodRoutes } from './moods'
 import { avoRoutes } from './avo'
 import { budgetRoutes } from './budget'
+import { careRoutes } from './care'
 import { peopleRoutes } from './people'
 import { verifyPhotoSignature } from './photos'
 
@@ -73,6 +74,7 @@ app.route('/moods', moodRoutes)
 app.route('/insights', insightRoutes)
 app.route('/avo', avoRoutes)
 app.route('/budget', budgetRoutes)
+app.route('/care', careRoutes)
 
 app.notFound((c) => c.json({ error: 'No encontrado' }, 404))
 

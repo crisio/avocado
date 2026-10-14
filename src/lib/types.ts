@@ -11,6 +11,12 @@ export interface User {
   ai_consent_at?: string | null
   /** Objetivo: bajar de peso, mantener o subir (volumen). Define la comida libre de la semana. */
   goal?: Goal | null
+  /** Metas de macros en gramos (las puede fijar la nutrióloga). */
+  protein_g_goal?: number | null
+  carbs_g_goal?: number | null
+  fat_g_goal?: number | null
+  /** Id de la nutrióloga que fijó las metas (null = las puso el propio paciente). */
+  goals_set_by?: string | null
 }
 
 export type Goal = 'bajar' | 'mantener' | 'subir'
@@ -159,4 +165,36 @@ export interface AvoMessage {
   created_at: string
   /** Lo que Avo anotó de cómo se siente con este mensaje. */
   mood: Mood | null
+}
+
+/** Metas de un paciente tal como las devuelve PATCH /care/patients/:id/goals. */
+export interface PatientGoals {
+  daily_kcal_goal: number | null
+  goal: Goal | null
+  protein_g_goal: number | null
+  carbs_g_goal: number | null
+  fat_g_goal: number | null
+  set_by_me: boolean
+}
+
+export type CareAlertKind = 'sin_registro' | 'mal' | 'fuera_plan' | 'arriba_meta'
+
+/** Un paciente en el tablero de la nutrióloga (GET /care/dashboard). */
+export interface CarePatient {
+  id: string
+  email: string
+  full_name: string | null
+  goals: PatientGoals
+  today: { consumed: number; protein_g: number; carbs_g: number; fat_g: number; meals: number }
+  last_meal_at: string | null
+  last_mood: { feelings: Feeling[]; on_plan: OnPlan | null; felt_at: string } | null
+  streak: { current: number; logged_today: boolean }
+  week: { days_logged: number; avg_kcal: number | null; on_plan: { yes: number; total: number } | null }
+  alerts: { kind: CareAlertKind; text: string }[]
+}
+
+/** Invitación de una nutrióloga (GET /care/invite). */
+export interface CareInvite {
+  code: string
+  url: string
 }

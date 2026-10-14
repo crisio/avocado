@@ -3,11 +3,13 @@ import { Button, Card, Notice, PageHeader, PersonRow, Screen, Segmented, TextFie
 import { useAuth } from '../auth'
 import AiConsentCard from '../components/AiConsent'
 import InstallCard from '../components/InstallCard'
+import InviteCard from '../components/InviteCard'
 import { Mascot } from '../components/Mascot'
 import PrivacyLink from '../components/PrivacyLink'
 import { api } from '../lib/api'
 import { useCachedApi } from '../lib/useCachedApi'
 import { displayName, firstName, formatDay, formatNumber } from '../lib/format'
+import { parseInviteCode } from '../lib/invite'
 import { cheer } from '../lib/mascot'
 import { useOutbox } from '../lib/outbox'
 import type { Goal, Person, User } from '../lib/types'
@@ -56,7 +58,9 @@ export default function Settings() {
         </Button>
       </Card>
 
-      {user?.role === 'patient' && <DailyGoal />}
+      {user?.role === 'nutritionist' && <InviteCard />}
+
+      {user?.role === 'patient' && (user.goals_set_by ? <LockedGoals /> : <DailyGoal />)}
 
       {user?.role === 'patient' && <MyNutritionists />}
 
@@ -81,6 +85,9 @@ function MyNutritionists() {
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [invite, setInvite] = useState('')
+  const [joining, setJoining] = useState(false)
+  const [joinError, setJoinError] = useState<string | null>(null)
 
   const { data, refresh: load } = useCachedApi<Person[]>('/care/nutritionists', 60_000)
   const list = data ?? []
@@ -99,6 +106,24 @@ function MyNutritionists() {
       cheer('oops', 'No pude vincularla', { interrupt: true })
     }
     setBusy(false)
+  }
+
+  async function join(e: FormEvent) {
+    e.preventDefault()
+    setJoinError(null)
+    const code = parseInviteCode(invite)
+    if (!code) return setJoinError('Ese código no se ve bien. Pídele a tu nutrióloga su código o su enlace.')
+    setJoining(true)
+    try {
+      await api(`/care/invite/${encodeURIComponent(code)}`, { method: 'POST' })
+      setInvite('')
+      load()
+      cheer('celebrate', '¡Listo! Ya puede ver tus comidas', { interrupt: true })
+    } catch (err) {
+      setJoinError((err as Error).message)
+      cheer('oops', 'No pude vincularla', { interrupt: true })
+    }
+    setJoining(false)
   }
 
   async function unlink(n: Person) {
@@ -140,6 +165,20 @@ function MyNutritionists() {
         </Button>
       </form>
       {error && <Notice tone="error">{error}</Notice>}
+      <form className="invite-join" onSubmit={join}>
+        <TextField
+          label="¿Tienes un código de invitación?"
+          value={invite}
+          onChange={(e) => setInvite(e.target.value)}
+          autoCapitalize="characters"
+          autoComplete="off"
+          placeholder="Código o enlace"
+        />
+        <Button type="submit" variant="secondary" loading={joining} disabled={!invite.trim()}>
+          Unirme
+        </Button>
+      </form>
+      {joinError && <Notice tone="error">{joinError}</Notice>}
     </Card>
   )
 }
@@ -149,6 +188,34 @@ const GOAL_OPTIONS: SegmentedOption<Goal>[] = [
   { value: 'mantener', label: 'Mantener' },
   { value: 'subir', label: 'Subir', ariaLabel: 'Subir (volumen)' },
 ]
+
+/** Las metas que puso su nutrióloga: solo se leen (para cambiarlas, que se las pida a ella). */
+function LockedGoals() {
+  const { user } = useAuth()
+  const { data } = useCachedApi<Person[]>('/care/nutritionists', 60_000)
+  const who = data?.find((n) => n.id === user?.goals_set_by)
+  if (!user) return null
+  const parts = [
+    user.daily_kcal_goal ? `${formatNumber(user.daily_kcal_goal)} kcal` : null,
+    user.goal ? { bajar: 'Bajar', mantener: 'Mantener', subir: 'Subir' }[user.goal] : null,
+    user.protein_g_goal ? `Proteína ${formatNumber(user.protein_g_goal)} g` : null,
+    user.carbs_g_goal ? `Carbos ${formatNumber(user.carbs_g_goal)} g` : null,
+    user.fat_g_goal ? `Grasa ${formatNumber(user.fat_g_goal)} g` : null,
+  ].filter(Boolean)
+  return (
+    <Card padding="lg" as="section" aria-labelledby="metas-bloqueadas">
+      <h2 id="metas-bloqueadas" className="av-section-title">
+        Tu meta diaria
+      </h2>
+      <p style={{ margin: 0 }}>
+        Tu nutrióloga{who ? ` (${displayName(who)})` : ''} te puso: <strong>{parts.length ? parts.join(' · ') : 'sin metas por ahora'}</strong>
+      </p>
+      <p className="av-text-muted" style={{ margin: 0, fontSize: 14 }}>
+        Si quieres cambiarlas, pídeselo a ella.
+      </p>
+    </Card>
+  )
+}
 
 /** Meta diaria de calorías (la que le dio su nutrióloga) y objetivo. Avo los usa para los antojos y la comida libre. */
 function DailyGoal() {

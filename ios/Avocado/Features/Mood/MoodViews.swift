@@ -250,6 +250,8 @@ struct PatternsCard: View {
     let userId: String
     let start: Date
     let meals: [Meal]
+    /// false = texto en tercera persona (la nutrióloga viendo a su paciente).
+    var own = true
 
     @Environment(Connectivity.self) private var connectivity
     @State private var signal = MoodsSignal.shared
@@ -265,26 +267,26 @@ struct PatternsCard: View {
         let feel = MoodStats(moods: moods)
 
         VStack(alignment: .leading, spacing: 12) {
-            SectionTitle("Tus patrones")
+            SectionTitle(own ? "Tus patrones" : "Sus patrones")
             if let timing {
                 line("🌅", "Primera comida a las **\(Fmt.time(timing.first))** y última a las **\(Fmt.time(timing.last))**, en promedio.")
                 if let longest = timing.longest, longest.minutes >= 60 {
                     let day = Self.weekdays[Fmt.calendar.component(.weekday, from: longest.from) - 1]
-                    line("⏳", "Lo más que pasaste sin comer en el día: **\(TimingStats.duration(longest.minutes))** (el \(day) desde las \(Fmt.time(longest.from))).")
+                    line("⏳", "\(own ? "Lo más que pasaste" : "Lo más que pasó") sin comer en el día: **\(TimingStats.duration(longest.minutes))** (el \(day) desde las \(Fmt.time(longest.from))).")
                 }
                 if timing.late > 0 {
                     line("🌙", "**\(timing.late)** \(timing.late == 1 ? "comida" : "comidas") después de las 9 de la noche.")
                 }
             }
             if let feel, let first = feel.top.first {
-                line(first.0.emoji, "Lo que más sentiste: " + feel.top.map { "**\($0.0.label.lowercased())** (\($0.1))" }.joined(separator: ", ") + ".")
+                line(first.0.emoji, "\(own ? "Lo que más sentiste" : "Lo que más sintió"): " + feel.top.map { "**\($0.0.label.lowercased())** (\($0.1))" }.joined(separator: ", ") + ".")
                 if feel.energy != nil || feel.onPlan != nil {
                     let energy = feel.energy.map { "Energía promedio **\(String(format: "%.1f", $0))/5**. " } ?? ""
-                    let plan = feel.onPlan.map { "Con tu plan **\($0.yes)** de \($0.total) \($0.total == 1 ? "vez" : "veces")." } ?? ""
+                    let plan = feel.onPlan.map { "Con \(own ? "tu" : "su") plan **\($0.yes)** de \($0.total) \($0.total == 1 ? "vez" : "veces")." } ?? ""
                     line("⚡️", energy + plan)
                 }
             } else {
-                line("💬", "Registra cómo te sientes en Mi día para ver aquí tus patrones de ánimo.", muted: true)
+                line("💬", own ? "Registra cómo te sientes en Mi día para ver aquí tus patrones de ánimo." : "Aún no registra cómo se siente esta semana.", muted: true)
             }
 
             if let insights {
@@ -311,7 +313,7 @@ struct PatternsCard: View {
                     Task { await ask() }
                 } label: {
                     Group {
-                        if busy { ProgressView() } else { Label("Que Avo encuentre mis patrones", systemImage: "sparkles") }
+                        if busy { ProgressView() } else { Label(own ? "Que Avo encuentre mis patrones" : "Que Avo encuentre sus patrones", systemImage: "sparkles") }
                     }
                     .frame(maxWidth: .infinity)
                 }

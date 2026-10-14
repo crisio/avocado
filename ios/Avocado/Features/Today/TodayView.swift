@@ -75,12 +75,14 @@ struct TodayView: View {
 /// Fueguito con la racha, debajo del saludo.
 struct StreakChip: View {
     let streak: Streak
+    /// false = texto en tercera persona (la nutrióloga viendo a su paciente).
+    var own = true
 
     var body: some View {
         let text: String =
-            streak.current == 0 ? "Empieza tu racha hoy"
+            streak.current == 0 ? (own ? "Empieza tu racha hoy" : "Sin racha")
             : streak.loggedToday ? Fmt.daysInARow(streak.current)
-            : "\(Fmt.days(streak.current)) · ¡registra hoy para seguir!"
+            : "\(Fmt.days(streak.current)) · " + (own ? "¡registra hoy para seguir!" : "aún no registra hoy")
         HStack(spacing: 6) {
             Flame(lit: streak.loggedToday, size: 20)
             Text(text).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
@@ -88,7 +90,7 @@ struct StreakChip: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(streak.loggedToday ? Theme.warningSoft : Theme.surface, in: .capsule)
-        .accessibilityLabel("Racha: \(text). Ver tu semana.")
+        .accessibilityLabel(own ? "Racha: \(text). Ver tu semana." : "Racha: \(text)")
     }
 }
 
@@ -113,15 +115,17 @@ struct CravingLink: View {
     }
 }
 
-/// Un día desde la semana.
+/// Un día desde la semana (el del usuario, o el de un paciente si lo abre su nutrióloga).
 struct DayScreen: View {
     @Environment(Session.self) private var session
     @State var day: Date
+    var userId: String?
+    var goals: CareGoals?
 
     var body: some View {
         ScrollView {
-            if let userId = session.user?.id {
-                DayMealsView(userId: userId, day: $day) { EmptyView() }
+            if let userId = userId ?? session.user?.id {
+                DayMealsView(userId: userId, day: $day, kcalGoal: goals?.dailyKcalGoal, macroGoals: goals, own: self.userId == nil) { EmptyView() }
                     .padding(.horizontal, Theme.gutter)
                     .padding(.bottom, 32)
             }
@@ -138,6 +142,11 @@ struct DayMealsView<Extra: View>: View {
     @Binding var day: Date
     /// Cambia para volver a pedir las comidas (p. ej. al jalar para actualizar).
     var reloadKey = 0
+    /// Meta de kcal y de macros de otra persona (el paciente, visto por su nutrióloga). Sin ellas se usan las del usuario de la sesión.
+    var kcalGoal: Int?
+    var macroGoals: CareGoals?
+    /// false = texto en tercera persona (la nutrióloga viendo a su paciente).
+    var own = true
     /// Algo más debajo del resumen, solo en el día de hoy (p. ej. "¿Tienes un antojo?").
     @ViewBuilder var todayExtra: () -> Extra
 
@@ -202,8 +211,19 @@ struct DayMealsView<Extra: View>: View {
                 nextDisabled: isToday
             )
 
-            CalorieSummary(total: totals.calories, goal: session.user?.dailyKcalGoal, segments: analyzed.map { ($0.calories ?? 0, $0.kind) })
-            MacroChips(protein: totals.proteinG, carbs: totals.carbsG, fat: totals.fatG)
+            let ownData = userId == session.user?.id
+            CalorieSummary(
+                total: totals.calories,
+                goal: kcalGoal ?? (ownData ? session.user?.dailyKcalGoal : nil),
+                segments: analyzed.map { ($0.calories ?? 0, $0.kind) },
+                own: own
+            )
+            MacroChips(
+                protein: totals.proteinG, carbs: totals.carbsG, fat: totals.fatG,
+                proteinGoal: macroGoals?.proteinGGoal ?? (ownData ? session.user?.proteinGGoal : nil),
+                carbsGoal: macroGoals?.carbsGGoal ?? (ownData ? session.user?.carbsGGoal : nil),
+                fatGoal: macroGoals?.fatGGoal ?? (ownData ? session.user?.fatGGoal : nil)
+            )
 
             if isToday { todayExtra() }
 
@@ -293,6 +313,8 @@ struct CalorieSummary: View {
     let total: Double
     let goal: Int?
     let segments: [(Double, MealKind)]
+    /// false = texto en tercera persona.
+    var own = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -320,7 +342,9 @@ struct CalorieSummary: View {
             .frame(height: 14)
             if let goal {
                 let left = Double(goal) - total.rounded()
-                Text(left >= 0 ? "Te quedan \(Fmt.kcal(left)) para tu meta" : "Pasaste tu meta por \(Fmt.kcal(-left))")
+                Text(left >= 0
+                    ? (own ? "Te quedan \(Fmt.kcal(left)) para tu meta" : "Le quedan \(Fmt.kcal(left)) para su meta")
+                    : (own ? "Pasaste tu meta por \(Fmt.kcal(-left))" : "Pasó su meta por \(Fmt.kcal(-left))"))
                     .font(.footnote)
                     .foregroundStyle(Theme.muted)
             }

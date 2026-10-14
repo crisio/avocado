@@ -195,6 +195,15 @@ export async function patientContext(env: Env, user: User, offset: number, skipM
     `Ahora es ${localLabel(new Date(now).toISOString(), offset)} (hora del teléfono).`,
     `Hoy lleva ${consumed} kcal en ${today?.meals ?? 0} comidas registradas.${goal ? ` Su meta diaria es ${goal} kcal (le quedan ${goal - consumed}).` : ' No tiene meta diaria.'}`,
     describeBudget(budget),
+    user.protein_g_goal || user.carbs_g_goal || user.fat_g_goal
+      ? `Sus metas de macros al día: ${[
+          user.protein_g_goal ? `${user.protein_g_goal} g de proteína` : null,
+          user.carbs_g_goal ? `${user.carbs_g_goal} g de carbohidratos` : null,
+          user.fat_g_goal ? `${user.fat_g_goal} g de grasa` : null,
+        ]
+          .filter(Boolean)
+          .join(', ')}${user.goals_set_by ? ' (las puso su nutrióloga)' : ''}.`
+      : null,
     lastMeals.results.length
       ? `Sus últimas comidas:\n${lastMeals.results.map((m) => `- ${localLabel(m.eaten_at, offset)} (${ago(m.eaten_at, now)}): ${describeMeal(m)}`).join('\n')}`
       : 'No ha registrado comidas todavía.',

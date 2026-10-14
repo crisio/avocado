@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Button, Card, Notice, PageHeader, RadioCard, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
 import { Mascot } from '../components/Mascot'
+import { getInviteCode } from '../lib/invite'
 import { cheer, greetOnce } from '../lib/mascot'
 import { api } from '../lib/api'
 import type { Role, User } from '../lib/types'
@@ -10,7 +11,7 @@ import type { Role, User } from '../lib/types'
 export default function Onboarding() {
   const { user, setUser, signOut } = useAuth()
   const [fullName, setFullName] = useState(user?.full_name ?? '')
-  const [role, setRole] = useState<Role>('patient')
+  const [role, setRole] = useState<Role>('patient') // con código de invitación pendiente también empieza en paciente
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -39,6 +40,7 @@ export default function Onboarding() {
       <PageHeader eyebrow={user?.email} title="¡Bienvenida/o!" />
       <Card as="form" padding="lg" onSubmit={onSubmit}>
         <TextField label="¿Cómo te llamas?" value={fullName} onChange={(e) => setFullName(e.target.value)} required autoComplete="name" autoFocus />
+        {getInviteCode() && <p className="invite-banner">Te invitaron a compartir tus comidas con tu nutrióloga.</p>}
         <fieldset style={{ border: 0, margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <legend className="av-field__label" style={{ marginBottom: 6 }}>
             Soy…

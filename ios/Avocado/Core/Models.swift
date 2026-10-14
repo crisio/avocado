@@ -17,6 +17,12 @@ struct User: Codable, Equatable {
     var aiConsentAt: String?
     /// Objetivo: bajar de peso, mantener o subir (volumen). Define la comida libre de la semana.
     var goal: Goal?
+    /// Metas de macros en gramos (las pone su nutrióloga).
+    var proteinGGoal: Int?
+    var carbsGGoal: Int?
+    var fatGGoal: Int?
+    /// Quién puso las metas: si no es nil, las puso su nutrióloga y el paciente no las edita.
+    var goalsSetBy: String?
 }
 
 enum Goal: String, Codable, CaseIterable, Identifiable {

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { createMiddleware } from 'hono/factory'
-import type { AppEnv, Env, User } from './env'
+import { USER_COLUMNS, type AppEnv, type Env, type User } from './env'
 import { hmac, randomCode, randomToken, safeEqual, sha256 } from './crypto'
 import { loginCodeMail, sendMail } from './email'
 import { fail } from './errors'
@@ -92,9 +92,21 @@ authRoutes.post('/verify', async (c) => {
   }
 
   await c.env.DB.prepare('DELETE FROM auth_codes WHERE email = ?').bind(email).run()
-  let user = await c.env.DB.prepare('SELECT id, email, full_name, role, daily_kcal_goal, ai_consent_at, goal FROM users WHERE email = ?').bind(email).first<User>()
+  let user = await c.env.DB.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE email = ?`).bind(email).first<User>()
   if (!user) {
-    user = { id: crypto.randomUUID(), email, full_name: null, role: null, daily_kcal_goal: null, ai_consent_at: null, goal: null }
+    user = {
+      id: crypto.randomUUID(),
+      email,
+      full_name: null,
+      role: null,
+      daily_kcal_goal: null,
+      ai_consent_at: null,
+      goal: null,
+      protein_g_goal: null,
+      carbs_g_goal: null,
+      fat_g_goal: null,
+      goals_set_by: null,
+    }
     await c.env.DB.prepare('INSERT INTO users (id, email) VALUES (?, ?)').bind(user.id, email).run()
   }
 
@@ -114,7 +126,7 @@ export const requireUser = createMiddleware<AppEnv>(async (c, next) => {
   const hash = await sha256(token)
   const now = Date.now()
   const row = await c.env.DB.prepare(
-    `SELECT u.id, u.email, u.full_name, u.role, u.daily_kcal_goal, u.ai_consent_at, u.goal, s.refreshed_at
+    `SELECT ${USER_COLUMNS.split(', ').map((c) => `u.${c}`).join(', ')}, s.refreshed_at
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ? AND s.expires_at > ?`,
   )

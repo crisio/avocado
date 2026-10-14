@@ -138,18 +138,24 @@ struct MacroChips: View {
     let protein: Double
     let carbs: Double
     let fat: Double
+    /// Metas en gramos (opcionales): con meta, cada chip muestra "74 / 120 g".
+    var proteinGoal: Int?
+    var carbsGoal: Int?
+    var fatGoal: Int?
 
     var body: some View {
         HStack(spacing: 8) {
-            chip("Proteína", protein, Color(hex: 0x8DBB6A))
-            chip("Carbs", carbs, Color(hex: 0xF2C14E))
-            chip("Grasa", fat, Color(hex: 0xEE8E7E))
+            chip("Proteína", protein, proteinGoal, Color(hex: 0x8DBB6A))
+            chip("Carbs", carbs, carbsGoal, Color(hex: 0xF2C14E))
+            chip("Grasa", fat, fatGoal, Color(hex: 0xEE8E7E))
         }
     }
 
-    private func chip(_ label: String, _ grams: Double, _ color: Color) -> some View {
+    private func chip(_ label: String, _ grams: Double, _ goal: Int?, _ color: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(Fmt.grams(grams)).font(.display(19, relativeTo: .headline)).foregroundStyle(Theme.ink)
+            Text(goal.map { "\(Int(grams.rounded())) / \($0) g" } ?? Fmt.grams(grams))
+                .font(.display(19, relativeTo: .headline)).foregroundStyle(Theme.ink)
+                .lineLimit(1).minimumScaleFactor(0.7)
             HStack(spacing: 5) {
                 Circle().fill(color).frame(width: 8, height: 8)
                 Text(label).font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)

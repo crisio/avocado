@@ -1,10 +1,11 @@
-import { useRef, useState, useEffect, type FormEvent } from 'react'
+import { useRef, useState, useEffect, useSyncExternalStore, type FormEvent } from 'react'
 import { Button, Card, CodeInput, Notice, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
 import InstallCard from '../components/InstallCard'
 import { Mascot } from '../components/Mascot'
 import PrivacyLink from '../components/PrivacyLink'
 import { api } from '../lib/api'
+import { getInviteCode, onInviteChange } from '../lib/invite'
 import { cheer, greetOnce } from '../lib/mascot'
 import type { User } from '../lib/types'
 
@@ -19,6 +20,8 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null)
   const [wait, setWait] = useState(0)
   const codeInput = useRef<HTMLInputElement>(null)
+  // Llegó con el enlace de una nutrióloga (el nombre solo se ve ya con sesión).
+  const invited = useSyncExternalStore(onInviteChange, getInviteCode) !== null
 
   useEffect(() => {
     const t = setTimeout(() => greetOnce('login', () => cheer('wave', '¡Hola! Soy Avo')), 600)
@@ -70,6 +73,11 @@ export default function Login() {
       <header className="mascot-hero" style={{ flexDirection: 'column', gap: 6, textAlign: 'center' }}>
         <Mascot size={112} reactive interactive bubble="top" />
         <h1 className="av-page-header__title">Avocado</h1>
+        {invited && (
+          <p className="invite-banner" role="status">
+            Te invitaron a Avocado
+          </p>
+        )}
         <p className="av-text-muted" style={{ margin: 0 }}>
           Tus comidas en fotos, con seguimiento de tu nutrióloga.
         </p>

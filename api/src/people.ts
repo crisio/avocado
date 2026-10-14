@@ -30,6 +30,11 @@ peopleRoutes.patch('/me', async (c) => {
     role = body.role
   }
 
+  // Si su nutrióloga (vinculada) le puso las metas, solo ella las cambia.
+  const locked = !!user.goals_set_by && (await areLinked(c.env, user.id, user.goals_set_by))
+  if (locked && ((body.daily_kcal_goal !== undefined && body.daily_kcal_goal !== user.daily_kcal_goal) || (body.goal !== undefined && body.goal !== user.goal)))
+    fail(403, 'Tu meta y tu objetivo los puso tu nutrióloga. Pídele a ella si quieres cambiarlos.')
+
   // Meta diaria de calorías: vacía (sin meta) o un número razonable.
   let goal = user.daily_kcal_goal
   if (body.daily_kcal_goal !== undefined) {
@@ -84,7 +89,11 @@ peopleRoutes.delete('/me', async (c) => {
 peopleRoutes.get('/users/:id', async (c) => {
   const id = c.req.param('id')
   if (id !== c.var.user.id && !(await areLinked(c.env, c.var.user.id, id))) fail(404, 'No encontrado')
-  const user = await c.env.DB.prepare('SELECT id, email, full_name, role FROM users WHERE id = ?').bind(id).first<User>()
+  const user = await c.env.DB.prepare(
+    'SELECT id, email, full_name, role, daily_kcal_goal, goal, protein_g_goal, carbs_g_goal, fat_g_goal, goals_set_by FROM users WHERE id = ?',
+  )
+    .bind(id)
+    .first<User>()
   if (!user) fail(404, 'No encontrado')
   return c.json(user)
 })
@@ -115,11 +124,17 @@ peopleRoutes.post('/care/nutritionists', async (c) => {
 })
 
 peopleRoutes.delete('/care/nutritionists/:id', async (c) => {
-  await c.env.DB.prepare('DELETE FROM care_links WHERE patient_id = ? AND nutritionist_id = ?')
-    .bind(c.var.user.id, c.req.param('id'))
-    .run()
+  await unlink(c.env, c.var.user.id, c.req.param('id'))
   return c.json({ ok: true })
 })
+
+/** Desvincula y, si esa nutrióloga le había puesto las metas, el paciente las puede volver a cambiar (se quedan como estaban). */
+async function unlink(env: AppEnv['Bindings'], patientId: string, nutritionistId: string) {
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM care_links WHERE patient_id = ? AND nutritionist_id = ?').bind(patientId, nutritionistId),
+    env.DB.prepare('UPDATE users SET goals_set_by = NULL WHERE id = ? AND goals_set_by = ?').bind(patientId, nutritionistId),
+  ])
+}
 
 // ── Nutrióloga → sus pacientes ──
 peopleRoutes.get('/care/patients', async (c) => {
@@ -133,8 +148,6 @@ peopleRoutes.get('/care/patients', async (c) => {
 })
 
 peopleRoutes.delete('/care/patients/:id', async (c) => {
-  await c.env.DB.prepare('DELETE FROM care_links WHERE nutritionist_id = ? AND patient_id = ?')
-    .bind(c.var.user.id, c.req.param('id'))
-    .run()
+  await unlink(c.env, c.req.param('id'), c.var.user.id)
   return c.json({ ok: true })
 })

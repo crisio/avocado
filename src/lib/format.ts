@@ -51,7 +51,13 @@ export function displayName(p: { full_name: string | null; email?: string } | nu
   return p?.full_name || p?.email || 'Sin nombre'
 }
 
-export const firstName = (name: string | null | undefined) => (name ?? '').trim().split(/\s+/)[0] ?? ''
+const TITLES = new Set(['lic', 'lic.', 'licda', 'licda.', 'dra', 'dra.', 'dr', 'dr.', 'mtra', 'mtra.', 'mtro', 'mtro.', 'nut', 'nut.', 'ln', 'l.n.'])
+
+/** "Mariana" de "Lic. Mariana López" (se salta títulos como Lic., Dra., Dr., Mtra., Nut.). */
+export function firstName(name: string | null | undefined) {
+  const words = (name ?? '').trim().split(/\s+/).filter(Boolean)
+  return words.find((w) => !TITLES.has(w.toLowerCase())) ?? words[0] ?? ''
+}
 
 /** Lunes de la semana de `date` (las semanas empiezan en lunes). */
 export function startOfWeek(date: Date) {

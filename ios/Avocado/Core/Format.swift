@@ -106,8 +106,11 @@ enum Fmt {
     static func days(_ n: Int) -> String { "\(n) \(n == 1 ? "día" : "días")" }
     static func daysInARow(_ n: Int) -> String { "\(n) \(n == 1 ? "día seguido" : "días seguidos")" }
 
+    /// "Mariana" de "Lic. Mariana López" (se salta títulos como Lic., Dra., Dr., Mtra., Nut.).
     static func firstName(_ name: String?) -> String {
-        (name ?? "").trimmingCharacters(in: .whitespaces).split(separator: " ").first.map(String.init) ?? ""
+        let titles: Set<String> = ["lic", "lic.", "licda", "licda.", "dra", "dra.", "dr", "dr.", "mtra", "mtra.", "mtro", "mtro.", "nut", "nut.", "ln", "l.n."]
+        let words = (name ?? "").split(separator: " ").map(String.init)
+        return words.first { !titles.contains($0.lowercased()) } ?? words.first ?? ""
     }
 
     /// Minutos de diferencia con UTC, como Date.getTimezoneOffset() en la web (la API de rachas lo pide así).

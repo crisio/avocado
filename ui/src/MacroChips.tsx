@@ -7,21 +7,23 @@ export interface MacroChipsProps {
   carbs: number
   /** Grasa en gramos. */
   fat: number
+  /** Metas en gramos (opcionales). Con meta el chip dice "74 / 120 g"; sin ella, solo "74 g". */
+  goals?: { protein?: number | null; carbs?: number | null; fat?: number | null }
 }
 
 /** Los tres macronutrientes del día como chips ("82 g proteína · 130 g carbs · 41 g grasa"). */
-export function MacroChips({ protein, carbs, fat }: MacroChipsProps) {
+export function MacroChips({ protein, carbs, fat, goals }: MacroChipsProps) {
   const items = [
-    { value: protein, label: 'proteína' },
-    { value: carbs, label: 'carbs' },
-    { value: fat, label: 'grasa' },
+    { value: protein, goal: goals?.protein, label: 'proteína' },
+    { value: carbs, goal: goals?.carbs, label: 'carbs' },
+    { value: fat, goal: goals?.fat, label: 'grasa' },
   ]
   return (
     <ul className="av-macro-chips" aria-label="Macronutrientes">
       {items.map((m) => (
         <li key={m.label}>
           <Chip>
-            <strong>{Math.round(m.value)} g</strong> {m.label}
+            <strong>{m.goal ? `${Math.round(m.value)} / ${Math.round(m.goal)} g` : `${Math.round(m.value)} g`}</strong> {m.label}
           </Chip>
         </li>
       ))}

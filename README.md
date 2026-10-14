@@ -7,7 +7,7 @@ ve tu día para dejarte indicaciones. Algo como Whoop, pero para nutrición y co
 
 **App:** https://avocadoapp.cristopherpineda.com (se instala en el teléfono como app)
 
-## Qué hace hoy (v0.5)
+## Qué hace hoy (v0.6)
 
 Los cambios de cada versión están en [CHANGELOG.md](CHANGELOG.md). La web, la API y la app de iOS llevan la misma versión.
 
@@ -16,7 +16,7 @@ Los cambios de cada versión están en [CHANGELOG.md](CHANGELOG.md). La web, la 
 - **Registrar comida:** tomas la foto (o la eliges de la galería), pones la hora y una nota opcional.
 - **Análisis con IA** (vía [OpenRouter](https://openrouter.ai)): alimentos, porciones, calorías, proteína, carbohidratos y grasa.
 - **Mi día:** comidas con horas y totales; puedes navegar a días anteriores.
-- **Nutrióloga:** ve a sus pacientes y el día de cada uno, y comenta cada comida. Los comentarios aparecen solos, sin recargar.
+- **Nutrióloga** (web e iOS, gratis en la beta): tablero de pacientes con alertas, metas de calorías y macros por paciente, invitaciones con enlace o QR, reporte de 7 días en PDF y comentarios en cada comida.
 - **¿Cómo te sientes?:** con hambre, ansioso/a, lleno/a, sin energía…, tu energía y si vas con tu plan. Avo te aconseja con la hora, tu última comida y cómo te has sentido; la nutrióloga lo ve.
 - **Patrones de la semana:** horarios (primera y última comida, huecos largos, cenas tarde), ánimo y, con la IA, qué cambiar.
 - **Chat con Avo** por texto o audio (4.ª pestaña): si le cuentas cómo te sientes, lo anota. La conversación es privada.

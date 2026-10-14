@@ -13,6 +13,10 @@ struct ProfileView: View {
     @State private var askConsent = false
     @State private var confirmRevoke = false
     @State private var unlinking: Person?
+    @State private var inviteCode = ""
+    @State private var joining: Person?
+    @State private var joinCode = ""
+    @State private var route = AppRoute.shared
 
     private let api = APIClient.shared
 
@@ -44,6 +48,9 @@ struct ProfileView: View {
                 Text(session.user?.email ?? "")
             }
 
+            if let user = session.user, user.goalsSetBy != nil {
+                lockedGoals(user)
+            } else {
             Section {
                 TextField("Ej. 1800", text: $goal).keyboardType(.numberPad)
                 Button("Guardar meta") { Task { await saveGoal() } }
@@ -66,6 +73,7 @@ struct ProfileView: View {
             } footer: {
                 Text("Con tu meta y tu objetivo, Avo calcula tu saldo de la semana y si te alcanza para una comida libre.")
             }
+            }
 
             Section {
                 if nutritionists.isEmpty {
@@ -81,6 +89,10 @@ struct ProfileView: View {
                         Button("Quitar", role: .destructive) { unlinking = n }.buttonStyle(.borderless)
                     }
                 }
+                TextField("Código de invitación", text: $inviteCode)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                Button("Unirme") { Task { await lookup(inviteCode) } }.disabled(busy != nil || inviteCode.trimmingCharacters(in: .whitespaces).isEmpty)
                 TextField("Correo de tu nutrióloga", text: $nutriEmail)
                     .keyboardType(.emailAddress)
                     .textContentType(.emailAddress)
@@ -89,6 +101,8 @@ struct ProfileView: View {
                 Button("Vincular") { Task { await link() } }.disabled(busy != nil || !nutriEmail.contains("@"))
             } header: {
                 Text("Mi nutrióloga")
+            } footer: {
+                Text("Pídele a tu nutrióloga su código de invitación, o vincúlala con su correo.")
             }
 
             Section {
@@ -137,6 +151,23 @@ struct ProfileView: View {
             Button("Quitar", role: .destructive) { Task { await unlink(n) } }
         } message: { n in
             Text("\(n.displayName) ya no verá tus comidas.")
+        }
+        .alert(
+            "¿Compartir tus comidas?",
+            isPresented: Binding(get: { joining != nil }, set: { if !$0 { joining = nil } }),
+            presenting: joining
+        ) { n in
+            Button("Compartir") { Task { await join(n) } }
+            Button("Cancelar", role: .cancel) {}
+        } message: { n in
+            Text("¿Compartir tus comidas con Lic. \(n.displayName)? Podrá ver tus fotos, tu ánimo y dejarte comentarios.")
+        }
+        // Enlace avocado://invitar/CODIGO: abre la misma confirmación.
+        .onChange(of: route.inviteCode, initial: true) {
+            guard let code = route.inviteCode else { return }
+            route.inviteCode = nil
+            inviteCode = code
+            Task { await lookup(code) }
         }
         .task {
             name = session.user?.fullName ?? ""
@@ -214,6 +245,51 @@ struct ProfileView: View {
             await loadNutritionists()
             cheer(.celebrate, "¡Listo! Ya puede ver tus comidas")
             return nil
+        }
+    }
+
+    /// Primero se muestra quién es la nutrióloga de ese código y se pide confirmar.
+    private func lookup(_ raw: String) async {
+        let code = raw.trimmingCharacters(in: .whitespaces).uppercased()
+        guard !code.isEmpty else { return }
+        await run("lookup") {
+            let who: Person = try await api.request("GET", "/care/invite/\(code)")
+            joinCode = code
+            joining = who
+            return nil
+        }
+    }
+
+    private func join(_ n: Person) async {
+        await run("join") {
+            let _: OKResponse = try await api.request("POST", "/care/invite/\(joinCode)")
+            inviteCode = ""
+            await loadNutritionists()
+            await session.refresh()
+            cheer(.celebrate, "¡Listo! Ya puede ver tus comidas")
+            return nil
+        }
+    }
+
+    /// Metas puestas por la nutrióloga: solo lectura.
+    @ViewBuilder private func lockedGoals(_ user: User) -> some View {
+        Section {
+            LabeledContent("Meta diaria", value: user.dailyKcalGoal.map { Fmt.kcal(Double($0)) } ?? "Sin meta")
+            if let g = user.proteinGGoal { LabeledContent("Proteína", value: "\(g) g") }
+            if let g = user.carbsGGoal { LabeledContent("Carbohidratos", value: "\(g) g") }
+            if let g = user.fatGGoal { LabeledContent("Grasa", value: "\(g) g") }
+        } header: {
+            Text("Tu meta diaria")
+        } footer: {
+            Text("Las puso tu nutrióloga.")
+        }
+
+        Section {
+            LabeledContent("Objetivo", value: user.goal?.label ?? "Sin objetivo")
+        } header: {
+            Text("Tu objetivo")
+        } footer: {
+            Text("Las puso tu nutrióloga.")
         }
     }
 

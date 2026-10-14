@@ -1006,3 +1006,68 @@ describe('Saldo de la semana y comida libre', () => {
     expect(system).toContain('Comida libre (cheat meal)')
   })
 })
+
+describe('Vista de la nutrióloga', () => {
+  it('invita con código, fija las metas del paciente y el paciente ya no las cambia', async () => {
+    const nutri = await login('nutri-vista@gmail.com', { full_name: 'Lic. Vista', role: 'nutritionist' })
+    const patient = await login('paciente-vista@gmail.com', { full_name: 'Paciente Vista', role: 'patient' })
+    const patientId = (await call('/me', { token: patient })).data.id
+
+    // Solo la nutrióloga tiene código; siempre es el mismo.
+    expect((await call('/care/invite', { token: patient })).status).toBe(403)
+    const invite = await call('/care/invite', { token: nutri })
+    expect(invite.data.code).toMatch(/^[A-Z2-9]{8}$/)
+    expect(invite.data.url).toContain(`/invitar/${invite.data.code}`)
+    expect((await call('/care/invite', { token: nutri })).data.code).toBe(invite.data.code)
+
+    expect((await call('/care/invite/NOEXISTE', { token: patient })).status).toBe(404)
+    expect((await call(`/care/invite/${invite.data.code.toLowerCase()}`, { token: patient })).data.full_name).toBe('Lic. Vista')
+    expect((await call(`/care/invite/${invite.data.code}`, { method: 'POST', token: nutri })).status).toBe(403)
+    expect((await call(`/care/invite/${invite.data.code}`, { method: 'POST', token: patient })).status).toBe(201)
+    expect((await call('/care/nutritionists', { token: patient })).data).toHaveLength(1)
+
+    // Metas: validación, solo la nutrióloga vinculada.
+    const stranger = await login('otra-nutri@gmail.com', { full_name: 'Otra', role: 'nutritionist' })
+    expect((await call(`/care/patients/${patientId}/goals`, { method: 'PATCH', token: stranger, json: { daily_kcal_goal: 1800 } })).status).toBe(404)
+    expect((await call(`/care/patients/${patientId}/goals`, { method: 'PATCH', token: nutri, json: { daily_kcal_goal: 100 } })).status).toBe(400)
+    expect((await call(`/care/patients/${patientId}/goals`, { method: 'PATCH', token: nutri, json: { goal: 'flaco' } })).status).toBe(400)
+    const goals = await call(`/care/patients/${patientId}/goals`, {
+      method: 'PATCH',
+      token: nutri,
+      json: { daily_kcal_goal: 1800, goal: 'bajar', protein_g_goal: 120, carbs_g_goal: 180, fat_g_goal: 60 },
+    })
+    expect(goals.data).toMatchObject({ daily_kcal_goal: 1800, goal: 'bajar', protein_g_goal: 120, set_by_me: true })
+    const me = (await call('/me', { token: patient })).data
+    expect(me).toMatchObject({ daily_kcal_goal: 1800, goal: 'bajar', protein_g_goal: 120, carbs_g_goal: 180, fat_g_goal: 60 })
+    expect(me.goals_set_by).toBeTruthy()
+
+    // El paciente no las cambia (pero sí su nombre); si la desvincula, ya puede.
+    expect((await call('/me', { method: 'PATCH', token: patient, json: { daily_kcal_goal: 2500 } })).status).toBe(403)
+    expect((await call('/me', { method: 'PATCH', token: patient, json: { goal: 'subir' } })).status).toBe(403)
+    expect((await call('/me', { method: 'PATCH', token: patient, json: { full_name: 'Nuevo' } })).status).toBe(200)
+    const nutriId = (await call('/me', { token: nutri })).data.id
+    await call(`/care/nutritionists/${nutriId}`, { method: 'DELETE', token: patient })
+    expect((await call('/me', { token: patient })).data).toMatchObject({ daily_kcal_goal: 1800, goals_set_by: null })
+    expect((await call('/me', { method: 'PATCH', token: patient, json: { daily_kcal_goal: 2000 } })).data.daily_kcal_goal).toBe(2000)
+  })
+
+  it('tablero: cómo va cada paciente y alertas primero', async () => {
+    const nutri = await login('nutri-tablero@gmail.com', { full_name: 'Lic. Tablero', role: 'nutritionist' })
+    const code = (await call('/care/invite', { token: nutri })).data.code
+    const ok = await login('va-bien@gmail.com', { full_name: 'Ana Bien', role: 'patient' })
+    const quiet = await login('sin-registro@gmail.com', { full_name: 'Beto Callado', role: 'patient' })
+    for (const t of [ok, quiet]) await call(`/care/invite/${code}`, { method: 'POST', token: t })
+    await call('/meals', { method: 'POST', token: ok, body: photoForm({ eaten_at: new Date().toISOString() }) })
+    await call('/moods', { method: 'POST', token: ok, json: { feelings: ['mal'], on_plan: 'no' } })
+
+    expect((await call('/care/dashboard', { token: ok })).status).toBe(403)
+    const board = await call('/care/dashboard?offset=0', { token: nutri })
+    expect(board.status).toBe(200)
+    const [first, second] = board.data.patients
+    // Los dos tienen alertas; Ana tiene más (se sintió mal y va fuera del plan).
+    expect(first).toMatchObject({ full_name: 'Ana Bien', today: { meals: 1 }, streak: { current: 1, logged_today: true } })
+    expect(first.alerts.map((a: { kind: string }) => a.kind)).toEqual(['mal', 'fuera_plan'])
+    expect(second.full_name).toBe('Beto Callado')
+    expect(second.alerts).toEqual([{ kind: 'sin_registro', text: 'Todavía no registra comidas' }])
+  })
+})
