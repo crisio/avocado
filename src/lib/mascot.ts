@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import type { AvoStyle } from './types'
 
 /**
  * Avo, la mascota (el aguacate del logo). Cada estado de ánimo es una tira de 4 cuadros en public/mascot/<ánimo>.png.
@@ -126,16 +127,21 @@ const seen = new Map<string, MealState>()
  * Avo celebra cuando una comida que se está viendo pasa de "en cola" o "analizando" a lista (o avisa si falló).
  * El primer vistazo a cada comida no cuenta: al abrir la app no se celebran las comidas de antes.
  */
-export function watchMeal(id: string, state: MealState, calories?: number | null) {
+export function watchMeal(id: string, state: MealState, calories?: number | null, avoText?: string | null) {
   const prev = seen.get(id)
   if (prev === 'analyzed' && (state === 'pending' || state === 'queued')) return
   seen.set(id, state)
   if (!prev || prev === state) return
   const waiting = prev === 'queued' || prev === 'pending'
-  if (state === 'analyzed' && waiting) cheer('celebrate', calories ? `¡Listo! ${Math.round(calories)} kcal` : '¡Listo!')
+  if (state === 'analyzed' && waiting) {
+    const kcal = calories ? `${Math.round(calories)} kcal` : null
+    // Si Avo comentó la foto, dice eso (con las kcal si caben en el globo).
+    if (avoText) cheer('celebrate', kcal && avoText.length <= 60 ? `${kcal} · ${avoText}` : avoText)
+    else cheer('celebrate', kcal ? `¡Listo! ${kcal}` : '¡Listo!')
+  }
   else if (state === 'error' && waiting) cheer('oops', 'No pude analizar la foto')
   else if (state === 'failed') cheer('oops', 'No se pudo enviar la foto')
-  else if (state === 'pending' && prev === 'queued') cheer('think', 'Analizando tu comida…')
+  else if (state === 'pending' && prev === 'queued') cheer('think', picante() ? 'A ver qué te comiste… 🧐' : 'Analizando tu comida…')
 }
 
 /** Saludos que ya se hicieron en esta visita (uno por pantalla). */
@@ -149,9 +155,42 @@ export function greetOnce(key: string, fn: () => void) {
 /** De noche Avo tiene sueño. */
 export const isNight = (date = new Date()) => date.getHours() >= 22 || date.getHours() < 6
 
+/**
+ * Personalidad de Avo del paciente que usa la app (la fija AuthProvider). Los nutriólogos no la tienen:
+ * sus frases no cambian. Sin dato, picante, que es el valor por defecto.
+ */
+let avoStyle: AvoStyle = 'tranquilo'
+export function setAvoStyle(style: AvoStyle | undefined, role: string | null | undefined) {
+  avoStyle = role === 'patient' ? (style ?? 'picante') : 'tranquilo'
+}
+const picante = () => avoStyle === 'picante'
+
+const pick = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)]
+
 export function greeting(name: string | null, date = new Date()): { mood: Mood; message: string } {
   const h = date.getHours()
   const who = name ? `, ${name}` : ''
+  if (picante()) {
+    if (isNight(date))
+      return {
+        mood: 'sleepy',
+        message: pick([`Ya es tarde${who}. Si vas al refri, que sea con foto 👀`, `¿Todavía en pie${who}? Yo ya ni parpadeo`, `Hora de dormir${who}. La foto del último snack, mañana te la perdono`]),
+      }
+    if (h < 12)
+      return {
+        mood: 'wave',
+        message: pick([`¿Ya desayunaste o vas a vivir de puro café otra vez${who}?`, `Buenos días${who}. Tu desayuno no se va a fotografiar solo`, `Arriba${who}. Yo ya estoy listo, falta tu foto`]),
+      }
+    if (h < 19)
+      return {
+        mood: 'wave',
+        message: pick([`¿Y el almuerzo${who}? No me digas que se te pasó otra vez`, `Buenas tardes${who}. Me debes fotos, ¿eh?`, `Ya pasó el mediodía${who}. ¿Comiste o solo lo pensaste?`]),
+      }
+    return {
+      mood: 'wave',
+      message: pick([`Buenas noches${who}. ¿La cena va con foto o con misterio?`, `Cena temprano${who}, y con foto, que luego no te acuerdas`, `Noche de cenar${who}. Yo aquí esperando tu foto como: 🧍`]),
+    }
+  }
   if (isNight(date)) return { mood: 'sleepy', message: `Ya es tarde${who}… ¡a descansar!` }
   if (h < 12) return { mood: 'wave', message: `¡Buenos días${who}!` }
   if (h < 19) return { mood: 'wave', message: `¡Buenas tardes${who}!` }
@@ -166,6 +205,15 @@ const TAPS: Line[] = [
   { mood: 'eat', message: '¿Ya comiste?' },
   { mood: 'think', message: 'Mmm… ¿qué cenamos hoy?' },
   { mood: 'love', message: 'Una foto por comida y listo' },
+]
+const TAPS_PICANTE: Line[] = [
+  { mood: 'wave', message: '¿Me picas? Mejor pícale a registrar tu comida' },
+  { mood: 'think', message: 'Yo aquí esperando tu foto como: 🧍' },
+  { mood: 'eat', message: '¿Comiste y no me avisaste? Qué bonito' },
+  { mood: 'celebrate', message: 'Una foto por comida. No es tan difícil, ¿o sí?' },
+  { mood: 'love', message: 'Anda, que ya hasta me dio hambre a mí' },
+  { mood: 'think', message: '"Luego la subo" dijiste. Ajá' },
+  { mood: 'wave', message: 'Dime que esa comida ya tiene foto 👀' },
 ]
 const TAPS_NUTRITIONIST: Line[] = [
   { mood: 'wave', message: '¡Hola! Soy Avo' },
@@ -186,7 +234,7 @@ export function tapMascot(role: 'patient' | 'nutritionist' | null = null) {
     recentTaps = []
     return cheer('oops', '¡Jaja, cosquillas!', { interrupt: true, tap: true })
   }
-  const lines = role === 'nutritionist' ? TAPS_NUTRITIONIST : TAPS
+  const lines = role === 'nutritionist' ? TAPS_NUTRITIONIST : picante() ? TAPS_PICANTE : TAPS
   tapIndex++
   const { mood, message } = lines[tapIndex % lines.length]
   cheer(mood, message, { interrupt: true, tap: true })

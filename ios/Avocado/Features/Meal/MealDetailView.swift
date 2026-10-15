@@ -173,6 +173,10 @@ struct MealDetailView: View {
 
         if needsConsent { AiConsentView() }
 
+        if meal.status == .analyzed, isOwner, let note = meal.analysis?.avo, !note.text.isEmpty {
+            AvoSaysCard(note: note)
+        }
+
         if meal.status == .analyzed {
             PortionsCard(
                 meal: meal,
@@ -249,7 +253,7 @@ struct MealDetailView: View {
             let fresh: Meal = try await api.request("GET", "/meals/\(mealId)")
             guard !savingPortions, !correcting, !retrying else { return }
             if let before = meal, before.status == .pending, fresh.userId == session.user?.id {
-                if fresh.status == .analyzed { cheer(.celebrate, "¡Listo! \(Fmt.kcal(fresh.calories))") }
+                if fresh.status == .analyzed { cheer(.celebrate, fresh.analyzedLine(own: true)) }
                 if fresh.status == .error { cheer(.oops, "No pude analizarla") }
             }
             meal = fresh
@@ -333,7 +337,7 @@ struct MealDetailView: View {
         let previous = meal?.status
         meal?.status = .pending
         do {
-            let updated: Meal = try await api.request("POST", "/meals/\(mealId)/analyze", timeout: 90)
+            let updated: Meal = try await api.request("POST", "/meals/\(mealId)/analyze", query: ["offset": String(Fmt.timezoneOffset)], timeout: 90)
             apply(updated)
         } catch {
             if let previous { meal?.status = previous }
@@ -452,5 +456,24 @@ struct PortionsCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// "Avo dice": lo que Avo opina de esta foto, con su GIF. Solo lo ve el paciente.
+struct AvoSaysCard: View {
+    let note: AvoNote
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            MascotView(mood: .love, size: 48, pose: 0)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Avo dice").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.accentStrong)
+                Text(note.text).font(.body).foregroundStyle(Theme.ink)
+                if let gif = note.gif { GifView(gif: gif) }
+            }
+            Spacer(minLength: 0)
+        }
+        .card()
+        .accessibilityElement(children: .contain)
     }
 }

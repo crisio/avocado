@@ -26,4 +26,5 @@
   // Secretos (no van aquí): AUTH_SECRET, RESEND_API_KEY, OPENROUTER_API_KEY
   // (o GMAIL_USER y GMAIL_APP_PASSWORD si usas EMAIL_MODE "smtp")
   // Opcionales, para la revisión de la App Store: REVIEW_EMAIL y REVIEW_CODE (ver docs/app-store.md)
+  // Opcional: GIPHY_API_KEY para los GIF de Avo (developers.giphy.com); sin ella, Avo contesta sin GIF
 }

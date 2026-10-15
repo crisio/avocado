@@ -1,8 +1,10 @@
 import { Hono } from 'hono'
-import type { AppEnv } from './env'
+import type { AppEnv, User } from './env'
 import { chat, num, requireAiConsent, toBase64 } from './ai'
 import { fail } from './errors'
 import { describeBudget, weekBudget } from './budget'
+import { findGif, gifQueryOf, type Gif } from './gifs'
+import { avoVoice, GIF_FIELD } from './voice'
 
 /**
  * "¿Me lo como?": el paciente le toma foto a un antojo y Avo le dice cuántas calorías tiene y cuánto le conviene
@@ -14,7 +16,8 @@ const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 export const VERDICTS = ['adelante', 'un_poco', 'compartelo', 'mejor_no'] as const
 export type Verdict = (typeof VERDICTS)[number]
 
-export const CRAVING_PROMPT = `Eres Avo, el compañero de nutrición de la app Avocado: cálido, cercano y práctico (español de México/Centroamérica, tutea).
+export const cravingPrompt = (user: Pick<User, 'avo_style'>) => `Eres Avo, el compañero de nutrición de la app Avocado.
+${avoVoice(user)}
 El paciente tiene un antojo y te manda una foto para decidir si se lo come y cuánto. NO se registra en su día: solo quiere tu consejo.
 
 Tu objetivo es educar sobre el valor calórico de las cosas y ayudarle a darse el gusto con conciencia, nunca restringir ni culpar:
@@ -30,12 +33,13 @@ Tu objetivo es educar sobre el valor calórico de las cosas y ayudarle a darse e
 - "question": si no puedes saber qué es y eso cambia mucho las calorías (p. ej. tipo de pastel o relleno), haz UNA pregunta corta; si no, cadena vacía. Aun así da tu mejor estimación.
 - Si la foto no es comida, "name" vacío, calorías 0, explica en "message" y pregunta qué quería consultar.
 - Si el paciente dice qué es o responde tu pregunta, confía en eso.
+- ${GIF_FIELD}
 Responde SOLO con el JSON pedido.`
 
 const CRAVING_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['name', 'portion_g', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'verdict', 'suggested_fraction', 'message', 'tips', 'question', 'confidence'],
+  required: ['name', 'portion_g', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'verdict', 'suggested_fraction', 'message', 'tips', 'question', 'confidence', 'gif'],
   properties: {
     name: { type: 'string' },
     portion_g: { type: 'number' },
@@ -49,6 +53,7 @@ const CRAVING_SCHEMA = {
     tips: { type: 'array', items: { type: 'string' } },
     question: { type: 'string' },
     confidence: { type: 'number' },
+    gif: { type: 'string' },
   },
 }
 
@@ -68,6 +73,8 @@ export interface Craving {
   question: string | null
   confidence: number
   model: string
+  /** GIF de GIPHY con que Avo remata (lo agrega la ruta, no el modelo). */
+  gif?: Gif | null
 }
 
 export function parseCraving(text: string, model: string): Craving {
@@ -175,7 +182,7 @@ cravingRoutes.post('/', async (c) => {
     const { text: reply, model } = await chat(
       c.env,
       [
-        { role: 'system', content: CRAVING_PROMPT },
+        { role: 'system', content: cravingPrompt(user) },
         {
           role: 'user',
           content: [
@@ -186,7 +193,8 @@ cravingRoutes.post('/', async (c) => {
       ],
       { type: 'json_schema', json_schema: { name: 'craving_advice', strict: true, schema: CRAVING_SCHEMA } },
     )
-    return c.json({ ...parseCraving(reply, model), today: { consumed, meals, pending, goal, remaining } })
+    const gif = await findGif(c.env, gifQueryOf(reply))
+    return c.json({ ...parseCraving(reply, model), gif, today: { consumed, meals, pending, goal, remaining } })
   } catch (err) {
     console.error('craving', err instanceof Error ? err.message : err)
     fail(502, 'Avo no pudo ver tu antojo ahorita. Intenta de nuevo en un momento.')

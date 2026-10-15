@@ -1,8 +1,9 @@
 import { Hono } from 'hono'
-import type { AppEnv, Env } from './env'
+import type { AppEnv, Env, User } from './env'
 import { canSee } from './access'
 import { AI_CONSENT_REQUIRED, analyzePhoto, correctAnalysis, fraction, requireAiConsent, withTotals, type Analysis } from './ai'
 import { fail } from './errors'
+import { patientContext } from './moods'
 import { signedPhotoUrl } from './photos'
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024
@@ -81,12 +82,20 @@ async function saveError(env: Env, mealId: string, message: string) {
     .run()
 }
 
-/** Corre el análisis y guarda el resultado (o el error) en la comida. */
-async function runAnalysis(env: Env, meal: MealRow) {
+/** offset del teléfono (minutos, como getTimezoneOffset); null si la app no lo mandó (versiones viejas). */
+function phoneOffset(value: unknown) {
+  if (value === null || value === undefined || value === '') return null
+  const offset = Number(value)
+  return Number.isInteger(offset) && Math.abs(offset) <= 14 * 60 ? offset : null
+}
+
+/** Corre el análisis y guarda el resultado (o el error) en la comida. Con la hora del teléfono, Avo comenta con contexto. */
+async function runAnalysis(env: Env, meal: MealRow, user: User, offset: number | null) {
   try {
     const photo = await env.PHOTOS.get(meal.photo_key)
     if (!photo) throw new Error('No se encontró la foto')
-    const result = await analyzePhoto(env, await photo.arrayBuffer(), photo.httpMetadata?.contentType ?? 'image/jpeg', meal.note)
+    const context = offset === null ? [] : [...(await patientContext(env, user, offset)), 'La foto es su comida más reciente (todavía sin analizar).']
+    const result = await analyzePhoto(env, await photo.arrayBuffer(), photo.httpMetadata?.contentType ?? 'image/jpeg', meal.note, user, context)
     await saveAnalysis(env, meal.id, result)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -119,7 +128,7 @@ mealRoutes.get('/', async (c) => {
   return c.json(await Promise.all(results.map((m) => toMeal(c.env, origin, m))))
 })
 
-// Nueva comida: multipart con photo, eaten_at y note.
+// Nueva comida: multipart con photo, eaten_at, note y offset (para que Avo sepa la hora del teléfono).
 mealRoutes.post('/', async (c) => {
   const form = await c.req.formData().catch(() => fail(400, 'Formulario inválido'))
   const photo = form.get('photo')
@@ -152,7 +161,7 @@ mealRoutes.post('/', async (c) => {
   // analyze=1: el análisis arranca aquí mismo y sigue aunque el teléfono pierda la conexión. Sin permiso para la IA
   // (p. ej. una comida que esperaba en la cola desde antes de pedirlo) se guarda igual, con el aviso como error.
   if (form.get('analyze') === '1') {
-    if (c.var.user.ai_consent_at) c.executionCtx.waitUntil(runAnalysis(c.env, (await getMeal(c.env, id))!))
+    if (c.var.user.ai_consent_at) c.executionCtx.waitUntil(runAnalysis(c.env, (await getMeal(c.env, id))!, c.var.user, phoneOffset(form.get('offset'))))
     else await saveError(c.env, id, AI_CONSENT_REQUIRED)
   }
   return c.json(await toMeal(c.env, origin, (await getMeal(c.env, id))!), 201)
@@ -173,14 +182,14 @@ mealRoutes.get('/:id', async (c) => {
   return c.json({ ...(await toMeal(c.env, new URL(c.req.url).origin, meal)), comments })
 })
 
-// Analizar con IA (solo el dueño). Si la app se cierra a medio análisis, waitUntil lo deja terminar.
+// Analizar con IA (solo el dueño), ?offset= del teléfono. Si la app se cierra a medio análisis, waitUntil lo deja terminar.
 mealRoutes.post('/:id/analyze', async (c) => {
   const meal = await getMeal(c.env, c.req.param('id'))
   if (!meal || meal.user_id !== c.var.user.id) fail(404, 'No encontramos esta comida')
   requireAiConsent(c.var.user)
 
   await c.env.DB.prepare(`UPDATE meals SET status = 'pending' WHERE id = ?`).bind(meal.id).run()
-  const job = runAnalysis(c.env, meal)
+  const job = runAnalysis(c.env, meal, c.var.user, phoneOffset(c.req.query('offset')))
   c.executionCtx.waitUntil(job)
   await job
 

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { api, getToken, setToken, setUnauthorizedHandler } from './lib/api'
 import { clearCache } from './lib/cache'
+import { setAvoStyle } from './lib/mascot'
 import { clearOutbox, pendingCount } from './lib/outbox'
 import type { User } from './lib/types'
 
@@ -42,6 +43,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     cacheUser(next)
     setUserState(next)
   }
+
+  // Las frases de la mascota dependen de la personalidad de Avo que eligió el paciente.
+  setAvoStyle(user?.avo_style, user?.role)
 
   useEffect(() => {
     setUnauthorizedHandler(() => {

@@ -106,6 +106,7 @@ final class Outbox {
         if let note = job.note { form.add("note", note) }
         form.add("client_id", job.id)
         form.add("analyze", "1")
+        form.add("offset", String(Fmt.timezoneOffset))
         let _: Meal = try await APIClient.shared.request("POST", "/meals", form: form, timeout: 60)
     }
 

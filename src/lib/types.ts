@@ -1,5 +1,19 @@
 export type Role = 'patient' | 'nutritionist'
 
+/** Personalidad de Avo que elige el paciente: picante (sarcástico, con memes y GIF) o tranquilo (amable). */
+export type AvoStyle = 'picante' | 'tranquilo'
+
+/** Un GIF de GIPHY. `webp` es animado (se muestra con <img>); `still` es el primer cuadro. */
+export interface Gif {
+  id: string
+  webp: string
+  mp4: string
+  still: string
+  width: number
+  height: number
+  title: string
+}
+
 export interface User {
   id: string
   email: string
@@ -17,6 +31,8 @@ export interface User {
   fat_g_goal?: number | null
   /** Id de la nutrióloga que fijó las metas (null = las puso el propio paciente). */
   goals_set_by?: string | null
+  /** Personalidad de Avo (ausente = picante). */
+  avo_style?: AvoStyle
 }
 
 export type Goal = 'bajar' | 'mantener' | 'subir'
@@ -64,6 +80,8 @@ export interface Analysis {
   confidence?: number
   model?: string
   error?: string
+  /** Lo que Avo dice de esta foto (las comidas viejas no lo traen). */
+  avo?: { text: string; gif: Gif | null } | null
 }
 
 export interface Meal {
@@ -114,6 +132,7 @@ export interface Craving {
   tips: string[]
   /** Pregunta de Avo si no supo bien qué es (o null). */
   question: string | null
+  gif: Gif | null
   confidence: number
   /** pending: comidas de hoy que aún no tienen calorías (analizándose, sin análisis o en el teléfono). */
   today: { consumed: number; meals: number; pending: number; goal: number | null; remaining: number | null }
@@ -126,6 +145,7 @@ export type OnPlan = 'si' | 'a_medias' | 'no'
 export interface MoodAdvice {
   message: string
   tips: string[]
+  gif?: Gif | null
   model: string
 }
 
@@ -163,6 +183,7 @@ export interface AvoMessage {
   via_audio: boolean
   mood_id: string | null
   created_at: string
+  gif: Gif | null
   /** Lo que Avo anotó de cómo se siente con este mensaje. */
   mood: Mood | null
 }

@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, Icon, Notice, Screen } from '@avocado/ui'
 import { useAuth } from '../auth'
 import AiConsentCard from '../components/AiConsent'
+import Gif from '../components/Gif'
 import { Mascot } from '../components/Mascot'
 import { api } from '../lib/api'
 import { firstName, formatTime } from '../lib/format'
@@ -217,6 +218,7 @@ export default function AvoChat() {
           <li key={m.id} className={`avo-msg avo-msg--${m.role}`}>
             {m.via_audio && <span className="avo-msg__audio">🎙️ Audio</span>}
             <p>{m.body}</p>
+            {m.gif && <Gif gif={m.gif} />}
             {m.mood && (
               <span className="avo-msg__mood">
                 Anoté: {m.mood.feelings.map((f) => `${feelingOf(f).emoji} ${feelingOf(f).label}`).join(' · ')}

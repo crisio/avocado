@@ -75,6 +75,14 @@ extension Meal {
         return "\(eaten) · \(Int((proteinG ?? 0).rounded())) g proteína"
     }
 
+    /// Lo que dice Avo al terminar de analizar la comida: "¡Listo! 520 kcal", o su comentario de la foto si lo hay.
+    func analyzedLine(own: Bool) -> String {
+        let done = "¡Listo! \(Fmt.kcal(calories))"
+        guard own, let text = analysis?.avo?.text.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return done }
+        // Igual que la web: con las kcal solo si el texto es corto.
+        return text.count <= 60 ? "\(Fmt.kcal(calories)) · \(text)" : text
+    }
+
     var consumed: Totals { Totals(calories: calories ?? 0, proteinG: proteinG ?? 0, carbsG: carbsG ?? 0, fatG: fatG ?? 0) }
 
     /// La misma comida con otras porciones: recalcula lo comido y lo servido como la API (para pintar al instante).

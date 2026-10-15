@@ -1,5 +1,7 @@
 import type { Env, User } from './env'
 import { fail } from './errors'
+import { findGif, gifQueryOf, type Gif } from './gifs'
+import { avoVoice, GIF_FIELD } from './voice'
 
 // Analiza la foto de una comida con un modelo de visión vía OpenRouter.
 // Modelo: ver AI_MODELS en wrangler.jsonc (elegido por precisión en fotos de comida, velocidad y costo).
@@ -39,6 +41,16 @@ Devuelve el análisis corregido:
 - No cambies los alimentos que no menciona.
 ${ANSWER_FORMAT}`
 
+/** Lo que Avo le dice al paciente al ver la foto (con su personalidad) y el GIF con que lo remata. */
+const AVO_FIELDS = `Al objeto JSON de arriba agrégale además:
+- "avo": lo que Avo le dice al paciente al ver ESTA foto, 1 o 2 frases cortas con su personalidad: un remate sobre la comida, la hora o lo que lleva hoy (usa el contexto) y, si sirve, un consejo práctico. Nunca digas que algo es "malo", "prohibido" o "trampa" ni hables de culpa o de quemarlo con ejercicio. Si la foto no es comida, búrlate de eso.
+- ${GIF_FIELD}`
+
+export interface AvoNote {
+  text: string
+  gif: Gif | null
+}
+
 export interface Item {
   name: string
   portion_g: number
@@ -64,6 +76,8 @@ export interface Analysis {
   model: string
   /** Última corrección del paciente, si la hubo. */
   correction?: string
+  /** Comentario de Avo sobre la foto (las comidas analizadas antes de la 1.0 no lo tienen). */
+  avo?: AvoNote | null
 }
 
 export function toBase64(buf: ArrayBuffer) {
@@ -141,25 +155,33 @@ const nutrients = {
   carbs_g: { type: 'number' },
   fat_g: { type: 'number' },
 } as const
+const ANALYSIS_PROPERTIES = {
+  items: {
+    type: 'array',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['name', 'portion_g', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'eaten'],
+      properties: { name: { type: 'string' }, portion_g: { type: 'number' }, ...nutrients, eaten: { type: 'number' } },
+    },
+  },
+  total: { type: 'object', additionalProperties: false, required: ['calories', 'protein_g', 'carbs_g', 'fat_g'], properties: nutrients },
+  meal_type: { type: 'string', enum: ['desayuno', 'comida', 'cena', 'snack', 'bebida'] },
+  summary: { type: 'string' },
+  confidence: { type: 'number' },
+} as const
 const ANALYSIS_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: ['items', 'total', 'meal_type', 'summary', 'confidence'],
-  properties: {
-    items: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['name', 'portion_g', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'eaten'],
-        properties: { name: { type: 'string' }, portion_g: { type: 'number' }, ...nutrients, eaten: { type: 'number' } },
-      },
-    },
-    total: { type: 'object', additionalProperties: false, required: ['calories', 'protein_g', 'carbs_g', 'fat_g'], properties: nutrients },
-    meal_type: { type: 'string', enum: ['desayuno', 'comida', 'cena', 'snack', 'bebida'] },
-    summary: { type: 'string' },
-    confidence: { type: 'number' },
-  },
+  properties: ANALYSIS_PROPERTIES,
+}
+/** La foto nueva también trae lo que dice Avo (las correcciones no: el comentario es sobre la foto). */
+const PHOTO_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: [...ANALYSIS_SCHEMA.required, 'avo', 'gif'],
+  properties: { ...ANALYSIS_PROPERTIES, avo: { type: 'string' }, gif: { type: 'string' } },
 }
 
 /** Opciones de la petición, compartidas con scripts/bench-models.ts para medir exactamente lo que corre en producción. */
@@ -183,7 +205,7 @@ export function modelList(env: Env) {
  * Una llamada a OpenRouter con nuestras opciones (y otro formato de respuesta si se pide). Regresa el texto y el
  * modelo que contestó.
  */
-export async function chat(env: Env, messages: unknown[], responseFormat: unknown = REQUEST_OPTIONS.response_format) {
+export async function chat(env: Env, messages: unknown[], responseFormat: unknown = REQUEST_OPTIONS.response_format, options: { temperature?: number } = {}) {
   const apiKey = env.OPENROUTER_API_KEY
   const models = modelList(env)
   if (!apiKey) throw new Error('Falta el secreto OPENROUTER_API_KEY')
@@ -197,7 +219,7 @@ export async function chat(env: Env, messages: unknown[], responseFormat: unknow
       'Content-Type': 'application/json',
       'X-Title': 'Avocado',
     },
-    body: JSON.stringify({ model, ...(fallbacks.length ? { models } : {}), ...REQUEST_OPTIONS, response_format: responseFormat, messages }),
+    body: JSON.stringify({ model, ...(fallbacks.length ? { models } : {}), ...REQUEST_OPTIONS, ...options, response_format: responseFormat, messages }),
   })
 
   if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`)
@@ -213,17 +235,39 @@ async function complete(env: Env, messages: unknown[]): Promise<Analysis> {
   return parseAnalysis(text, model)
 }
 
-export function analyzePhoto(env: Env, photo: ArrayBuffer, contentType: string, note: string | null): Promise<Analysis> {
-  return complete(env, [
-    { role: 'system', content: SYSTEM_PROMPT },
-    {
-      role: 'user',
-      content: [
-        { type: 'text', text: note ? `Nota del paciente: ${note}` : 'Analiza esta comida.' },
-        { type: 'image_url', image_url: { url: `data:${contentType};base64,${toBase64(photo)}` } },
-      ],
-    },
-  ])
+/**
+ * Analiza la foto y, en la misma llamada, escribe lo que Avo le dice al paciente. `context` (hora, lo que lleva hoy,
+ * sus últimas comidas) solo sirve para el comentario.
+ */
+export async function analyzePhoto(
+  env: Env,
+  photo: ArrayBuffer,
+  contentType: string,
+  note: string | null,
+  user: Pick<User, 'avo_style'>,
+  context: string[] = [],
+): Promise<Analysis> {
+  const { text, model } = await chat(
+    env,
+    [
+      { role: 'system', content: `${SYSTEM_PROMPT}\n\n${avoVoice(user)}\n${AVO_FIELDS}` },
+      {
+        role: 'user',
+        content: [
+          ...(context.length
+            ? [{ type: 'text', text: `Contexto del paciente (solo para el comentario de Avo; NO lo sumes al análisis):\n${context.join('\n')}` }]
+            : []),
+          { type: 'text', text: note ? `Nota del paciente: ${note}` : 'Analiza esta comida.' },
+          { type: 'image_url', image_url: { url: `data:${contentType};base64,${toBase64(photo)}` } },
+        ],
+      },
+    ],
+    { type: 'json_schema', json_schema: { name: 'meal_analysis', strict: true, schema: PHOTO_SCHEMA } },
+  )
+  const analysis = parseAnalysis(text, model)
+  const raw = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)) as { avo?: unknown }
+  const said = typeof raw.avo === 'string' ? raw.avo.trim().slice(0, 400) : ''
+  return { ...analysis, avo: said ? { text: said, gif: await findGif(env, gifQueryOf(text)) } : null }
 }
 
 /** Corrige un análisis con lo que cuenta el paciente ("me dejé la mitad…"). Solo texto: no vuelve a mandar la foto. */
@@ -243,5 +287,5 @@ export async function correctAnalysis(env: Env, previous: Analysis, correction: 
     },
   ])
   // La confianza de la foto se conserva: la corrección no la vuelve a ver.
-  return { ...result, confidence: previous.confidence || result.confidence, correction }
+  return { ...result, confidence: previous.confidence || result.confidence, correction, avo: previous.avo ?? null }
 }

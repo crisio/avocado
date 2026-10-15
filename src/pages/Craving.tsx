@@ -4,6 +4,7 @@ import { Button, Card, Notice, PageHeader, PhotoPicker, Screen, Segmented, TextF
 import { useAuth } from '../auth'
 import AiConsentCard from '../components/AiConsent'
 import { celebrateMeal } from '../components/Celebration'
+import Gif from '../components/Gif'
 import { Mascot } from '../components/Mascot'
 import TopBar from '../components/TopBar'
 import { api, ApiError } from '../lib/api'
@@ -285,6 +286,7 @@ function Advice({ craving: c, photoUrl, busy, online, answer, onAnswerChange, on
           ))}
 
         <p className="craving__message">{c.message}</p>
+        {c.gif && <Gif gif={c.gif} />}
         {c.tips.length > 0 && (
           <ul className="craving__tips">
             {c.tips.map((tip) => (

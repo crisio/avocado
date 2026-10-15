@@ -7,6 +7,7 @@ import { cheer } from '../lib/mascot'
 import { FEELINGS, notifyMoodsChanged } from '../lib/moods'
 import { useOnline } from '../lib/useOnline'
 import type { Feeling, Mood } from '../lib/types'
+import Gif from './Gif'
 import { Mascot } from './Mascot'
 import Swipeable from './Swipeable'
 
@@ -89,7 +90,10 @@ export default function MoodCheckIn({ mealId, title = '¿Cómo te sientes?', rem
                 {close}
               </div>
               {saved.advice ? (
-                <p style={{ margin: 0 }}>{saved.advice.message}</p>
+                <>
+                  <p style={{ margin: 0 }}>{saved.advice.message}</p>
+                  {saved.advice.gif && <Gif gif={saved.advice.gif} />}
+                </>
               ) : user.ai_consent_at ? (
                 <p className="av-text-muted" style={{ margin: 0 }}>
                   Quedó guardado y tu nutrióloga lo verá.

@@ -95,6 +95,7 @@ struct MoodCheckInView: View {
                     }
                     if let advice = mood.advice {
                         Text(advice.message).font(.body).foregroundStyle(Theme.ink)
+                        if let gif = advice.gif { GifView(gif: gif) }
                     } else {
                         Text(hasConsent
                             ? "Quedó guardado y tu nutrióloga lo verá."

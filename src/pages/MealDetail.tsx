@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, Chip, CommentBubble, EmptyState, Notice, NutritionTable, Screen, TextField } from '@avocado/ui'
 import AiConsentCard from '../components/AiConsent'
+import Gif from '../components/Gif'
+import { Mascot } from '../components/Mascot'
 import MoodCheckIn from '../components/MoodCheckIn'
 import PhotoViewer from '../components/PhotoViewer'
 import Portions from '../components/Portions'
@@ -61,7 +63,7 @@ export default function MealDetail() {
       ? data.status
       : null
   useEffect(() => {
-    if (mealState) watchMeal(id, mealState, data?.calories)
+    if (mealState) watchMeal(id, mealState, data?.calories, data?.analysis?.avo?.text)
   }, [id, mealState])
 
   async function sendComment(e: FormEvent) {
@@ -80,7 +82,7 @@ export default function MealDetail() {
     cheer('think', 'Lo intento otra vez…', { interrupt: true })
     mutate((prev) => (prev ? { ...prev, status: 'pending' } : prev))
     try {
-      const updated = await api<Meal>(`/meals/${id}/analyze`, { method: 'POST', timeoutMs: 90_000 })
+      const updated = await api<Meal>(`/meals/${id}/analyze?offset=${new Date().getTimezoneOffset()}`, { method: 'POST', timeoutMs: 90_000 })
       mutate((prev) => (prev ? { ...prev, ...updated } : prev))
     } catch (err) {
       mutate((prev) => (prev ? { ...prev, status: data.status } : prev))
@@ -238,6 +240,19 @@ export default function MealDetail() {
           {!a.items?.length && (
             <p className="av-nutrition__note">Estimación con IA: puede equivocarse y no es consejo médico. Sigue las indicaciones de tu nutrióloga.</p>
           )}
+        </Card>
+      )}
+
+      {meal.status === 'analyzed' && isOwner && !job && a?.avo?.text && (
+        <Card padding="lg" as="section" aria-label="Avo dice">
+          <div className="avo-says">
+            <Mascot size={48} play="love" pose={0} />
+            <div className="avo-says__body app-stack" style={{ gap: 6 }}>
+              <h2 className="av-section-title">Avo dice</h2>
+              <p style={{ margin: 0 }}>{a.avo.text}</p>
+              {a.avo.gif && <Gif gif={a.avo.gif} />}
+            </div>
+          </div>
         </Card>
       )}
 

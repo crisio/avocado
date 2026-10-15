@@ -139,6 +139,7 @@ struct AvoChatView: View {
         let mine = m.role == .user
         VStack(alignment: mine ? .trailing : .leading, spacing: 4) {
             bubble(m.body, mine: mine, audio: m.viaAudio)
+            if let gif = m.gif { GifView(gif: gif) }
             if let mood = m.mood {
                 Text("Anoté: " + mood.feelings.map { "\($0.emoji) \($0.label)" }.joined(separator: " · ") + (mood.energy.map { " · Energía \($0)/5" } ?? ""))
                     .font(.caption.weight(.semibold))

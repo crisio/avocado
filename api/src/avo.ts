@@ -1,8 +1,10 @@
 import { Hono } from 'hono'
-import type { AppEnv } from './env'
+import type { AppEnv, User } from './env'
 import { chat, requireAiConsent, toBase64 } from './ai'
 import { fail } from './errors'
+import { findGif, parseGif } from './gifs'
 import { FEELINGS, insertMood, isFeeling, isPlan, patientContext, toMood, type MoodRow } from './moods'
+import { avoVoice, CHATTY, GIF_FIELD } from './voice'
 
 /**
  * Platicar con Avo por texto o audio. Avo contesta como compañero (con la hora, sus comidas y cómo se ha sentido) y,
@@ -16,7 +18,8 @@ const MAX_PER_DAY = 150
 const HISTORY = 16
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export const AVO_CHAT_PROMPT = `Eres Avo, el aguacate compañero de nutrición de la app Avocado. Platicas con el paciente como en un chat de WhatsApp: cálido, cercano, práctico y un poquito bromista, como el búho de Duolingo pero nunca cruel (español de México/Centroamérica, tutea).
+export const avoChatPrompt = (user: Pick<User, 'avo_style'>) => `Eres Avo, el aguacate compañero de nutrición de la app Avocado. Platicas con el paciente como en un chat de WhatsApp.
+${avoVoice(user)}
 Tu meta: que entienda sus patrones y mejore QUÉ come y A QUÉ HORA, y que se sienta acompañado para seguir registrando sus comidas.
 - Respuestas cortas: 1 a 4 frases. Una sola pregunta a la vez y solo si ayuda.
 - Usa el contexto (hora, cuánto hace de su última comida y qué fue, lo que lleva hoy contra su meta, cómo se ha sentido) y menciónalo cuando sirva ("comiste hace 5 horas…").
@@ -27,16 +30,18 @@ Tu meta: que entienda sus patrones y mejore QUÉ come y A QUÉ HORA, y que se si
 - Si menciona hacerse daño, atracones con culpa, vomitar o dejar de comer a propósito, responde con mucho cuidado, sin consejos de dieta, y anímale a buscar ayuda profesional y a hablar con alguien de confianza o con su nutrióloga.
 Además del texto, devuelve:
 - "transcript": si el paciente mandó audio, lo que dijo, transcrito tal cual en español; si escribió, cadena vacía.
+- ${GIF_FIELD} En el chat, más o menos en uno de cada tres mensajes, no en todos.
 - "mood": si en este mensaje cuenta cómo se siente AHORITA (o después de su última comida), "log": true, con "feelings" de la lista (bien, con_hambre, con_antojo, lleno, ansioso, cansado, mal), "energy" de 1 a 5 si habla de su energía (0 si no), "on_plan" ("si", "a_medias", "no") si dice si va con su plan ("" si no) y "note" con un resumen corto en sus palabras. Si no habla de cómo se siente, "log": false, "feelings": [], "energy": 0, "on_plan": "" y "note": "".
 Responde SOLO con el JSON pedido.`
 
 const CHAT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['transcript', 'reply', 'mood'],
+  required: ['transcript', 'reply', 'gif', 'mood'],
   properties: {
     transcript: { type: 'string' },
     reply: { type: 'string' },
+    gif: { type: 'string' },
     mood: {
       type: 'object',
       additionalProperties: false,
@@ -59,6 +64,8 @@ interface MessageRow {
   body: string
   via_audio: number
   mood_id: string | null
+  /** GIF de GIPHY con que Avo remató su mensaje (JSON), o null. */
+  gif: string | null
   created_at: string
 }
 
@@ -74,7 +81,12 @@ async function withMoods(env: AppEnv['Bindings'], rows: MessageRow[]) {
       .all<MoodRow>()
     for (const m of results) moods.set(m.id, toMood(m))
   }
-  return rows.map(({ user_id: _, via_audio, ...r }) => ({ ...r, via_audio: Boolean(via_audio), mood: r.mood_id ? (moods.get(r.mood_id) ?? null) : null }))
+  return rows.map(({ user_id: _, via_audio, gif, ...r }) => ({
+    ...r,
+    via_audio: Boolean(via_audio),
+    gif: parseGif(gif),
+    mood: r.mood_id ? (moods.get(r.mood_id) ?? null) : null,
+  }))
 }
 
 // Conversación (lo más reciente): ?limit=50&before=<ISO>
@@ -141,16 +153,17 @@ avoRoutes.post('/messages', async (c) => {
     content.push({ type: 'input_audio', input_audio: { data: toBase64(await audio.arrayBuffer()), format: 'wav' } })
   }
 
-  let raw: { transcript?: unknown; reply?: unknown; mood?: Record<string, unknown> }
+  let raw: { transcript?: unknown; reply?: unknown; gif?: unknown; mood?: Record<string, unknown> }
   try {
     const { text: answer } = await chat(
       c.env,
       [
-        { role: 'system', content: `${AVO_CHAT_PROMPT}\n\nContexto:\n${context.join('\n')}` },
+        { role: 'system', content: `${avoChatPrompt(user)}\n\nContexto:\n${context.join('\n')}` },
         ...history.results.reverse().map((m) => ({ role: m.role === 'avo' ? 'assistant' : 'user', content: m.body })),
         { role: 'user', content },
       ],
       { type: 'json_schema', json_schema: { name: 'avo_chat', strict: true, schema: CHAT_SCHEMA } },
+      CHATTY,
     )
     const start = answer.indexOf('{')
     raw = JSON.parse(answer.slice(start, answer.lastIndexOf('}') + 1))
@@ -182,12 +195,16 @@ avoRoutes.post('/messages', async (c) => {
     moodId = mood.id
   }
 
+  // Si contó que se siente mal, nada de GIF aunque la IA haya elegido uno.
+  const serious = feelings.some((f) => f === 'mal' || f === 'ansioso')
+  const gif = serious ? null : await findGif(c.env, raw.gif)
+
   const now = Date.now()
-  const userMessage: MessageRow = { id: clientId || crypto.randomUUID(), user_id: user.id, role: 'user', body: said, via_audio: audio ? 1 : 0, mood_id: null, created_at: new Date(now).toISOString() }
-  const avoMessage: MessageRow = { id: crypto.randomUUID(), user_id: user.id, role: 'avo', body: reply, via_audio: 0, mood_id: moodId, created_at: new Date(now + 1).toISOString() }
-  const insert = 'INSERT INTO avo_messages (id, user_id, role, body, via_audio, mood_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  const userMessage: MessageRow = { id: clientId || crypto.randomUUID(), user_id: user.id, role: 'user', body: said, via_audio: audio ? 1 : 0, mood_id: null, gif: null, created_at: new Date(now).toISOString() }
+  const avoMessage: MessageRow = { id: crypto.randomUUID(), user_id: user.id, role: 'avo', body: reply, via_audio: 0, mood_id: moodId, gif: gif ? JSON.stringify(gif) : null, created_at: new Date(now + 1).toISOString() }
+  const insert = 'INSERT INTO avo_messages (id, user_id, role, body, via_audio, mood_id, gif, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   await c.env.DB.batch(
-    [userMessage, avoMessage].map((r) => c.env.DB.prepare(insert).bind(r.id, r.user_id, r.role, r.body, r.via_audio, r.mood_id, r.created_at)),
+    [userMessage, avoMessage].map((r) => c.env.DB.prepare(insert).bind(r.id, r.user_id, r.role, r.body, r.via_audio, r.mood_id, r.gif, r.created_at)),
   )
   const [mine, avo] = await withMoods(c.env, [userMessage, avoMessage])
   return c.json({ user: mine, avo, mood: avo.mood }, 201)

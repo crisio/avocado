@@ -2,6 +2,14 @@
 
 La web (PWA), la API y la app de iOS llevan la misma versión. Mientras la versión empiece con 0, la app sigue en pruebas.
 
+## 1.0.0 — 14 de octubre de 2026
+
+Primera versión para la App Store (solo Latinoamérica), gratis para todos.
+
+- **Avo picante** (web e iOS): Avo ahora es sarcástico, te echa carrilla con apodos y referencias a memes al ver cada foto, en el chat, en ¿Me lo como? y al registrar cómo te sientes. Nunca se burla de tu cuerpo ni de tu peso, y si te sientes mal se pone serio. Si prefieres el de antes, elige **Tranquilo** en Perfil → Personalidad de Avo.
+- **GIF de reacción** de GIPHY en sus respuestas (se ven quietos si el teléfono tiene «Reducir movimiento»).
+- Al terminar el análisis de una foto, Avo te dice qué opina de tu comida (con la hora de tu teléfono: sabe si es la pizza de medianoche).
+
 ## 0.6.1 — 14 de octubre de 2026
 
 - **Página de soporte** (`/soporte.html`) con contacto y preguntas frecuentes, para la ficha de la App Store.

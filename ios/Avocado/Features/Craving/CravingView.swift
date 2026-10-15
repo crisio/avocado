@@ -117,6 +117,7 @@ struct CravingView: View {
             }
 
             Text(c.message).font(.body).foregroundStyle(Theme.ink)
+            if let gif = c.gif { GifView(gif: gif) }
             if !c.tips.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(c.tips, id: \.self) { tip in

@@ -18,6 +18,8 @@ export interface Env {
   /** Cuenta para la revisión de la App Store: ese correo entra con REVIEW_CODE (6 dígitos) y no se le manda correo. */
   REVIEW_EMAIL?: string
   REVIEW_CODE?: string
+  /** Clave de la API de GIPHY para los GIF de Avo (sin ella, Avo contesta igual pero sin GIF). */
+  GIPHY_API_KEY?: string
 }
 
 export interface User {
@@ -37,9 +39,11 @@ export interface User {
   fat_g_goal: number | null
   /** Nutrióloga que fijó las metas: mientras estén vinculados, el paciente no las cambia. */
   goals_set_by: string | null
+  /** Personalidad de Avo: picante (sarcástico, con memes y GIF) o tranquilo. */
+  avo_style: 'picante' | 'tranquilo'
 }
 
 /** Columnas del usuario que viajan con la sesión y en /me. */
-export const USER_COLUMNS = 'id, email, full_name, role, daily_kcal_goal, ai_consent_at, goal, protein_g_goal, carbs_g_goal, fat_g_goal, goals_set_by'
+export const USER_COLUMNS = 'id, email, full_name, role, daily_kcal_goal, ai_consent_at, goal, protein_g_goal, carbs_g_goal, fat_g_goal, goals_set_by, avo_style'
 
 export type AppEnv = { Bindings: Env; Variables: { user: User; sessionHash: string } }

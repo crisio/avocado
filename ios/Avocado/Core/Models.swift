@@ -23,6 +23,54 @@ struct User: Codable, Equatable {
     var fatGGoal: Int?
     /// Quién puso las metas: si no es nil, las puso su nutrióloga y el paciente no las edita.
     var goalsSetBy: String?
+    /// Personalidad de Avo. Los perfiles guardados de antes no la traen: cuenta como picante.
+    var avoStyle: AvoStyle?
+
+    var style: AvoStyle { avoStyle ?? .picante }
+}
+
+/// Cómo habla Avo con el paciente. Mismos valores que la API (avo_style).
+enum AvoStyle: String, Codable, CaseIterable, Identifiable {
+    case picante, tranquilo
+
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .picante: "Picante 🌶️"
+        case .tranquilo: "Tranquilo 😌"
+        }
+    }
+
+    /// Un valor que esta versión no conoce no rompe el perfil: se toma como picante.
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = AvoStyle(rawValue: raw) ?? .picante
+    }
+
+    /// El estilo de quien tiene la sesión abierta (picante si aún no se sabe; la nutrióloga siempre ve el tranquilo).
+    static var current: AvoStyle {
+        guard let user = Session.shared.user, user.role != .nutritionist else { return .tranquilo }
+        return user.style
+    }
+}
+
+/// GIF de reacción de GIPHY que acompaña lo que dice Avo.
+struct Gif: Codable, Equatable {
+    var id: String
+    /// WebP animado.
+    var webp: String
+    var mp4: String
+    /// Primer cuadro (imagen fija).
+    var still: String
+    var width: Int
+    var height: Int
+    var title: String
+}
+
+/// Lo que Avo dice de una comida (solo en los análisis nuevos).
+struct AvoNote: Codable, Equatable {
+    var text: String
+    var gif: Gif?
 }
 
 enum Goal: String, Codable, CaseIterable, Identifiable {
@@ -138,6 +186,8 @@ struct Analysis: Codable, Equatable {
     var confidence: Double?
     var model: String?
     var error: String?
+    /// Lo que Avo dice de esta foto.
+    var avo: AvoNote?
 }
 
 struct LastComment: Codable, Equatable {
@@ -207,6 +257,7 @@ struct Craving: Codable, Equatable {
     var question: String?
     var confidence: Double
     var today: Today
+    var gif: Gif?
 
     /// Avo dijo que la foto no es comida (o no supo qué es).
     var isNotFood: Bool { name.isEmpty && calories == 0 }
@@ -299,6 +350,7 @@ enum OnPlan: String, Codable, CaseIterable, Identifiable {
 struct MoodAdvice: Codable, Equatable {
     var message: String
     var tips: [String]
+    var gif: Gif?
 }
 
 /// Un registro de cómo se siente (lo ve su nutrióloga).
@@ -361,6 +413,7 @@ struct AvoMessage: Codable, Identifiable, Equatable {
     var createdAt: String
     /// Lo que Avo anotó de cómo se siente con este mensaje.
     var mood: MoodEntry?
+    var gif: Gif?
 }
 
 struct AvoReply: Codable {

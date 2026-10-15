@@ -76,6 +76,22 @@ struct ProfileView: View {
             }
 
             Section {
+                Picker("Personalidad de Avo", selection: Binding(get: { session.user?.style ?? .picante }, set: { s in Task { await setStyle(s) } })) {
+                    ForEach(AvoStyle.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+                .disabled(busy != nil)
+            } header: {
+                Text("Personalidad de Avo")
+            } footer: {
+                Text(session.user?.style == .tranquilo
+                    ? "Tranquilo: amable y sin carrilla."
+                    : "Picante: sarcástico, con memes y GIF. Nunca se burla de tu cuerpo.")
+            }
+
+            Section {
                 if nutritionists.isEmpty {
                     Text("Vincula a tu nutrióloga para que vea tus comidas y te deje indicaciones.").foregroundStyle(Theme.muted)
                 }
@@ -223,6 +239,15 @@ struct ProfileView: View {
             try await session.update(["goal": goal.rawValue])
             let lines: [Goal: String] = [.bajar: "¡A bajar con todo!", .mantener: "¡A mantenernos!", .subir: "¡A ganar volumen!"]
             cheer(.love, lines[goal] ?? "¡Listo!")
+            return nil
+        }
+    }
+
+    private func setStyle(_ style: AvoStyle) async {
+        guard style != session.user?.style else { return }
+        await run("style") {
+            try await session.update(["avo_style": style.rawValue])
+            cheer(.love, style == .picante ? "Ahora sí, a darle con sabor 🌶️" : "Listo, me porto tranquilo")
             return nil
         }
     }

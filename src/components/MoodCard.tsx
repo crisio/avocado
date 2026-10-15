@@ -1,4 +1,5 @@
 import { Button } from '@avocado/ui'
+import Gif from './Gif'
 import { api } from '../lib/api'
 import { formatTime } from '../lib/format'
 import { feelingOf, notifyMoodsChanged, planLabel } from '../lib/moods'
@@ -36,6 +37,7 @@ export default function MoodCard({ mood, own }: { mood: Mood; own: boolean }) {
           <strong>Avo:</strong> {mood.advice.message}
         </p>
       )}
+      {own && mood.advice?.gif && <Gif gif={mood.advice.gif} />}
       {own && (
         <div>
           <Button variant="ghost" onClick={remove}>

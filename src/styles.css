@@ -2120,3 +2120,33 @@ body {
 .care-invite-more[open] > summary {
   margin-bottom: 12px;
 }
+
+/* ── GIF de Avo (GIPHY) y tarjeta "Avo dice" ── */
+.gif {
+  margin: 4px 0 0;
+  max-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gif__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  background: var(--av-surface);
+}
+.gif__credit {
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--av-muted);
+}
+.avo-says {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.avo-says__body {
+  flex: 1;
+  min-width: 0;
+}

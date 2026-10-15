@@ -52,3 +52,18 @@ En App Store Connect → **App Privacy**. Avocado no hace *tracking*, no tiene p
 | Identifiers → User ID | id interno de la cuenta |
 
 Si algún día agregas analítica, reportes de fallos o notificaciones con otro servicio, actualiza esta tabla y la política.
+
+## Clasificación por edad y Avo picante
+
+Desde la 1.0, Avo es sarcástico por omisión (se cambia a «Tranquilo» en Perfil) y remata con GIF de GIPHY. Al llenar el
+cuestionario de edad en App Store Connect:
+
+- **Lenguaje soez o humor crudo:** «Poco frecuente o leve» (Avo bromea y pone apodos, sin groserías; lo pide el prompt en
+  `api/src/voice.ts`).
+- **Acceso sin restricciones a la web:** No. Los GIF los elige el servidor con la clasificación `pg` de GIPHY; el usuario
+  no busca ni navega en GIPHY.
+- Los límites de Avo (nunca se burla del cuerpo ni del peso, cero sarcasmo si la persona se siente mal o menciona
+  atracones o dejar de comer) también están en `api/src/voice.ts`; si se cambian, revisar esta sección.
+- Con GIPHY_API_KEY de prueba (beta), GIPHY limita las búsquedas por hora; el servidor guarda cada búsqueda un día en
+  caché. Para más usuarios, pedir la clave de producción en developers.giphy.com (piden la atribución «vía GIPHY» que ya
+  muestran las apps).

@@ -4,6 +4,8 @@ import { canSee } from './access'
 import { chat } from './ai'
 import { fail } from './errors'
 import { describeBudget, weekBudget } from './budget'
+import { findGif, type Gif } from './gifs'
+import { avoVoice, CHATTY, GIF_FIELD } from './voice'
 
 /**
  * "¿Cómo te sientes?": el paciente registra cómo se siente (con hambre, ansioso, lleno…), su energía y si va con el
@@ -47,6 +49,8 @@ export interface Advice {
   message: string
   tips: string[]
   model: string
+  /** GIF de GIPHY con que Avo remata (nunca si se siente mal o ansioso). */
+  gif?: Gif | null
 }
 
 export const toMood = ({ feelings, advice, ...rest }: MoodRow) => ({
@@ -102,7 +106,8 @@ interface MealLine {
 const describeMeal = (m: MealLine) =>
   `${m.summary || m.note || 'comida sin descripción'}${m.status === 'analyzed' && m.calories ? ` (${Math.round(m.calories)} kcal)` : m.status !== 'analyzed' ? ' (sin calorías calculadas)' : ''}`
 
-export const MOOD_PROMPT = `Eres Avo, el compañero de nutrición de la app Avocado: cálido, cercano, práctico y un poquito bromista, como el búho de Duolingo pero nunca cruel (español de México/Centroamérica, tutea).
+export const moodPrompt = (user: Pick<User, 'avo_style'>) => `Eres Avo, el compañero de nutrición de la app Avocado.
+${avoVoice(user)}
 El paciente acaba de contarte cómo se siente. Tu meta es ayudarle a entender sus patrones y a mejorar QUÉ come y A QUÉ HORA.
 Usa el contexto: hora y día, cuánto hace de su última comida y qué fue, lo que lleva hoy contra su meta y cómo se ha sentido antes.
 - Con hambre: si hace muchas horas que no come, sugiere una comida o snack equilibrado (proteína + fibra) acorde a la hora; si comió hace poco, ayúdale a distinguir hambre real de antojo o sed.
@@ -115,16 +120,19 @@ Usa el contexto: hora y día, cuánto hace de su última comida y qué fue, lo q
 - Nunca uses "prohibido", "malo", "culpa" ni hables de quemar calorías con ejercicio. No des diagnósticos médicos.
 "message": 1 a 3 frases, por su nombre, mencionando algo concreto del contexto (p. ej. "comiste hace 5 horas").
 "tips": hasta 3 ideas cortas y prácticas para ahorita o para la próxima comida; lista vacía si no hacen falta.
+${GIF_FIELD}
 Responde SOLO con el JSON pedido.`
 
 const ADVICE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['message', 'tips'],
-  properties: { message: { type: 'string' }, tips: { type: 'array', items: { type: 'string' } } },
+  required: ['message', 'tips', 'gif'],
+  properties: { message: { type: 'string' }, tips: { type: 'array', items: { type: 'string' } }, gif: { type: 'string' } },
 }
 
-export const INSIGHTS_PROMPT = `Eres Avo, el compañero de nutrición de la app Avocado (español de México/Centroamérica, tutea, cálido y práctico).
+/** Con la voz del paciente si él lo pide; para su nutrióloga, profesional. */
+export const insightsPrompt = (voice: string) => `Eres Avo, el compañero de nutrición de la app Avocado.
+${voice}
 Te paso el registro de comidas y de cómo se sintió el paciente (hora local del teléfono). Encuentra sus PATRONES para que entienda cómo come y mejore qué come y a qué hora:
 - Horarios: a qué hora hace su primera y su última comida, si se salta comidas, huecos largos sin comer, cenas tarde, días distintos (fin de semana).
 - Relación comida ↔ cómo se siente: qué comidas van seguidas de sentirse lleno, mal, cansado o ansioso, y cuáles de sentirse bien.
@@ -231,15 +239,17 @@ async function adviseMood(env: Env, user: User, mood: ReturnType<typeof toMood>,
   const { text, model } = await chat(
     env,
     [
-      { role: 'system', content: MOOD_PROMPT },
+      { role: 'system', content: moodPrompt(user) },
       { role: 'user', content: context },
     ],
     { type: 'json_schema', json_schema: { name: 'mood_advice', strict: true, schema: ADVICE_SCHEMA } },
+    CHATTY,
   )
   const raw = parseJson(text)
   const message = String(raw.message ?? '').trim()
   if (!message) throw new Error('La IA no regresó consejo')
-  return { message, tips: strings(raw.tips, 3), model }
+  const serious = mood.feelings.some((f) => f === 'mal' || f === 'ansioso')
+  return { message, tips: strings(raw.tips, 3), model, gif: serious ? null : await findGif(env, raw.gif) }
 }
 
 /** Guarda un registro de ánimo ya validado y lo regresa. */
@@ -372,7 +382,10 @@ insightRoutes.get('/', async (c) => {
     const { text, model } = await chat(
       c.env,
       [
-        { role: 'system', content: INSIGHTS_PROMPT },
+        {
+          role: 'system',
+          content: insightsPrompt(userId === c.var.user.id ? avoVoice(owner) : 'Le hablas a su nutrióloga: tono profesional, claro y respetuoso, en español.'),
+        },
         { role: 'user', content: `${goal ? `Meta diaria: ${goal} kcal.\n` : ''}Registro:\n${log}` },
       ],
       { type: 'json_schema', json_schema: { name: 'eating_patterns', strict: true, schema: INSIGHTS_SCHEMA } },

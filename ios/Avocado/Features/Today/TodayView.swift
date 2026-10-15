@@ -295,7 +295,7 @@ struct DayMealsView<Extra: View>: View {
             // Avo celebra cuando una comida termina de analizarse mientras la ves.
             if let before = meals, loadedDay == requested {
                 for meal in fresh where meal.status != .pending && before.first(where: { $0.id == meal.id })?.status == .pending {
-                    if meal.status == .analyzed { cheer(.celebrate, "¡Listo! \(Fmt.kcal(meal.calories))") } else { cheer(.oops, "No pude analizar una foto") }
+                    if meal.status == .analyzed { cheer(.celebrate, meal.analyzedLine(own: meal.userId == session.user?.id)) } else { cheer(.oops, "No pude analizar una foto") }
                 }
             }
             meals = fresh

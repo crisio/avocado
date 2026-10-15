@@ -112,6 +112,7 @@ async function send(job: Job) {
     form.set('photo', job.photo, 'comida.jpg')
     form.set('eaten_at', job.eaten_at)
     form.set('analyze', '1')
+    form.set('offset', String(new Date().getTimezoneOffset()))
     if (job.note) form.set('note', job.note)
     await api('/meals', { method: 'POST', body: form, timeoutMs: 60_000 })
   } else {

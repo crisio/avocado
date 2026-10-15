@@ -106,6 +106,7 @@ authRoutes.post('/verify', async (c) => {
       carbs_g_goal: null,
       fat_g_goal: null,
       goals_set_by: null,
+      avo_style: 'picante',
     }
     await c.env.DB.prepare('INSERT INTO users (id, email) VALUES (?, ?)').bind(user.id, email).run()
   }

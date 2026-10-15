@@ -2,6 +2,8 @@ import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import app from '../src/index'
 import { devOutbox } from '../src/email'
+import { findGif } from '../src/gifs'
+import type { Env } from '../src/env'
 
 const BASE = 'https://api.test'
 const ORIGIN = 'https://crisio.github.io'
@@ -1069,5 +1071,124 @@ describe('Vista de la nutrióloga', () => {
     expect(first.alerts.map((a: { kind: string }) => a.kind)).toEqual(['mal', 'fuera_plan'])
     expect(second.full_name).toBe('Beto Callado')
     expect(second.alerts).toEqual([{ kind: 'sin_registro', text: 'Todavía no registra comidas' }])
+  })
+})
+
+describe('Personalidad de Avo y GIF', () => {
+  const aiReply = (content: unknown) =>
+    Response.json({ model: 'test/vision-model', choices: [{ message: { content: typeof content === 'string' ? content : JSON.stringify(content) } }] })
+  const sentOf = (spy: { mock: { calls: unknown[][] } }, i = 0) => JSON.parse(String((spy.mock.calls[i][1] as RequestInit).body))
+
+  it('picante por omisión; se cambia a tranquilo y se valida', async () => {
+    const token = await login('estilo@gmail.com', { full_name: 'Estilo', role: 'patient' })
+    expect((await call('/me', { token })).data.avo_style).toBe('picante')
+    expect((await call('/me', { method: 'PATCH', token, json: { avo_style: 'grosero' } })).status).toBe(400)
+    const res = await call('/me', { method: 'PATCH', token, json: { avo_style: 'tranquilo' } })
+    expect(res.status).toBe(200)
+    expect(res.data.avo_style).toBe('tranquilo')
+    expect((await call('/me', { token })).data.avo_style).toBe('tranquilo')
+  })
+
+  it('la foto trae lo que dice Avo, con su personalidad y la hora del teléfono; la corrección lo conserva', async () => {
+    const token = await login('roast@gmail.com', { full_name: 'Roberto Asado', role: 'patient' })
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      aiReply({
+        items: [{ name: 'Pizza', portion_g: 200, calories: 540, protein_g: 22, carbs_g: 60, fat_g: 22, eaten: 1 }],
+        total: { calories: 540, protein_g: 22, carbs_g: 60, fat_g: 22 },
+        meal_type: 'cena',
+        summary: 'Dos rebanadas de pizza',
+        confidence: 0.8,
+        avo: '¿Pizza a las 11 de la noche, Roberto? This is fine 🔥',
+        gif: 'this is fine',
+      }),
+    )
+    const meal = (await call('/meals', { method: 'POST', token, body: photoForm({ analyze: '1', offset: '360' }) })).data
+    const detail = (await call(`/meals/${meal.id}`, { token })).data
+    // Sin clave de GIPHY no hay GIF, pero el comentario sí.
+    expect(detail.analysis.avo).toEqual({ text: '¿Pizza a las 11 de la noche, Roberto? This is fine 🔥', gif: null })
+    expect(spy).toHaveBeenCalledTimes(1) // una sola llamada: análisis y comentario juntos
+    const sent = sentOf(spy)
+    expect(sent.messages[0].content).toContain('PICANTE')
+    expect(sent.messages[0].content).toContain('NUNCA de su cuerpo')
+    expect(sent.response_format.json_schema.schema.required).toEqual(expect.arrayContaining(['avo', 'gif']))
+    expect(sent.temperature).toBe(0.2) // el cálculo no se vuelve "creativo"
+    expect(sent.messages[1].content[0].text).toContain('Paciente: Roberto.')
+
+    // Sin offset (apps viejas) no inventa la hora; en tranquilo cambia la voz.
+    await call('/me', { method: 'PATCH', token, json: { avo_style: 'tranquilo' } })
+    spy.mockClear()
+    await call('/meals', { method: 'POST', token, body: photoForm({ analyze: '1' }) })
+    const quiet = sentOf(spy)
+    expect(quiet.messages[0].content).toContain('TRANQUILO')
+    expect(quiet.messages[1].content[0].text).not.toContain('Contexto del paciente')
+
+    spy.mockResolvedValue(
+      aiReply({
+        items: [{ name: 'Pizza', portion_g: 200, calories: 540, protein_g: 22, carbs_g: 60, fat_g: 22, eaten: 0.5 }],
+        meal_type: 'cena',
+        summary: 'Media pizza',
+        confidence: 0.8,
+      }),
+    )
+    const corrected = await call(`/meals/${meal.id}/correct`, { method: 'POST', token, json: { text: 'me comí la mitad' } })
+    expect(corrected.status).toBe(200)
+    expect(corrected.data.analysis.avo.text).toBe('¿Pizza a las 11 de la noche, Roberto? This is fine 🔥')
+  })
+
+  it('el chat, ¿Me lo como? y el ánimo usan la voz elegida; sin GIF si se siente mal', async () => {
+    const token = await login('voz@gmail.com', { full_name: 'Vale', role: 'patient' })
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      aiReply({ transcript: '', reply: 'Ah, bueno, ¿y el plan?', gif: 'disappointed', mood: { log: false, feelings: [], energy: 0, on_plan: '', note: '' } }),
+    )
+    const form = new FormData()
+    form.set('text', 'me comí tres donas')
+    const chat = await call('/avo/messages', { method: 'POST', token, body: form })
+    expect(chat.status).toBe(201)
+    expect(chat.data.avo).toMatchObject({ body: 'Ah, bueno, ¿y el plan?', gif: null })
+    const sent = sentOf(spy)
+    expect(sent.messages[0].content).toContain('PICANTE')
+    expect(sent.temperature).toBe(0.7)
+    expect(sent.response_format.json_schema.schema.required).toContain('gif')
+    expect((await call('/avo/messages', { token })).data.messages[1].gif).toBeNull()
+
+    spy.mockResolvedValue(aiReply({ message: 'Vale, respira.', tips: [], gif: 'hug' }))
+    const mood = await call('/moods', { method: 'POST', token, json: { feelings: ['mal'], offset: 360, advise: true } })
+    expect(mood.status).toBe(201)
+    expect(mood.data.advice).toMatchObject({ message: 'Vale, respira.', gif: null })
+    expect(sentOf(spy, 1).messages[0].content).toContain('cero sarcasmo')
+  })
+
+  it('busca el GIF en GIPHY, elige de los primeros y tolera fallas', async () => {
+    const giphy = { GIPHY_API_KEY: 'clave' } as Env
+    const item = (id: string) => ({
+      id,
+      title: `GIF ${id}`,
+      images: {
+        fixed_height: { webp: `https://media.giphy.com/${id}.webp`, mp4: `https://media.giphy.com/${id}.mp4`, width: '356', height: '200' },
+        fixed_height_still: { url: `https://media.giphy.com/${id}_s.gif` },
+      },
+    })
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ data: [item('a'), { id: 'roto', images: {} }] }))
+    expect(await findGif(giphy, 'this is fine')).toEqual({
+      id: 'a',
+      webp: 'https://media.giphy.com/a.webp',
+      mp4: 'https://media.giphy.com/a.mp4',
+      still: 'https://media.giphy.com/a_s.gif',
+      width: 356,
+      height: 200,
+      title: 'GIF a',
+    })
+    const url = new URL(String(spy.mock.calls[0][0]))
+    expect(url.origin + url.pathname).toBe('https://api.giphy.com/v1/gifs/search')
+    expect(url.searchParams.get('q')).toBe('this is fine')
+    expect(url.searchParams.get('rating')).toBe('pg')
+
+    expect(await findGif(giphy, '')).toBeNull()
+    expect(await findGif({} as Env, 'this is fine')).toBeNull()
+    expect(spy).toHaveBeenCalledTimes(1)
+    spy.mockResolvedValue(new Response('límite', { status: 429 }))
+    expect(await findGif(giphy, 'slow clap')).toBeNull()
+    spy.mockResolvedValue(Response.json({ data: [] }))
+    expect(await findGif(giphy, 'nada')).toBeNull()
   })
 })

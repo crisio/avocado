@@ -12,7 +12,7 @@ import { displayName, firstName, formatDay, formatNumber } from '../lib/format'
 import { parseInviteCode } from '../lib/invite'
 import { cheer } from '../lib/mascot'
 import { useOutbox } from '../lib/outbox'
-import type { Goal, Person, User } from '../lib/types'
+import type { AvoStyle, Goal, Person, User } from '../lib/types'
 
 export default function Settings() {
   const { user, setUser, signOut } = useAuth()
@@ -61,6 +61,8 @@ export default function Settings() {
       {user?.role === 'nutritionist' && <InviteCard />}
 
       {user?.role === 'patient' && (user.goals_set_by ? <LockedGoals /> : <DailyGoal />)}
+
+      {user?.role === 'patient' && <AvoStylePicker />}
 
       {user?.role === 'patient' && <MyNutritionists />}
 
@@ -264,6 +266,41 @@ function DailyGoal() {
         {saved ? 'Guardada' : 'Guardar meta'}
       </Button>
       <GoalPicker />
+    </Card>
+  )
+}
+
+const AVO_STYLE_OPTIONS: SegmentedOption<AvoStyle>[] = [
+  { value: 'picante', label: 'Picante 🌶️' },
+  { value: 'tranquilo', label: 'Tranquilo 😌' },
+]
+
+/** Personalidad de Avo: se guarda al tocarla. */
+function AvoStylePicker() {
+  const { user, setUser } = useAuth()
+  const [error, setError] = useState<string | null>(null)
+  const current = user?.avo_style ?? 'picante'
+
+  async function choose(avo_style: AvoStyle) {
+    setError(null)
+    try {
+      setUser(await api<User>('/me', { method: 'PATCH', json: { avo_style } }))
+      cheer('love', avo_style === 'picante' ? 'Ahora sí, a darle con sabor 🌶️' : 'Listo, me porto tranquilo', { interrupt: true })
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  return (
+    <Card padding="lg" as="section" aria-label="Personalidad de Avo">
+      <div className="app-stack" style={{ gap: 6 }}>
+        <span className="mood-label">Personalidad de Avo</span>
+        <Segmented label="Personalidad de Avo" options={AVO_STYLE_OPTIONS} value={current} onChange={(s) => void choose(s)} />
+        <span className="av-text-muted" style={{ fontSize: 13 }}>
+          {current === 'picante' ? 'Picante: sarcástico, con memes y GIF. Nunca se burla de tu cuerpo.' : 'Tranquilo: amable y sin carrilla.'}
+        </span>
+        {error && <Notice tone="error">{error}</Notice>}
+      </div>
     </Card>
   )
 }

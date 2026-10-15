@@ -78,7 +78,8 @@ final class MascotCenter {
         reaction = next
         if let message { AccessibilityNotification.Announcement(message).post() }
         clearTask?.cancel()
-        let ms = max(mood.duration, message == nil ? 0 : 3200)
+        // Los mensajes largos (lo que Avo dice de una foto) necesitan más tiempo para leerse.
+        let ms = max(mood.duration, message.map { min(7000, max(3200, 1800 + 45 * $0.count)) } ?? 0)
         clearTask = Task {
             try? await Task.sleep(for: .milliseconds(ms))
             if !Task.isCancelled, reaction == next { reaction = nil }
@@ -140,9 +141,10 @@ struct MascotView: View {
                         .foregroundStyle(Theme.ink)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(Theme.surface, in: .capsule)
+                        .multilineTextAlignment(.leading)
+                        .background(Theme.surface, in: .rect(cornerRadius: 18))
                         .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
-                        .fixedSize()
+                        .modifier(BubbleWidth(long: message.count > 30))
                         .offset(x: bubbleEdge == .leading ? -size - 4 : 0, y: bubbleEdge == .top ? -40 : bubbleEdge == .bottom ? 36 : 0)
                         .transition(.scale(scale: 0.8).combined(with: .opacity))
                         .id(reaction?.id)
@@ -163,20 +165,69 @@ struct MascotView: View {
                     }
                 } while repeats
             }
-            .onTapGesture { if reactive { cheer(Self.taps.randomElement()!.0, Self.taps.randomElement()!.1) } }
+            .onTapGesture {
+                if reactive {
+                    let lines = Self.taps
+                    Self.tapIndex += 1
+                    let line = lines[Self.tapIndex % lines.count]
+                    cheer(line.0, line.1)
+                }
+            }
             .accessibilityElement()
             .accessibilityLabel("Avo, la mascota de Avocado")
             .accessibilityValue(reaction?.message ?? "")
     }
 
-    private static let taps: [(Mood, String)] = [
+    private static let tranquiloTaps: [(Mood, String)] = [
         (.wave, "¡Hola! Soy Avo"), (.love, "¡Vas muy bien!"), (.celebrate, "¡Eso!"),
         (.eat, "¿Ya comiste?"), (.think, "Mmm… ¿qué cenamos hoy?"), (.love, "Una foto por comida y listo"),
     ]
 
+    /// Avo picante (igual que en la web, src/lib/mascot.ts): carrilla por los hábitos, nunca por el cuerpo.
+    private static let picanteTaps: [(Mood, String)] = [
+        (.wave, "¿Me picas? Mejor pícale a registrar tu comida"),
+        (.think, "Yo aquí esperando tu foto como: 🧍"),
+        (.eat, "¿Comiste y no me avisaste? Qué bonito"),
+        (.celebrate, "Una foto por comida. No es tan difícil, ¿o sí?"),
+        (.love, "Anda, que ya hasta me dio hambre a mí"),
+        (.think, "\"Luego la subo\" dijiste. Ajá"),
+        (.wave, "Dime que esa comida ya tiene foto 👀"),
+    ]
+    private static var tapIndex = Int.random(in: 0..<100)
+
+    private static var taps: [(Mood, String)] { AvoStyle.current == .picante ? picanteTaps : tranquiloTaps }
+
     static func greeting(_ name: String, date: Date = .now) -> (Mood, String) {
         let hour = Fmt.calendar.component(.hour, from: date)
         let who = name.isEmpty ? "" : ", \(name)"
+        if AvoStyle.current == .picante {
+            if isNight(date) {
+                return (.sleepy, [
+                    "Ya es tarde\(who). Si vas al refri, que sea con foto 👀",
+                    "¿Todavía en pie\(who)? Yo ya ni parpadeo",
+                    "Hora de dormir\(who). La foto del último snack, mañana te la perdono",
+                ].randomElement()!)
+            }
+            if hour < 12 {
+                return (.wave, [
+                    "¿Ya desayunaste o vas a vivir de puro café otra vez\(who)?",
+                    "Buenos días\(who). Tu desayuno no se va a fotografiar solo",
+                    "Arriba\(who). Yo ya estoy listo, falta tu foto",
+                ].randomElement()!)
+            }
+            if hour < 19 {
+                return (.wave, [
+                    "¿Y el almuerzo\(who)? No me digas que se te pasó otra vez",
+                    "Buenas tardes\(who). Me debes fotos, ¿eh?",
+                    "Ya pasó el mediodía\(who). ¿Comiste o solo lo pensaste?",
+                ].randomElement()!)
+            }
+            return (.wave, [
+                "Buenas noches\(who). ¿La cena va con foto o con misterio?",
+                "Cena temprano\(who), y con foto, que luego no te acuerdas",
+                "Noche de cenar\(who). Yo aquí esperando tu foto como: 🧍",
+            ].randomElement()!)
+        }
         if isNight(date) { return (.sleepy, "Ya es tarde\(who)… ¡a descansar!") }
         if hour < 12 { return (.wave, "¡Buenos días\(who)!") }
         if hour < 19 { return (.wave, "¡Buenas tardes\(who)!") }
@@ -186,5 +237,18 @@ struct MascotView: View {
     static func isNight(_ date: Date = .now) -> Bool {
         let hour = Fmt.calendar.component(.hour, from: date)
         return hour >= 22 || hour < 6
+    }
+}
+
+/// Los mensajes cortos van en una sola línea; los largos se parten en un globo de ancho fijo.
+private struct BubbleWidth: ViewModifier {
+    let long: Bool
+
+    func body(content: Content) -> some View {
+        if long {
+            content.frame(width: 250, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+        } else {
+            content.fixedSize()
+        }
     }
 }

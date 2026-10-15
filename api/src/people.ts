@@ -4,6 +4,7 @@ import { areLinked } from './access'
 import { fail } from './errors'
 import { deletePhotos } from './photos'
 import { GOALS, type Goal } from './budget'
+import { isAvoStyle } from './voice'
 
 type PublicUser = Pick<User, 'id' | 'email' | 'full_name'>
 
@@ -15,7 +16,7 @@ peopleRoutes.get('/me', (c) => c.json(c.var.user))
 peopleRoutes.patch('/me', async (c) => {
   const user = c.var.user
   const body = await c.req
-    .json<{ full_name?: unknown; role?: unknown; daily_kcal_goal?: unknown; ai_consent?: unknown; goal?: unknown }>()
+    .json<{ full_name?: unknown; role?: unknown; daily_kcal_goal?: unknown; ai_consent?: unknown; goal?: unknown; avo_style?: unknown }>()
     .catch(() => ({}) as Record<string, unknown>)
 
   let fullName = user.full_name
@@ -60,10 +61,17 @@ peopleRoutes.patch('/me', async (c) => {
     objective = body.goal as Goal | null
   }
 
-  await c.env.DB.prepare('UPDATE users SET full_name = ?, role = ?, daily_kcal_goal = ?, ai_consent_at = ?, goal = ? WHERE id = ?')
-    .bind(fullName, role, goal, consent, objective, user.id)
+  // Personalidad de Avo: picante (sarcástico, con memes y GIF) o tranquilo.
+  let avoStyle = user.avo_style
+  if (body.avo_style !== undefined) {
+    if (!isAvoStyle(body.avo_style)) fail(400, 'La personalidad de Avo debe ser picante o tranquilo')
+    avoStyle = body.avo_style
+  }
+
+  await c.env.DB.prepare('UPDATE users SET full_name = ?, role = ?, daily_kcal_goal = ?, ai_consent_at = ?, goal = ?, avo_style = ? WHERE id = ?')
+    .bind(fullName, role, goal, consent, objective, avoStyle, user.id)
     .run()
-  return c.json({ ...user, full_name: fullName, role, daily_kcal_goal: goal, ai_consent_at: consent, goal: objective })
+  return c.json({ ...user, full_name: fullName, role, daily_kcal_goal: goal, ai_consent_at: consent, goal: objective, avo_style: avoStyle })
 })
 
 // Borrar la cuenta y todo lo suyo: fotos, comidas, cómo se ha sentido, comentarios, vínculos y sesiones. No se puede deshacer.

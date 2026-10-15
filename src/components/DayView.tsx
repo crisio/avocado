@@ -72,12 +72,12 @@ export default function DayView({
   const states = (meals ?? []).map((m) => {
     const job = queued.find((j) => j.id === m.id)
     const state: MealState = job ? (job.error ? 'failed' : 'queued') : m.status
-    return { id: m.id, state, calories: m.calories, live: !!job || fresh }
+    return { id: m.id, state, calories: m.calories, avo: m.analysis?.avo?.text, live: !!job || fresh }
   })
   const statesKey = states.map((s) => `${s.id}:${s.state}:${s.live}`).join()
   const analyzing = states.filter((s) => s.state === 'queued' || s.state === 'pending').length
   useEffect(() => {
-    if (own) for (const s of states) if (s.live) watchMeal(s.id, s.state, s.calories)
+    if (own) for (const s of states) if (s.live) watchMeal(s.id, s.state, s.calories, s.avo)
   }, [own, statesKey])
   useEffect(() => {
     onAnalyzing?.(own ? analyzing : 0)
