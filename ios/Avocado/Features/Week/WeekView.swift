@@ -18,6 +18,7 @@ struct WeekView: View {
     @State private var loadedStart: Date?
     @State private var error: String?
     @State private var patientStreak: Streak?
+    @State private var fasting: FastingStatus?
 
     private var own: Bool { userId == nil }
     private var streak: Streak? { own ? streaks.streak : patientStreak }
@@ -59,7 +60,39 @@ struct WeekView: View {
         .navigationBarTitleDisplayMode(.inline)
         .mealDestinations()
         .task(id: userId) { if !own { await loadPatientStreak() } }
+        .task(id: "\(userId ?? "")-\(outbox.syncedCount)-\(session.user?.fastingHours ?? 0)") { fasting = await FastingStatus.load(userId: userId) }
         .task(id: "\(start.timeIntervalSince1970)-\(outbox.syncedCount)") { await load() }
+    }
+
+    private func fastingCard(_ f: FastingStatus) -> some View {
+        let recent = Array(f.history.prefix(7).reversed())
+        return VStack(alignment: .leading, spacing: 12) {
+            SectionTitle(own ? "Tus ayunos" : "Sus ayunos")
+            if !recent.isEmpty {
+                Chart {
+                    ForEach(recent) { e in
+                        BarMark(x: .value("Día", Fmt.date(e.end), unit: .day), y: .value("Horas", e.hours))
+                            .foregroundStyle(e.met == false ? Theme.orange : Theme.accent)
+                            .cornerRadius(6)
+                    }
+                    if let plan = f.plan {
+                        RuleMark(y: .value("Meta", plan.hours))
+                            .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                            .foregroundStyle(Theme.orange)
+                            .annotation(position: .top, alignment: .trailing) {
+                                Text("Meta").font(.caption2.weight(.semibold)).foregroundStyle(Theme.orange)
+                            }
+                    }
+                }
+                .frame(height: 140)
+                .accessibilityLabel("Horas de ayuno")
+                Text("Promedio \(FastingStatus.oneDecimal(f.stats.averageHours)) h · Más largo \(FastingStatus.oneDecimal(f.stats.longestHours)) h · \(own ? "Cumpliste" : "Cumplió") \(f.stats.metLast7) de \(min(7, f.history.count))")
+                    .font(.subheadline).foregroundStyle(Theme.muted)
+            } else {
+                Text("Aún no hay ayunos completos.").font(.subheadline).foregroundStyle(Theme.muted)
+            }
+        }
+        .card()
     }
 
     @ViewBuilder private func summary(_ stats: WeekStats) -> some View {
@@ -92,6 +125,8 @@ struct WeekView: View {
             .accessibilityLabel("Calorías por día")
         }
         .card()
+
+        if let fasting, fasting.plan != nil || !fasting.history.isEmpty { fastingCard(fasting) }
 
         if let userId = userId ?? session.user?.id {
             PatternsCard(userId: userId, start: start, meals: meals ?? [], own: own)

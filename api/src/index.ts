@@ -13,6 +13,7 @@ import { careRoutes } from './care'
 import { peopleRoutes } from './people'
 import { verifyPhotoSignature } from './photos'
 import { reminderRoutes, sendDueReminders } from './reminders'
+import { fastingRoutes } from './fasting'
 
 const app = new Hono<AppEnv>()
 
@@ -68,6 +69,7 @@ app.use('/insights', requireUser)
 app.use('/avo/*', requireUser)
 app.use('/budget', requireUser)
 app.use('/reminders', requireUser)
+app.use('/fasting', requireUser)
 app.use('/push/*', requireUser)
 app.route('/', peopleRoutes)
 app.route('/meals', mealRoutes)
@@ -79,6 +81,7 @@ app.route('/avo', avoRoutes)
 app.route('/budget', budgetRoutes)
 app.route('/care', careRoutes)
 app.route('/', reminderRoutes)
+app.route('/fasting', fastingRoutes)
 
 app.notFound((c) => c.json({ error: 'No encontrado' }, 404))
 

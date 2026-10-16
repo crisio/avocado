@@ -27,6 +27,12 @@ struct User: Codable, Equatable {
     var avoStyle: AvoStyle?
     /// Avisos a la hora de comer. Los perfiles guardados de antes no lo traen: cuenta como encendido.
     var reminders: Bool?
+    /// Ayuno intermitente: horas de ayuno (12–23); nil = apagado.
+    var fastingHours: Int?
+    /// Hora local ("HH:MM") en que abre su ventana de comida.
+    var eatingStart: String?
+    /// Cuándo dice que empezó su ayuno (ISO).
+    var fastStartedAt: String?
 
     var style: AvoStyle { avoStyle ?? .picante }
     var remindersOn: Bool { reminders ?? true }

@@ -219,6 +219,7 @@ struct DayMealsView<Extra: View>: View {
                 segments: analyzed.map { ($0.calories ?? 0, $0.kind) },
                 own: own
             )
+            if isToday, own, ownData, session.user?.fastingHours != nil { FastingCard() }
             MacroChips(
                 protein: totals.proteinG, carbs: totals.carbsG, fat: totals.fatG,
                 proteinGoal: macroGoals?.proteinGGoal ?? (ownData ? session.user?.proteinGGoal : nil),

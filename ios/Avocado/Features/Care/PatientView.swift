@@ -8,6 +8,7 @@ struct PatientView: View {
     @State private var day = Fmt.startOfDay(.now)
     @State private var editing = false
     @State private var streak: Streak?
+    @State private var fasting: FastingStatus?
     @State private var reloads = 0
     @State private var report: ReportFile?
     @State private var makingReport = false
@@ -27,6 +28,13 @@ struct PatientView: View {
                 if let streak { StreakChip(streak: streak, own: false) }
 
                 goalsCard
+
+                if let fasting, let plan = fasting.plan {
+                    Label("Ayuno \(plan.label)" + (fasting.history.first.map { " · último ayuno \(FastingStatus.oneDecimal($0.hours)) h" } ?? ""), systemImage: "timer")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.ink)
+                        .card(padding: 14)
+                }
 
                 NavigationLink {
                     WeekView(userId: patient.id, goals: goals, patientName: Fmt.firstName(patient.fullName))
@@ -65,10 +73,12 @@ struct PatientView: View {
         .refreshable {
             reloads += 1
             await loadStreak()
+            fasting = await FastingStatus.load(userId: patient.id)
         }
         .navigationBarTitleDisplayMode(.inline)
         .mealDestinations()
         .task { await loadStreak() }
+        .task { fasting = await FastingStatus.load(userId: patient.id) }
         .sheet(isPresented: $editing) {
             GoalsEditorSheet(patientId: patient.id, name: patient.displayName, goals: goals) { goals = $0 }
         }

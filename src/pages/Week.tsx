@@ -3,6 +3,7 @@ import { useAuth } from '../auth'
 import { useStreak } from '../lib/streak'
 import { Mascot } from '../components/Mascot'
 import { StreakCard } from '../components/Streak'
+import FastingWeek from '../components/FastingWeek'
 import WeekBudget from '../components/WeekBudget'
 import WeekView, { weekDayHref } from '../components/WeekView'
 
@@ -17,6 +18,7 @@ export default function Week() {
       {streak && <StreakCard streak={streak} />}
       <WeekBudget userId={user.id} self />
       <WeekView userId={user.id} self dayHref={weekDayHref('/')} />
+      {user.role === 'patient' && <FastingWeek />}
     </Screen>
   )
 }

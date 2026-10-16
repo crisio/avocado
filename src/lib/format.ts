@@ -95,3 +95,20 @@ export function fromDayParam(value: string | null) {
 
 /** Números con separador de miles ("1,842"). */
 export const formatNumber = (n: number) => Math.round(n).toLocaleString('es-MX')
+
+/** "12:00" -> "12:00 p. m." (hora local). */
+export function formatClock(hhmm: string) {
+  const [h, m] = hhmm.split(':').map(Number)
+  const d = new Date()
+  d.setHours(h || 0, m || 0, 0, 0)
+  return timeFmt.format(d)
+}
+
+/** 14.37 -> "14 h 22 min" */
+export function formatHM(hours: number) {
+  const total = Math.max(0, Math.floor(hours * 60))
+  return `${Math.floor(total / 60)} h ${String(total % 60).padStart(2, '0')} min`
+}
+
+/** 15.24 -> "15.2" */
+export const formatHours = (h: number) => (Math.round(h * 10) / 10).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 1 })

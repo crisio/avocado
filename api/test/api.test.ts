@@ -5,6 +5,7 @@ import { devOutbox } from '../src/email'
 import { findGif } from '../src/gifs'
 import type { Env } from '../src/env'
 import { planReminders, sendDueReminders } from '../src/reminders'
+import { computeFasting } from '../src/fasting'
 import { b64urlToBytes, bytesToB64url, encryptPayload, vapidAuthorization } from '../src/webpush'
 
 const BASE = 'https://api.test'
@@ -1328,5 +1329,91 @@ describe('Recordatorios a la hora de comer', () => {
     expect(await env.DB.prepare('SELECT count(*) AS n FROM push_subscriptions WHERE endpoint = ?').bind(sub.endpoint).first()).toEqual({ n: 0 })
     // Sin llaves de VAPID, el cron no hace nada.
     expect(await sendDueReminders(env, at('2026-10-17T13:05'))).toEqual({ sent: 0 })
+  })
+})
+
+describe('Ayuno intermitente y meta de proteína', () => {
+  const at = (local: string) => Date.parse(`${local}:00-06:00`)
+  const meal = (local: string, calories: number | null, status = 'analyzed') => ({ eaten_at: new Date(at(local)).toISOString(), status, calories })
+
+  it('cuenta el ayuno desde la última comida que lo rompe; café negro no cuenta', () => {
+    const meals = [
+      meal('2026-10-14T12:30', 600),
+      meal('2026-10-14T19:45', 700), // cena: empieza el ayuno
+      meal('2026-10-15T09:00', 5), // café negro: no lo rompe
+      meal('2026-10-15T12:10', 650), // rompe: 16.4 h
+      meal('2026-10-15T19:30', 500),
+    ]
+    const f = computeFasting({ meals, fastStartedAt: null, hours: 16, eatingStart: '12:00', offset: 360, now: at('2026-10-16T10:30') })
+    expect(f.plan).toEqual({ hours: 16, eating_start: '12:00', eating_end: '20:00', label: '16:8' })
+    expect(f.current).toEqual({ started_at: new Date(at('2026-10-15T19:30')).toISOString(), hours: 15, goal_hours: 16, reached: false })
+    expect(f.state).toBe('ayuno')
+    expect(f.window).toEqual({ opens_at: new Date(at('2026-10-16T12:00')).toISOString(), closes_at: new Date(at('2026-10-16T20:00')).toISOString() })
+    expect(f.history.map((h) => [h.hours, h.met])).toEqual([[16.4, true]])
+    expect(f.stats).toEqual({ longest_hours: 16.4, average_hours: 16.4, met_last_7: 1 })
+
+    // A las 12:30 ya cumplió y está en su ventana; "Empecé mi ayuno" más tarde que la última comida manda.
+    const later = computeFasting({ meals, fastStartedAt: null, hours: 16, eatingStart: '12:00', offset: 360, now: at('2026-10-16T12:30') })
+    expect(later).toMatchObject({ state: 'ventana', current: { hours: 17, reached: true } })
+    const manual = computeFasting({ meals, fastStartedAt: new Date(at('2026-10-15T21:00')).toISOString(), hours: 16, eatingStart: '12:00', offset: 360, now: at('2026-10-16T10:30') })
+    expect(manual.current.hours).toBe(13.5)
+
+    // Sin plan: sin estado ni ventana; una ventana que cruza la medianoche (18:00 a 02:00) sigue abierta a la 1 a. m.
+    expect(computeFasting({ meals, fastStartedAt: null, hours: null, eatingStart: null, offset: 360, now: at('2026-10-16T10:30') })).toMatchObject({ plan: null, state: null, window: null })
+    const night = computeFasting({ meals: [], fastStartedAt: null, hours: 16, eatingStart: '18:00', offset: 360, now: at('2026-10-16T01:00') })
+    expect(night).toMatchObject({ state: 'ventana', plan: { eating_end: '02:00' }, current: { started_at: null, hours: 0 } })
+  })
+
+  it('el perfil guarda el plan, la hora y la proteína; la API lo calcula y Avo lo sabe', async () => {
+    const token = await login('ayuno@gmail.com', { full_name: 'Fer Ayuno', role: 'patient' })
+    expect((await call('/me', { method: 'PATCH', token, json: { fasting_hours: 30 } })).status).toBe(400)
+    expect((await call('/me', { method: 'PATCH', token, json: { eating_start: '25:00' } })).status).toBe(400)
+    expect((await call('/me', { method: 'PATCH', token, json: { protein_g_goal: 5 } })).status).toBe(400)
+    expect((await call('/me', { method: 'PATCH', token, json: { fast_started_at: '2020-01-01T00:00:00Z' } })).status).toBe(400)
+    const me = (await call('/me', { method: 'PATCH', token, json: { fasting_hours: 16, protein_g_goal: 140 } })).data
+    expect(me).toMatchObject({ fasting_hours: 16, eating_start: '12:00', protein_g_goal: 140 })
+    const started = new Date(Date.now() - 3_600_000).toISOString()
+    expect((await call('/me', { method: 'PATCH', token, json: { fast_started_at: started, eating_start: '13:30' } })).data).toMatchObject({ eating_start: '13:30', fast_started_at: started })
+
+    const f = (await call('/fasting?offset=360', { token })).data
+    expect(f).toMatchObject({ plan: { hours: 16, eating_start: '13:30', eating_end: '21:30', label: '16:8' }, current: { started_at: started, goal_hours: 16 } })
+    expect(f.current.hours).toBeCloseTo(1, 0)
+
+    // Avo lo sabe en el chat.
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json({ model: 'm', choices: [{ message: { content: JSON.stringify({ transcript: '', reply: 'Aguanta, campeón del ayuno.', gif: '', mood: { log: false, feelings: [], energy: 0, on_plan: '', note: '' } }) } }] }),
+    )
+    const form = new FormData()
+    form.set('text', 'tengo hambre')
+    form.set('offset', '360')
+    await call('/avo/messages', { method: 'POST', token, body: form })
+    const system = JSON.parse(String((spy.mock.calls[0][1] as RequestInit).body)).messages[0].content as string
+    expect(system).toContain('Hace ayuno intermitente 16:8')
+    expect(system).toContain('no le sugieras comer fuera de su ventana')
+
+    // Quien ayuna recibe los avisos de su ventana, no los de desayuno, comida y cena.
+    const kinds = new Set((await call('/reminders?offset=360&days=2', { token })).data.reminders.map((r: { kind: string }) => r.kind))
+    expect([...kinds].sort()).toEqual(['cierre', 'ventana'])
+
+    // La nutrióloga vinculada lo ve; otra persona no.
+    const nutri = await login('nutri-ayuno@gmail.com', { full_name: 'Lic. Ayuno', role: 'nutritionist' })
+    const id = (await call('/me', { token })).data.id
+    expect((await call(`/fasting?offset=360&user_id=${id}`, { token: nutri })).status).toBe(404)
+    await call('/care/nutritionists', { method: 'POST', token, json: { email: 'nutri-ayuno@gmail.com' } })
+    expect((await call(`/fasting?offset=360&user_id=${id}`, { token: nutri })).data.plan.label).toBe('16:8')
+
+    // Apagar el ayuno.
+    expect((await call('/me', { method: 'PATCH', token, json: { fasting_hours: null } })).data.fasting_hours).toBeNull()
+    expect((await call('/fasting?offset=360', { token })).data).toMatchObject({ plan: null, state: null })
+  })
+
+  it('la proteína la fija la nutrióloga si ella puso las metas', async () => {
+    const token = await login('prot@gmail.com', { full_name: 'Pato Proteína', role: 'patient' })
+    const nutri = await login('nutri-prot@gmail.com', { full_name: 'Lic. Prot', role: 'nutritionist' })
+    await call('/care/nutritionists', { method: 'POST', token, json: { email: 'nutri-prot@gmail.com' } })
+    const id = (await call('/me', { token })).data.id
+    expect((await call(`/care/patients/${id}/goals`, { method: 'PATCH', token: nutri, json: { daily_kcal_goal: 2000, protein_g_goal: 120 } })).status).toBe(200)
+    expect((await call('/me', { method: 'PATCH', token, json: { protein_g_goal: 200 } })).status).toBe(403)
+    expect((await call('/me', { method: 'PATCH', token, json: { protein_g_goal: 120 } })).status).toBe(200)
   })
 })

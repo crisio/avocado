@@ -35,11 +35,17 @@ export interface User {
   avo_style?: AvoStyle
   /** Recordatorios a la hora de comer (por defecto sí; el servidor los manda si hay suscripción push). */
   reminders?: boolean
+  /** Ayuno intermitente: horas de ayuno del plan (12–23); null o ausente = apagado. */
+  fasting_hours?: number | null
+  /** Hora local "HH:MM" en que abre la ventana de comida (por defecto "12:00"). */
+  eating_start?: string | null
+  /** "Empecé mi ayuno a…" (ISO): sustituye a la última comida cuando se le olvidó registrarla. */
+  fast_started_at?: string | null
 }
 
 export interface ReminderPreview {
   enabled: boolean
-  reminders: { id: string; kind: 'desayuno' | 'comida' | 'cena' | 'racha'; at: string; title: string; body: string }[]
+  reminders: { id: string; kind: 'desayuno' | 'comida' | 'cena' | 'racha' | 'ventana' | 'cierre'; at: string; title: string; body: string }[]
 }
 
 export type Goal = 'bajar' | 'mantener' | 'subir'
@@ -225,4 +231,15 @@ export interface CarePatient {
 export interface CareInvite {
   code: string
   url: string
+}
+
+/** Ayuno intermitente (GET /fasting). */
+export interface Fasting {
+  plan: { hours: number; eating_start: string; eating_end: string; label: string } | null
+  current: { started_at: string | null; hours: number; goal_hours: number | null; reached: boolean }
+  state: 'ayuno' | 'ventana' | null
+  window: { opens_at: string; closes_at: string } | null
+  /** Del más reciente al más antiguo (últimos 14 días, ayunos de 8 h o más). */
+  history: { start: string; end: string; hours: number; met: boolean | null }[]
+  stats: { longest_hours: number; average_hours: number; met_last_7: number }
 }

@@ -125,7 +125,7 @@ export async function nextReminderText(): Promise<string | null> {
     const when = new Date(next.t)
     const time = when.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })
     const day = when.toDateString() === new Date().toDateString() ? '' : ' de mañana'
-    return `Próximo aviso: ${next.kind === 'racha' ? 'tu racha' : next.kind}${day}, ${time}`
+    return `Próximo aviso: ${next.kind === 'racha' ? 'tu racha' : next.kind === 'ventana' ? 'tu ventana de comida' : next.kind === 'cierre' ? 'el cierre de tu ventana' : next.kind}${day}, ${time}`
   } catch {
     return null
   }

@@ -11,7 +11,7 @@ import { sendPush, type VapidKeys } from './webpush'
  * Los textos usan la personalidad de Avo del paciente.
  */
 
-export const REMINDER_KINDS = ['desayuno', 'comida', 'cena', 'racha'] as const
+export const REMINDER_KINDS = ['desayuno', 'comida', 'cena', 'racha', 'ventana', 'cierre'] as const
 export type ReminderKind = (typeof REMINDER_KINDS)[number]
 
 /** Hora local del aviso y desde qué hora una comida registrada ya cuenta para no avisar. */
@@ -23,16 +23,28 @@ const WINDOWS: { kind: ReminderKind; at: number; since: number }[] = [
   { kind: 'racha', at: 21 * 60, since: 0 },
 ]
 
+/** Quien hace ayuno recibe otros: cuando abre su ventana de comida y 30 min antes de que cierre. */
+function fastingWindows(hours: number, eatingStart: string) {
+  const start = Number(eatingStart.slice(0, 2)) * 60 + Number(eatingStart.slice(3, 5))
+  return [
+    { kind: 'ventana' as const, at: start, since: start - 120 },
+    { kind: 'cierre' as const, at: start + (24 - hours) * 60 - 30, since: Number.POSITIVE_INFINITY },
+  ]
+}
+
 const TITLES: Record<ReminderKind, string> = {
   desayuno: 'Hora del desayuno 🍳',
   comida: 'Hora de comer 🍽️',
   cena: 'Hora de cenar 🌙',
   racha: 'Tu racha 🔥',
+  ventana: 'Tu ventana de comida 🍽️',
+  cierre: 'Tu ventana cierra pronto ⏳',
 }
 
 type Texts = Record<ReminderKind | 'primera', string[]>
 
-// {name}: su primer nombre (o "tú"); {streak}: días seguidos. Nunca sobre su cuerpo ni sobre cuánto come.
+// {name}: su primer nombre (o "tú"); {streak}: días seguidos; {hours}: horas de ayuno. Nunca sobre su cuerpo ni sobre
+// cuánto come.
 const PICANTE: Texts = {
   desayuno: [
     '¿Desayuno de verdad o puro café otra vez, {name}? Foto y te digo 📸',
@@ -57,6 +69,14 @@ const PICANTE: Texts = {
     '{name}, ¿y si hoy es el día? Tómale foto a tu comida y en segundos ves sus calorías.',
     'Sigo esperando tu primera foto, {name}. Prometo no juzgar (mucho) 😏',
   ],
+  ventana: [
+    '¡{hours} horas de ayuno y sigues vivo, {name}! 💪 Tu ventana abre ya: rómpelo con proteína y con foto.',
+    'Se acabó el ayuno, {name}. Ahora sí, a comer rico (y a tomarle foto) 📸',
+  ],
+  cierre: [
+    'Tu ventana cierra en 30 min, {name}. ¿Última comida? Foto y a ayunar 🕗',
+    'Última llamada: en 30 min empieza tu ayuno. Si comes algo, que sea con foto.',
+  ],
 }
 
 const TRANQUILO: Texts = {
@@ -65,6 +85,8 @@ const TRANQUILO: Texts = {
   cena: ['Hora de cenar, {name}. Una foto y listo.', '¿Ya cenaste, {name}? Regístralo para cerrar tu día.'],
   racha: ['Llevas {streak} días seguidos, {name}. Registra algo hoy para no perder tu racha 🔥'],
   primera: ['{name}, tómale foto a tu comida y en segundos ves sus calorías y macros.'],
+  ventana: ['Completaste tus {hours} horas de ayuno, {name}. Tu ventana de comida ya abrió.'],
+  cierre: ['Tu ventana de comida cierra en 30 minutos, {name}.'],
 }
 
 export interface Reminder {
@@ -85,6 +107,8 @@ export interface ReminderState {
   mealTimes: string[]
   /** Si alguna vez ha registrado una comida. */
   hasMeals: boolean
+  /** Plan de ayuno (horas y hora local "HH:MM" en que abre la ventana), si hace. */
+  fasting?: { hours: number; eatingStart: string } | null
 }
 
 const DAY_MS = 86_400_000
@@ -115,17 +139,21 @@ export function planReminders(state: ReminderState, now: number, days = 7, from 
   const streak = streakFrom(new Set(localMeals.map(isoDay)), today)
 
   const out: Reminder[] = []
+  const windows = state.fasting ? fastingWindows(state.fasting.hours, state.fasting.eatingStart) : WINDOWS
   for (let d = 0; d < days; d++) {
     const date = isoDay(todayStart + d * DAY_MS)
-    for (const w of WINDOWS) {
+    for (const w of windows) {
       const at = Date.parse(`${date}T00:00:00Z`) + (w.at + offset) * 60_000
       if (at <= from) continue
       if (w.kind === 'racha') {
         if (d > 0 || todayMinutes.length > 0 || streak.current === 0) continue
       } else if (d === 0 && todayMinutes.some((m) => m >= w.since)) continue
 
-      const pool = w.kind !== 'racha' && !state.hasMeals ? texts.primera : texts[w.kind]
-      const body = pick(pool, `${user.id}|${date}|${w.kind}`).replaceAll('{name}', name).replaceAll('{streak}', String(streak.current))
+      const pool = !state.fasting && w.kind !== 'racha' && !state.hasMeals ? texts.primera : texts[w.kind]
+      const body = pick(pool, `${user.id}|${date}|${w.kind}`)
+        .replaceAll('{name}', name)
+        .replaceAll('{streak}', String(streak.current))
+        .replaceAll('{hours}', String(state.fasting?.hours ?? ''))
       out.push({
         id: `${w.kind}-${date}`,
         kind: w.kind,
@@ -145,7 +173,13 @@ async function reminderState(env: Env, user: User, offset: number, now: number):
       .all<{ eaten_at: string }>(),
     env.DB.prepare('SELECT 1 AS x FROM meals WHERE user_id = ? LIMIT 1').bind(user.id).first(),
   ])
-  return { user, offset, mealTimes: recent.results.map((r) => r.eaten_at), hasMeals: Boolean(any) }
+  return {
+    user,
+    offset,
+    mealTimes: recent.results.map((r) => r.eaten_at),
+    hasMeals: Boolean(any),
+    fasting: user.fasting_hours ? { hours: user.fasting_hours, eatingStart: user.eating_start ?? '12:00' } : null,
+  }
 }
 
 const wantsReminders = (user: User) => user.role === 'patient' && user.reminders

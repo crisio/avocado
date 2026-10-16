@@ -2169,3 +2169,44 @@ body {
   flex: 1;
   min-width: 0;
 }
+
+/* Ayuno intermitente */
+.fasting-card {
+  display: grid;
+  gap: 8px;
+}
+.fasting-card__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.fasting-card__ring {
+  flex: none;
+}
+.fasting-card__time {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--av-ink);
+}
+.fasting-card__link {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--av-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.fasting-card__input,
+.fasting-window__input {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--av-line);
+  border-radius: 10px;
+  background: var(--av-surface);
+  color: var(--av-ink);
+}

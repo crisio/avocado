@@ -6,8 +6,9 @@ import DayView from '../components/DayView'
 import { StreakChip } from '../components/Streak'
 import TopBar from '../components/TopBar'
 import { api } from '../lib/api'
+import { useFasting } from '../lib/fasting'
 import { useCachedApi } from '../lib/useCachedApi'
-import { displayName, firstName, formatNumber } from '../lib/format'
+import { displayName, firstName, formatHours, formatNumber } from '../lib/format'
 import { cheer } from '../lib/mascot'
 import { useStreak } from '../lib/streak'
 import type { Goal, PatientGoals, User } from '../lib/types'
@@ -19,6 +20,7 @@ export default function PatientDay() {
   const { data, mutate } = useCachedApi<User>(`/users/${id}`, 300_000)
   const patient = data ?? null
   const { streak } = useStreak(id)
+  const fasting = useFasting(id, !!id, false).data
 
   return (
     <Screen withTabBar>
@@ -32,6 +34,12 @@ export default function PatientDay() {
         <div>
           <StreakChip streak={streak} self={false} />
         </div>
+      )}
+      {fasting && (fasting.plan || fasting.history.length > 0) && (
+        <p className="av-text-muted" style={{ margin: 0 }}>
+          {fasting.plan ? `Ayuno ${fasting.plan.label}` : 'Ayuno'}
+          {fasting.history[0] && ` · último ayuno ${formatHours(fasting.history[0].hours)} h`}
+        </p>
       )}
       <div className="care-links">
         <Button as={Link} to={`/paciente/${id}/semana`} variant="secondary" icon="calendar">

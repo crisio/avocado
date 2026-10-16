@@ -16,7 +16,19 @@ peopleRoutes.get('/me', (c) => c.json(c.var.user))
 peopleRoutes.patch('/me', async (c) => {
   const user = c.var.user
   const body = await c.req
-    .json<{ full_name?: unknown; role?: unknown; daily_kcal_goal?: unknown; ai_consent?: unknown; goal?: unknown; avo_style?: unknown; reminders?: unknown }>()
+    .json<{
+      full_name?: unknown
+      role?: unknown
+      daily_kcal_goal?: unknown
+      ai_consent?: unknown
+      goal?: unknown
+      avo_style?: unknown
+      reminders?: unknown
+      protein_g_goal?: unknown
+      fasting_hours?: unknown
+      eating_start?: unknown
+      fast_started_at?: unknown
+    }>()
     .catch(() => ({}) as Record<string, unknown>)
 
   let fullName = user.full_name
@@ -33,8 +45,9 @@ peopleRoutes.patch('/me', async (c) => {
 
   // Si su nutrióloga (vinculada) le puso las metas, solo ella las cambia.
   const locked = !!user.goals_set_by && (await areLinked(c.env, user.id, user.goals_set_by))
-  if (locked && ((body.daily_kcal_goal !== undefined && body.daily_kcal_goal !== user.daily_kcal_goal) || (body.goal !== undefined && body.goal !== user.goal)))
-    fail(403, 'Tu meta y tu objetivo los puso tu nutrióloga. Pídele a ella si quieres cambiarlos.')
+  const changes = (field: 'daily_kcal_goal' | 'goal' | 'protein_g_goal') => body[field] !== undefined && body[field] !== user[field]
+  if (locked && (changes('daily_kcal_goal') || changes('goal') || changes('protein_g_goal')))
+    fail(403, 'Tus metas y tu objetivo los puso tu nutrióloga. Pídele a ella si quieres cambiarlos.')
 
   // Meta diaria de calorías: vacía (sin meta) o un número razonable.
   let goal = user.daily_kcal_goal
@@ -68,6 +81,40 @@ peopleRoutes.patch('/me', async (c) => {
     avoStyle = body.avo_style
   }
 
+  // Meta de proteína al día (g): vacía o un número razonable.
+  let protein = user.protein_g_goal
+  if (body.protein_g_goal !== undefined) {
+    if (body.protein_g_goal === null || body.protein_g_goal === '') protein = null
+    else {
+      const n = Number(body.protein_g_goal)
+      if (!Number.isFinite(n) || n < 20 || n > 400) fail(400, 'La meta de proteína debe estar entre 20 y 400 g')
+      protein = Math.round(n)
+    }
+  }
+
+  // Ayuno intermitente: horas del plan (12 a 23) o null; la ventana de comida abre a eating_start ("HH:MM").
+  let fastingHours = user.fasting_hours
+  if (body.fasting_hours !== undefined) {
+    if (body.fasting_hours !== null && (!Number.isInteger(body.fasting_hours) || (body.fasting_hours as number) < 12 || (body.fasting_hours as number) > 23))
+      fail(400, 'El ayuno debe ser de 12 a 23 horas')
+    fastingHours = body.fasting_hours as number | null
+  }
+  let eatingStart = user.eating_start
+  if (body.eating_start !== undefined) {
+    if (typeof body.eating_start !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(body.eating_start)) fail(400, 'La hora debe ser HH:MM')
+    eatingStart = body.eating_start
+  }
+  if (fastingHours !== null && !eatingStart) eatingStart = '12:00'
+  let fastStartedAt = user.fast_started_at
+  if (body.fast_started_at !== undefined) {
+    if (body.fast_started_at === null) fastStartedAt = null
+    else {
+      const ms = Date.parse(String(body.fast_started_at))
+      if (Number.isNaN(ms) || ms > Date.now() + 5 * 60_000 || ms < Date.now() - 48 * 3_600_000) fail(400, 'El inicio del ayuno debe ser de las últimas 48 horas')
+      fastStartedAt = new Date(ms).toISOString()
+    }
+  }
+
   // Recordatorios a la hora de comer: true o false.
   let reminders = user.reminders
   if (body.reminders !== undefined) {
@@ -75,10 +122,26 @@ peopleRoutes.patch('/me', async (c) => {
     reminders = body.reminders
   }
 
-  await c.env.DB.prepare('UPDATE users SET full_name = ?, role = ?, daily_kcal_goal = ?, ai_consent_at = ?, goal = ?, avo_style = ?, reminders = ? WHERE id = ?')
-    .bind(fullName, role, goal, consent, objective, avoStyle, reminders ? 1 : 0, user.id)
+  await c.env.DB.prepare(
+    `UPDATE users SET full_name = ?, role = ?, daily_kcal_goal = ?, ai_consent_at = ?, goal = ?, avo_style = ?, reminders = ?,
+       protein_g_goal = ?, fasting_hours = ?, eating_start = ?, fast_started_at = ? WHERE id = ?`,
+  )
+    .bind(fullName, role, goal, consent, objective, avoStyle, reminders ? 1 : 0, protein, fastingHours, eatingStart, fastStartedAt, user.id)
     .run()
-  return c.json({ ...user, full_name: fullName, role, daily_kcal_goal: goal, ai_consent_at: consent, goal: objective, avo_style: avoStyle, reminders })
+  return c.json({
+    ...user,
+    full_name: fullName,
+    role,
+    daily_kcal_goal: goal,
+    ai_consent_at: consent,
+    goal: objective,
+    avo_style: avoStyle,
+    reminders,
+    protein_g_goal: protein,
+    fasting_hours: fastingHours,
+    eating_start: eatingStart,
+    fast_started_at: fastStartedAt,
+  })
 })
 
 // Borrar la cuenta y todo lo suyo: fotos, comidas, cómo se ha sentido, comentarios, vínculos y sesiones. No se puede deshacer.

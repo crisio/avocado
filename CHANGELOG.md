@@ -2,6 +2,11 @@
 
 La web (PWA), la API y la app de iOS llevan la misma versión. Mientras la versión empiece con 0, la app sigue en pruebas.
 
+## 1.2.0 — 16 de octubre de 2026
+
+- **Ayuno intermitente** (web e iOS): eliges tu plan en Perfil (12:12, 14:10, 16:8, 18:6 o 20:4) y a qué hora abre tu ventana de comida. En Mi día ves cuánto llevas de ayuno en vivo y cuándo abre o cierra tu ventana; Avo te festeja al cumplirlo. El ayuno se cuenta solo con tus comidas (un café negro o un refresco sin azúcar no lo rompen) y, si no registraste tu última comida, tocas «Empecé mi ayuno». En la semana: tus ayunos, el promedio, el más largo y cuántos cumpliste. Los recordatorios cambian a «abre tu ventana» y «cierra en 30 min», y Avo respeta tu plan. Tu nutrióloga lo ve.
+- **Meta de proteína** en Perfil (si tu nutrióloga no te la puso): Mi día muestra «67 / 140 g».
+
 ## 1.1.0 — 16 de octubre de 2026
 
 - **Recordatorios a la hora de comer** (web e iOS): desayuno 8:30, comida 1:00 y cena 7:30, y a las 9 p. m. si tu racha está en peligro. Si ya registraste esa comida, Avo no te molesta. En el iPhone son notificaciones del teléfono; en la web, push (en iPhone, con la web instalada). Una tarjeta de un toque en Mi día los ofrece, y se apagan en Perfil.

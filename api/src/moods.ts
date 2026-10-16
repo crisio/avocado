@@ -4,6 +4,7 @@ import { canSee } from './access'
 import { chat } from './ai'
 import { fail } from './errors'
 import { describeBudget, weekBudget } from './budget'
+import { describeFasting } from './fasting'
 import { findGif, type Gif } from './gifs'
 import { avoVoice, CHATTY, GIF_FIELD, recentAvoLines } from './voice'
 
@@ -174,7 +175,7 @@ export async function patientContext(env: Env, user: User, offset: number, skipM
   const local = new Date(now - offset * 60_000)
   const dayStart = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) + offset * 60_000
   const db = env.DB
-  const [today, lastMeals, lastMoods, budget] = await Promise.all([
+  const [today, lastMeals, lastMoods, budget, fasting] = await Promise.all([
     db
       .prepare(
         `SELECT coalesce(sum(CASE WHEN status = 'analyzed' THEN calories END), 0) AS consumed, count(*) AS meals
@@ -194,6 +195,7 @@ export async function patientContext(env: Env, user: User, offset: number, skipM
       .bind(user.id, skipMoodId ?? '')
       .all<MoodRow>(),
     weekBudget(env, user, offset, now),
+    describeFasting(env, user, offset, now),
   ])
   const consumed = Math.round(today?.consumed ?? 0)
   const goal = user.daily_kcal_goal
@@ -203,6 +205,7 @@ export async function patientContext(env: Env, user: User, offset: number, skipM
     `Ahora es ${localLabel(new Date(now).toISOString(), offset)} (hora del teléfono).`,
     `Hoy lleva ${consumed} kcal en ${today?.meals ?? 0} comidas registradas.${goal ? ` Su meta diaria es ${goal} kcal (le quedan ${goal - consumed}).` : ' No tiene meta diaria.'}`,
     describeBudget(budget),
+    fasting,
     user.protein_g_goal || user.carbs_g_goal || user.fat_g_goal
       ? `Sus metas de macros al día: ${[
           user.protein_g_goal ? `${user.protein_g_goal} g de proteína` : null,

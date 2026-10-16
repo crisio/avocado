@@ -9,7 +9,7 @@ import { nextReminderText } from '../components/ReminderCard'
 import PrivacyLink from '../components/PrivacyLink'
 import { api } from '../lib/api'
 import { useCachedApi } from '../lib/useCachedApi'
-import { displayName, firstName, formatDay, formatNumber } from '../lib/format'
+import { displayName, firstName, formatClock, formatDay, formatNumber } from '../lib/format'
 import { parseInviteCode } from '../lib/invite'
 import { cheer } from '../lib/mascot'
 import { useOutbox } from '../lib/outbox'
@@ -63,6 +63,8 @@ export default function Settings() {
       {user?.role === 'nutritionist' && <InviteCard />}
 
       {user?.role === 'patient' && (user.goals_set_by ? <LockedGoals /> : <DailyGoal />)}
+
+      {user?.role === 'patient' && <Fasting />}
 
       {user?.role === 'patient' && <AvoStylePicker />}
 
@@ -305,6 +307,7 @@ function LockedGoals() {
 function DailyGoal() {
   const { user, setUser } = useAuth()
   const [value, setValue] = useState(user?.daily_kcal_goal ? String(user.daily_kcal_goal) : '')
+  const [protein, setProtein] = useState(user?.protein_g_goal ? String(user.protein_g_goal) : '')
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -315,7 +318,7 @@ function DailyGoal() {
     setBusy(true)
     try {
       const goal = value.trim() ? Number(value) : null
-      const updated = await api<User>('/me', { method: 'PATCH', json: { daily_kcal_goal: goal } })
+      const updated = await api<User>('/me', { method: 'PATCH', json: { daily_kcal_goal: goal, protein_g_goal: protein.trim() ? Number(protein) : null } })
       setUser(updated)
       setSaved(true)
       cheer('love', updated.daily_kcal_goal ? `¡Meta de ${formatNumber(updated.daily_kcal_goal)} kcal guardada!` : 'Listo, sin meta por ahora', { interrupt: true })
@@ -343,11 +346,89 @@ function DailyGoal() {
         placeholder="Ej. 1800"
         hint="La que te indicó tu nutrióloga. Avo la usa para aconsejarte con tus antojos. Déjala vacía si no tienes una."
       />
+      <TextField
+        label="Meta de proteína (g al día)"
+        type="number"
+        inputMode="numeric"
+        min={20}
+        max={400}
+        step={1}
+        value={protein}
+        onChange={(e) => {
+          setProtein(e.target.value)
+          setSaved(false)
+        }}
+        placeholder="Ej. 100"
+        hint="Una referencia común es 1.2–2 g por kilo de peso al día; tu nutrióloga te dice la tuya."
+      />
       {error && <Notice tone="error">{error}</Notice>}
       <Button type="submit" variant="secondary" icon={saved ? 'check' : undefined} loading={busy} disabled={saved}>
         {saved ? 'Guardada' : 'Guardar meta'}
       </Button>
       <GoalPicker />
+    </Card>
+  )
+}
+
+const FASTING_OPTIONS: SegmentedOption<string>[] = [
+  { value: '0', label: 'No' },
+  ...[12, 14, 16, 18, 20].map((h) => ({ value: String(h), label: `${h}:${24 - h}`, ariaLabel: `Ayuno de ${h} horas` })),
+]
+
+/** Ayuno intermitente: el plan se guarda al tocarlo y la hora de la ventana al cambiarla. */
+function Fasting() {
+  const { user, setUser } = useAuth()
+  const [error, setError] = useState<string | null>(null)
+  const hours = user?.fasting_hours ?? null
+  const start = user?.eating_start || '12:00'
+
+  async function patch(json: Record<string, unknown>) {
+    setError(null)
+    try {
+      setUser(await api<User>('/me', { method: 'PATCH', json }))
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  let end = ''
+  if (hours) {
+    const [h, m] = start.split(':').map(Number)
+    const mins = ((h * 60 + m + (24 - hours) * 60) % 1440 + 1440) % 1440
+    end = `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
+  }
+
+  return (
+    <Card padding="lg" as="section" aria-label="Ayuno intermitente">
+      <div className="app-stack" style={{ gap: 6 }}>
+        <span className="mood-label">Ayuno intermitente</span>
+        <Segmented
+          label="Ayuno intermitente"
+          options={FASTING_OPTIONS}
+          value={String(hours ?? 0)}
+          onChange={(v) => void patch({ fasting_hours: v === '0' ? null : Number(v) })}
+        />
+        {hours && (
+          <>
+            <label className="app-row" style={{ alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 14 }}>Tu ventana de comida empieza a las</span>
+              <input
+                type="time"
+                className="fasting-window__input"
+                value={start}
+                onChange={(e) => e.target.value && void patch({ eating_start: e.target.value })}
+              />
+            </label>
+            <span className="av-text-muted" style={{ fontSize: 13 }}>
+              Comes de {formatClock(start)} a {formatClock(end)} y ayunas {hours} horas.
+            </span>
+          </>
+        )}
+        <span className="av-text-muted" style={{ fontSize: 12 }}>
+          El ayuno no es para todos: si tienes diabetes, estás embarazada o lactando, o has tenido un trastorno alimentario, habla antes con tu médico o tu nutrióloga.
+        </span>
+        {error && <Notice tone="error">{error}</Notice>}
+      </div>
     </Card>
   )
 }

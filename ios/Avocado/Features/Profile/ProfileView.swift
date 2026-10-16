@@ -5,6 +5,7 @@ struct ProfileView: View {
     @Environment(Session.self) private var session
     @State private var name = ""
     @State private var goal = ""
+    @State private var protein = ""
     @State private var nutritionists: [Person] = []
     @State private var nutriEmail = ""
     @State private var busy: String?
@@ -64,6 +65,16 @@ struct ProfileView: View {
             }
 
             Section {
+                TextField("Ej. 90", text: $protein).keyboardType(.numberPad)
+                Button("Guardar meta de proteína") { Task { await saveProtein() } }
+                    .disabled(busy != nil || protein == (session.user?.proteinGGoal.map(String.init) ?? ""))
+            } header: {
+                Text("Meta de proteína (g al día)")
+            } footer: {
+                Text("Una referencia común es 1.2–2 g por kilo de peso al día; tu nutrióloga te dice la tuya.")
+            }
+
+            Section {
                 Picker("Tu objetivo", selection: Binding(get: { session.user?.goal }, set: { g in if let g { Task { await setObjective(g) } } })) {
                     ForEach(Goal.allCases) { Text($0.label).tag(Optional($0)) }
                 }
@@ -76,6 +87,8 @@ struct ProfileView: View {
                 Text("Con tu meta y tu objetivo, Avo calcula tu saldo de la semana y si te alcanza para una comida libre.")
             }
             }
+
+            fastingSection
 
             Section {
                 Picker("Personalidad de Avo", selection: Binding(get: { session.user?.style ?? .picante }, set: { s in Task { await setStyle(s) } })) {
@@ -104,7 +117,7 @@ struct ProfileView: View {
                         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                     }
                 } else if let next = scheduler.next, session.user?.remindersOn ?? true {
-                    let kinds = ["desayuno": "desayuno", "comida": "comida", "cena": "cena", "racha": "tu racha"]
+                    let kinds = ["desayuno": "desayuno", "comida": "comida", "cena": "cena", "racha": "tu racha", "ventana": "tu ventana de comida", "cierre": "el cierre de tu ventana"]
                     Text("Próximo: \(kinds[next.kind] ?? next.kind) \(Fmt.day(Fmt.date(next.at)).lowercased() == "hoy" ? "" : Fmt.day(Fmt.date(next.at)).lowercased() + " ")a las \(Fmt.time(Fmt.date(next.at)))")
                         .font(.subheadline)
                         .foregroundStyle(Theme.muted)
@@ -212,6 +225,7 @@ struct ProfileView: View {
         .task {
             name = session.user?.fullName ?? ""
             goal = session.user?.dailyKcalGoal.map(String.init) ?? ""
+            protein = session.user?.proteinGGoal.map(String.init) ?? ""
             await loadNutritionists()
             await scheduler.refresh()
         }
@@ -260,6 +274,62 @@ struct ProfileView: View {
                 cheer(.love, "Listo, sin meta por ahora")
             }
             return nil
+        }
+    }
+
+    private func saveProtein() async {
+        await run("protein") {
+            let trimmed = protein.trimmingCharacters(in: .whitespaces)
+            let value: Any = trimmed.isEmpty ? NSNull() : (Int(trimmed) ?? -1)
+            let updated = try await session.update(["protein_g_goal": value])
+            if let g = updated.proteinGGoal {
+                cheer(.love, "¡Meta de \(g) g de proteína guardada!")
+            } else {
+                cheer(.love, "Listo, sin meta de proteína")
+            }
+            return nil
+        }
+    }
+
+    private static let fastingOptions = [0, 12, 14, 16, 18, 20]
+
+    private var eatingStartDate: Date {
+        let parts = (session.user?.eatingStart ?? "12:00").split(separator: ":").compactMap { Int($0) }
+        let (h, m) = parts.count >= 2 ? (parts[0], parts[1]) : (12, 0)
+        return Fmt.calendar.date(bySettingHour: h, minute: m, second: 0, of: .now) ?? .now
+    }
+
+    @ViewBuilder private var fastingSection: some View {
+        let hours = session.user?.fastingHours
+        Section {
+            Picker("Ayuno intermitente", selection: Binding(
+                get: { hours ?? 0 },
+                set: { h in Task { await run("fasting") { try await session.update(["fasting_hours": h == 0 ? NSNull() : h as Any]); return nil } } }
+            )) {
+                ForEach(Self.fastingOptions, id: \.self) { h in Text(h == 0 ? "No" : "\(h):\(24 - h)").tag(h) }
+            }
+            .pickerStyle(.segmented)
+            .disabled(busy != nil)
+            if hours != nil {
+                DatePicker("Tu ventana de comida empieza a las", selection: Binding(
+                    get: { eatingStartDate },
+                    set: { d in
+                        let c = Fmt.calendar.dateComponents([.hour, .minute], from: d)
+                        let value = String(format: "%02d:%02d", c.hour ?? 12, c.minute ?? 0)
+                        Task { await run("eating") { try await session.update(["eating_start": value]); return nil } }
+                    }
+                ), displayedComponents: .hourAndMinute)
+            }
+        } header: {
+            Text("Ayuno intermitente")
+        } footer: {
+            VStack(alignment: .leading, spacing: 6) {
+                if let hours {
+                    let end = Fmt.calendar.date(byAdding: .hour, value: 24 - hours, to: eatingStartDate) ?? eatingStartDate
+                    Text("Comes de \(Fmt.time(eatingStartDate)) a \(Fmt.time(end)) y ayunas \(hours) horas.")
+                }
+                Text("El ayuno no es para todos: si tienes diabetes, estás embarazada o lactando, o has tenido un trastorno alimentario, habla antes con tu médico o tu nutrióloga.")
+            }
         }
     }
 
