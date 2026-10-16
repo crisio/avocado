@@ -33,6 +33,13 @@ export interface User {
   goals_set_by?: string | null
   /** Personalidad de Avo (ausente = picante). */
   avo_style?: AvoStyle
+  /** Recordatorios a la hora de comer (por defecto sí; el servidor los manda si hay suscripción push). */
+  reminders?: boolean
+}
+
+export interface ReminderPreview {
+  enabled: boolean
+  reminders: { id: string; kind: 'desayuno' | 'comida' | 'cena' | 'racha'; at: string; title: string; body: string }[]
 }
 
 export type Goal = 'bajar' | 'mantener' | 'subir'

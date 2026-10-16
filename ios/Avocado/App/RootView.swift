@@ -12,7 +12,7 @@ struct RootView: View {
                 switch user.role {
                 case nil: OnboardingView()
                 case .nutritionist: CareTabs()
-                case .patient: MainTabs()
+                case .patient: PatientEntry()
                 }
             } else {
                 LoginView()
@@ -31,14 +31,44 @@ struct RootView: View {
             Task {
                 await session.refresh()
                 await Outbox.shared.flush()
+                await ReminderScheduler.shared.refresh()
             }
         }
+        // Avisos de comida: al entrar, al cambiar el ajuste y al subir una comida (el aviso de esa hora ya no hace falta).
+        .task(id: "\(session.user?.id ?? "")\(session.user?.role?.rawValue ?? "")\(session.user?.remindersOn ?? true)") {
+            await ReminderScheduler.shared.refresh(force: true)
+        }
+        .onChange(of: Outbox.shared.syncedCount) { Task { await ReminderScheduler.shared.refresh(force: true) } }
         // Reintenta la cola cada tanto mientras haya algo pendiente (por si la señal volvió sin avisar).
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(20))
                 if !Outbox.shared.jobs.isEmpty { await Outbox.shared.flush() }
             }
+        }
+    }
+}
+
+/// Tras elegir "Paciente": primero el permiso para la IA (una vez, y "Ahora no" sigue a la app); si lo salta, se le vuelve a pedir antes de la primera foto.
+struct PatientEntry: View {
+    @Environment(Session.self) private var session
+    @State private var skipped = false
+
+    private var askedKey: String { "avocado.consentAsked.\(session.user?.id ?? "")" }
+
+    var body: some View {
+        if session.user?.aiConsentAt == nil, !skipped, !UserDefaults.standard.bool(forKey: askedKey) {
+            ScrollView {
+                AiConsentView(onDecline: {
+                    UserDefaults.standard.set(true, forKey: askedKey)
+                    skipped = true
+                })
+                .padding(.horizontal, Theme.gutter)
+                .padding(.vertical, 24)
+            }
+            .screenBackground()
+        } else {
+            MainTabs()
         }
     }
 }

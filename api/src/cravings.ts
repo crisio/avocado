@@ -4,7 +4,7 @@ import { chat, num, requireAiConsent, toBase64 } from './ai'
 import { fail } from './errors'
 import { describeBudget, weekBudget } from './budget'
 import { findGif, gifQueryOf, type Gif } from './gifs'
-import { avoVoice, GIF_FIELD } from './voice'
+import { avoVoice, GIF_FIELD, recentAvoLines } from './voice'
 
 /**
  * "¿Me lo como?": el paciente le toma foto a un antojo y Avo le dice cuántas calorías tiene y cuánto le conviene
@@ -174,6 +174,7 @@ cravingRoutes.post('/', async (c) => {
     describeBudget(budget),
     note ? `El paciente dice qué es: ${note}` : null,
     question && answer ? `Le preguntaste: "${question}" y respondió: "${answer}".` : answer ? `El paciente agrega: ${answer}` : null,
+    await recentAvoLines(c.env, user.id),
   ]
     .filter(Boolean)
     .join('\n')

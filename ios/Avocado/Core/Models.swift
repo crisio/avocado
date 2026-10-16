@@ -25,8 +25,11 @@ struct User: Codable, Equatable {
     var goalsSetBy: String?
     /// Personalidad de Avo. Los perfiles guardados de antes no la traen: cuenta como picante.
     var avoStyle: AvoStyle?
+    /// Avisos a la hora de comer. Los perfiles guardados de antes no lo traen: cuenta como encendido.
+    var reminders: Bool?
 
     var style: AvoStyle { avoStyle ?? .picante }
+    var remindersOn: Bool { reminders ?? true }
 }
 
 /// Cómo habla Avo con el paciente. Mismos valores que la API (avo_style).

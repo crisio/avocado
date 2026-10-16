@@ -12,33 +12,30 @@ struct AiConsentView: View {
     @State private var error: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 12) {
-                MascotView(mood: .think, size: 64)
-                Text("Avo usa inteligencia artificial").font(.display(22, relativeTo: .title2)).foregroundStyle(Theme.ink)
-            }
-            Group {
-                Text("Para calcular calorías y macros, Avocado manda a un modelo de IA de otra empresa:")
-                VStack(alignment: .leading, spacing: 6) {
-                    bullet("La foto de tu comida y tu nota.")
-                    bullet("Tus correcciones («me dejé la mitad…»).")
-                    bullet("En «¿Me lo como?»: la foto del antojo, tu primer nombre, lo que llevas hoy y tu meta.")
-                    bullet("Cómo te sientes (hambre, ánimo, energía, si vas con tu plan) y tus últimas comidas, para aconsejarte y encontrar tus patrones.")
-                    bullet("Lo que le escribes o le dices en audio a Avo en el chat (el audio no se guarda, solo lo que dijiste).")
-                }
-                Text("Lo reciben **OpenRouter** y los modelos de **Google** (Gemini) y **OpenAI** (GPT), solo para darte el resultado. No les mandamos tu correo.")
-            }
-            .foregroundStyle(Theme.ink)
-            Text("Los resultados son estimaciones y pueden equivocarse: no son consejo médico. Puedes retirar el permiso cuando quieras en Perfil.")
-                .font(.footnote)
+        VStack(spacing: 16) {
+            MascotView(mood: .think, size: 120, hd: true)
+            Text("Para calcular tus calorías, Avo necesita ver tus fotos")
+                .font(.display(24, relativeTo: .title2))
+                .foregroundStyle(Theme.ink)
+                .multilineTextAlignment(.center)
+            Text("Tu foto y tu nota se mandan a una IA de Google (Gemini) u OpenAI, vía OpenRouter, solo para estimar la comida. Tu correo no se manda.")
+                .font(.subheadline)
                 .foregroundStyle(Theme.muted)
-            PrivacyLink()
+                .multilineTextAlignment(.center)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("📸 Le tomas foto a tu plato y en segundos ves calorías y macros")
+                Text("🔒 No usamos tus datos para publicidad ni los vendemos")
+                Text("↩️ Puedes quitar el permiso cuando quieras en Perfil")
+            }
+            .font(.body)
+            .foregroundStyle(Theme.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
             if let error { Notice(text: error, tone: .danger) }
             Button {
                 Task { await accept() }
             } label: {
                 Group {
-                    if busy { ProgressView().tint(.white) } else { Label("Acepto", systemImage: "checkmark") }
+                    if busy { ProgressView().tint(.white) } else { Text("Sí, que Avo vea mis fotos") }
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -47,17 +44,10 @@ struct AiConsentView: View {
             if let onDecline {
                 Button("Ahora no", action: onDecline).frame(maxWidth: .infinity).disabled(busy)
             }
+            PrivacyLink()
         }
-        .font(.body)
         .fixedSize(horizontal: false, vertical: true)
         .card()
-    }
-
-    private func bullet(_ text: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text("•")
-            Text(text)
-        }
     }
 
     private func accept() async {

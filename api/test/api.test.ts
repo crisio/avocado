@@ -4,6 +4,8 @@ import app from '../src/index'
 import { devOutbox } from '../src/email'
 import { findGif } from '../src/gifs'
 import type { Env } from '../src/env'
+import { planReminders, sendDueReminders } from '../src/reminders'
+import { b64urlToBytes, bytesToB64url, encryptPayload, vapidAuthorization } from '../src/webpush'
 
 const BASE = 'https://api.test'
 const ORIGIN = 'https://crisio.github.io'
@@ -1114,13 +1116,15 @@ describe('Personalidad de Avo y GIF', () => {
     expect(sent.temperature).toBe(0.2) // el cálculo no se vuelve "creativo"
     expect(sent.messages[1].content[0].text).toContain('Paciente: Roberto.')
 
-    // Sin offset (apps viejas) no inventa la hora; en tranquilo cambia la voz.
+    // Sin offset (apps viejas) no inventa la hora; en tranquilo cambia la voz; y sabe lo que ya dijo para no repetirse.
     await call('/me', { method: 'PATCH', token, json: { avo_style: 'tranquilo' } })
     spy.mockClear()
     await call('/meals', { method: 'POST', token, body: photoForm({ analyze: '1' }) })
     const quiet = sentOf(spy)
     expect(quiet.messages[0].content).toContain('TRANQUILO')
-    expect(quiet.messages[1].content[0].text).not.toContain('Contexto del paciente')
+    expect(quiet.messages[1].content[0].text).not.toContain('Ahora es')
+    expect(quiet.messages[1].content[0].text).toContain('NO repitas sus apodos')
+    expect(quiet.messages[1].content[0].text).toContain('¿Pizza a las 11 de la noche, Roberto?')
 
     spy.mockResolvedValue(
       aiReply({
@@ -1147,6 +1151,8 @@ describe('Personalidad de Avo y GIF', () => {
     expect(chat.data.avo).toMatchObject({ body: 'Ah, bueno, ¿y el plan?', gif: null })
     const sent = sentOf(spy)
     expect(sent.messages[0].content).toContain('PICANTE')
+    expect(sent.messages[0].content).toContain('PRIMERO contéstala')
+    expect(sent.messages[0].content).toContain('NUNCA te burles de cuánto come')
     expect(sent.temperature).toBe(0.7)
     expect(sent.response_format.json_schema.schema.required).toContain('gif')
     expect((await call('/avo/messages', { token })).data.messages[1].gif).toBeNull()
@@ -1190,5 +1196,137 @@ describe('Personalidad de Avo y GIF', () => {
     expect(await findGif(giphy, 'slow clap')).toBeNull()
     spy.mockResolvedValue(Response.json({ data: [] }))
     expect(await findGif(giphy, 'nada')).toBeNull()
+  })
+})
+
+describe('Recordatorios a la hora de comer', () => {
+  // Honduras (UTC-6): 14:00Z = 8:00 a. m.
+  const at = (local: string) => Date.parse(`${local}:00-06:00`)
+  const base = { user: { id: 'u1', full_name: 'Cris Pineda', avo_style: 'picante' as const }, offset: 360, hasMeals: true }
+
+  it('planea desayuno, comida y cena; se salta lo ya registrado; la racha solo si está en peligro', () => {
+    const yesterday = new Date(at('2026-10-15T13:00')).toISOString()
+    const day = planReminders({ ...base, mealTimes: [yesterday] }, at('2026-10-16T08:00'), 1)
+    expect(day.map((r) => [r.kind, r.at])).toEqual([
+      ['desayuno', '2026-10-16T14:30:00.000Z'],
+      ['comida', '2026-10-16T19:00:00.000Z'],
+      ['cena', '2026-10-17T01:30:00.000Z'],
+      ['racha', '2026-10-17T03:00:00.000Z'],
+    ])
+    expect(day[0]).toMatchObject({ id: 'desayuno-2026-10-16', title: 'Hora del desayuno 🍳' })
+    expect(day.find((r) => r.kind === 'racha')!.body).toMatch(/1 día|1 días/)
+    expect(day.every((r) => r.body.includes('Cris') || !r.body.includes('{'))).toBe(true)
+
+    // Ya desayunó: ni desayuno ni racha; a las 3 p. m. ya pasó la comida.
+    const breakfast = new Date(at('2026-10-16T07:50')).toISOString()
+    expect(planReminders({ ...base, mealTimes: [yesterday, breakfast] }, at('2026-10-16T08:00'), 1).map((r) => r.kind)).toEqual(['comida', 'cena'])
+    expect(planReminders({ ...base, mealTimes: [yesterday, breakfast] }, at('2026-10-16T15:00'), 1).map((r) => r.kind)).toEqual(['cena'])
+
+    // Siete días: la racha solo hoy; el mismo aviso siempre con el mismo texto.
+    const week = planReminders({ ...base, mealTimes: [yesterday] }, at('2026-10-16T08:00'), 7)
+    expect(week).toHaveLength(4 + 6 * 3)
+    expect(planReminders({ ...base, mealTimes: [yesterday] }, at('2026-10-16T08:00'), 7)).toEqual(week)
+
+    // Sin comidas nunca: textos para la primera foto y sin racha; en tranquilo, otra voz.
+    const first = planReminders({ ...base, mealTimes: [], hasMeals: false }, at('2026-10-16T08:00'), 1)
+    expect(first.map((r) => r.kind)).toEqual(['desayuno', 'comida', 'cena'])
+    expect(first[0].body).toMatch(/primera foto|calorías/)
+    const calm = planReminders({ ...base, user: { ...base.user, avo_style: 'tranquilo' }, mealTimes: [yesterday] }, at('2026-10-16T08:00'), 1)
+    expect(calm[0].body).not.toBe(day[0].body)
+  })
+
+  it('la API da los avisos con su personalidad, guarda la hora del teléfono y se apagan en el perfil', async () => {
+    const token = await login('avisos@gmail.com', { full_name: 'Ana Avisos', role: 'patient' })
+    const res = await call('/reminders?offset=360&days=2', { token })
+    expect(res.status).toBe(200)
+    expect(res.data.enabled).toBe(true)
+    expect(res.data.reminders.length).toBeGreaterThan(0)
+    expect(res.data.reminders[0]).toMatchObject({ id: expect.any(String), kind: expect.any(String), title: expect.any(String), body: expect.stringContaining('Ana') })
+    expect((await call('/me', { token })).data).toMatchObject({ reminders: true, tz_offset: 360 })
+    expect((await call('/reminders?offset=9999', { token })).status).toBe(400)
+
+    expect((await call('/me', { method: 'PATCH', token, json: { reminders: 'no' } })).status).toBe(400)
+    expect((await call('/me', { method: 'PATCH', token, json: { reminders: false } })).data.reminders).toBe(false)
+    expect((await call('/reminders?offset=360', { token })).data).toEqual({ enabled: false, reminders: [] })
+
+    const nutri = await login('nutri-avisos@gmail.com', { full_name: 'Lic. Avisos', role: 'nutritionist' })
+    expect((await call('/reminders?offset=360', { token: nutri })).data.enabled).toBe(false)
+  })
+
+  it('guarda la suscripción de Web Push (una por navegador) y la valida', async () => {
+    const token = await login('push@gmail.com', { full_name: 'Pepe Push', role: 'patient' })
+    const other = await login('push2@gmail.com', { full_name: 'Otro', role: 'patient' })
+    // Sin la llave privada en este entorno, la web no ofrece recordatorios.
+    expect((await call('/push/key', { token })).data).toEqual({ publicKey: null })
+    const sub = { endpoint: 'https://fcm.googleapis.com/fcm/send/abc', keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) }, offset: 360 }
+    expect((await call('/push/subscriptions', { method: 'POST', token, json: sub })).status).toBe(201)
+    expect((await call('/push/subscriptions', { method: 'POST', token: other, json: sub })).status).toBe(201)
+    const owner = await env.DB.prepare('SELECT u.email FROM push_subscriptions p JOIN users u ON u.id = p.user_id WHERE endpoint = ?').bind(sub.endpoint).first()
+    expect(owner).toEqual({ email: 'push2@gmail.com' })
+    expect((await call('/push/subscriptions', { method: 'POST', token, json: { ...sub, endpoint: 'http://inseguro.test/x' } })).status).toBe(400)
+    expect((await call('/push/subscriptions', { method: 'POST', token, json: { ...sub, keys: { p256dh: 'corta', auth: 'x' } } })).status).toBe(400)
+    expect((await call('/push/subscriptions', { method: 'DELETE', token: other, json: { endpoint: sub.endpoint } })).status).toBe(200)
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM push_subscriptions').first()).toEqual({ n: 0 })
+  })
+
+  it('cifra el mensaje como dice el RFC 8291 y firma VAPID', async () => {
+    // Vector del apéndice A del RFC 8291.
+    const body = await encryptPayload(
+      { endpoint: 'https://push.example.net/push/JzLQ3raZJfFBR0aqvOMsLrt54w4rJUsV', p256dh: 'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4', auth: 'BTBZMqHH6r4Tts7J_aSIgg' },
+      'When I grow up, I want to be a watermelon',
+      { salt: b64urlToBytes('DGv6ra1nlYgDCS1FRnbzlw'), publicKey: b64urlToBytes('BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8'), privateKey: 'yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw' },
+    )
+    expect(bytesToB64url(body)).toBe(
+      'DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN',
+    )
+
+    const pair = (await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify'])) as CryptoKeyPair
+    const jwk = (await crypto.subtle.exportKey('jwk', pair.privateKey)) as JsonWebKey
+    const publicKey = bytesToB64url(new Uint8Array((await crypto.subtle.exportKey('raw', pair.publicKey)) as ArrayBuffer))
+    const header = await vapidAuthorization('https://fcm.googleapis.com/fcm/send/abc', { publicKey, privateKey: jwk.d!, subject: 'mailto:a@b.test' }, Date.parse('2026-10-16T00:00:00Z'))
+    const [, jwt, k] = header.match(/^vapid t=([^,]+), k=(.+)$/)!
+    expect(k).toBe(publicKey)
+    const [h, c, sig] = jwt.split('.')
+    expect(JSON.parse(new TextDecoder().decode(b64urlToBytes(c)))).toEqual({ aud: 'https://fcm.googleapis.com', exp: Date.parse('2026-10-16T12:00:00Z') / 1000, sub: 'mailto:a@b.test' })
+    const valid = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pair.publicKey, b64urlToBytes(sig), new TextEncoder().encode(`${h}.${c}`))
+    expect(valid).toBe(true)
+  })
+
+  it('el cron manda el aviso que toca una sola vez y borra suscripciones vencidas', async () => {
+    const token = await login('cron@gmail.com', { full_name: 'Carla Cron', role: 'patient' })
+    const pair = (await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits'])) as CryptoKeyPair
+    const p256dh = bytesToB64url(new Uint8Array((await crypto.subtle.exportKey('raw', pair.publicKey)) as ArrayBuffer))
+    const sub = { endpoint: 'https://web.push.apple.com/cron-1', keys: { p256dh, auth: bytesToB64url(crypto.getRandomValues(new Uint8Array(16))) }, offset: 360 }
+    await call('/push/subscriptions', { method: 'POST', token, json: sub })
+
+    const vapidPair = (await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign'])) as CryptoKeyPair
+    const vapid = {
+      ...env,
+      VAPID_PUBLIC_KEY: bytesToB64url(new Uint8Array((await crypto.subtle.exportKey('raw', vapidPair.publicKey)) as ArrayBuffer)),
+      VAPID_PRIVATE_KEY: ((await crypto.subtle.exportKey('jwk', vapidPair.privateKey)) as JsonWebKey).d!,
+    } as Env
+
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 201 }))
+    // 1:10 p. m. en Honduras: toca el de la comida (es su primera vez: texto para la primera foto).
+    expect(await sendDueReminders(vapid, at('2026-10-16T13:10'))).toEqual({ sent: 1 })
+    const [url, init] = spy.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe(sub.endpoint)
+    expect(new Headers(init.headers).get('Authorization')).toMatch(/^vapid t=.+, k=/)
+    expect(new Headers(init.headers).get('Content-Encoding')).toBe('aes128gcm')
+    // Una sola vez por día y tipo; a las 4 p. m. no toca nada.
+    expect(await sendDueReminders(vapid, at('2026-10-16T13:25'))).toEqual({ sent: 0 })
+    expect(await sendDueReminders(vapid, at('2026-10-16T16:00'))).toEqual({ sent: 0 })
+    expect(spy).toHaveBeenCalledTimes(1)
+
+    // Si ya registró la cena, no se le avisa; si la suscripción venció (410), se borra.
+    await env.DB.prepare('INSERT INTO meals (id, user_id, eaten_at, photo_key) SELECT ?, id, ?, ? FROM users WHERE email = ?')
+      .bind(crypto.randomUUID(), new Date(at('2026-10-16T18:00')).toISOString(), 'x.jpg', 'cron@gmail.com')
+      .run()
+    expect(await sendDueReminders(vapid, at('2026-10-16T19:40'))).toEqual({ sent: 0 })
+    spy.mockResolvedValue(new Response(null, { status: 410 }))
+    expect(await sendDueReminders(vapid, at('2026-10-17T08:35'))).toEqual({ sent: 0 })
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM push_subscriptions WHERE endpoint = ?').bind(sub.endpoint).first()).toEqual({ n: 0 })
+    // Sin llaves de VAPID, el cron no hace nada.
+    expect(await sendDueReminders(env, at('2026-10-17T13:05'))).toEqual({ sent: 0 })
   })
 })

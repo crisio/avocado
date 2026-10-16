@@ -5,7 +5,7 @@ import { chat } from './ai'
 import { fail } from './errors'
 import { describeBudget, weekBudget } from './budget'
 import { findGif, type Gif } from './gifs'
-import { avoVoice, CHATTY, GIF_FIELD } from './voice'
+import { avoVoice, CHATTY, GIF_FIELD, recentAvoLines } from './voice'
 
 /**
  * "¿Cómo te sientes?": el paciente registra cómo se siente (con hambre, ansioso, lleno…), su energía y si va con el
@@ -232,6 +232,7 @@ async function adviseMood(env: Env, user: User, mood: ReturnType<typeof toMood>,
     ...(await patientContext(env, user, offset, mood.id)),
     linked ? `Lo registra después de esta comida: ${localLabel(linked.eaten_at, offset)}, ${describeMeal(linked)}.` : null,
     `Ahorita se siente: ${describeMood(mood)}.`,
+    await recentAvoLines(env, user.id),
   ]
     .filter(Boolean)
     .join('\n')

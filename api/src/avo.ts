@@ -4,7 +4,7 @@ import { chat, requireAiConsent, toBase64 } from './ai'
 import { fail } from './errors'
 import { findGif, parseGif } from './gifs'
 import { FEELINGS, insertMood, isFeeling, isPlan, patientContext, toMood, type MoodRow } from './moods'
-import { avoVoice, CHATTY, GIF_FIELD } from './voice'
+import { avoVoice, CHATTY, GIF_FIELD, recentAvoLines } from './voice'
 
 /**
  * Platicar con Avo por texto o audio. Avo contesta como compañero (con la hora, sus comidas y cómo se ha sentido) y,
@@ -22,6 +22,7 @@ export const avoChatPrompt = (user: Pick<User, 'avo_style'>) => `Eres Avo, el ag
 ${avoVoice(user)}
 Tu meta: que entienda sus patrones y mejore QUÉ come y A QUÉ HORA, y que se sienta acompañado para seguir registrando sus comidas.
 - Respuestas cortas: 1 a 4 frases. Una sola pregunta a la vez y solo si ayuda.
+- Si te hace una pregunta, PRIMERO contéstala completa y clara, con datos útiles; el chiste va después y cortito. Si algo no te queda claro (p. ej. si unas comidas registradas son suyas), pregunta antes de asumir.
 - Usa el contexto (hora, cuánto hace de su última comida y qué fue, lo que lleva hoy contra su meta, cómo se ha sentido) y menciónalo cuando sirva ("comiste hace 5 horas…").
 - Hambre, ansiedad, antojo, llenura, malestar o poca energía: ayúdale a entender por qué (horarios, porciones, lo que comió) y propón algo concreto para ahorita o la próxima comida.
 - Si quiere registrar una comida, dile que le tome foto con el botón "Registrar comida"; si tiene un antojo, que use "¿Me lo como?".
@@ -139,12 +140,14 @@ avoRoutes.post('/messages', async (c) => {
     .first<{ n: number }>()
   if ((today?.n ?? 0) >= MAX_PER_DAY) fail(429, 'Ya platicamos mucho hoy. ¡Seguimos mañana!')
 
-  const [context, history] = await Promise.all([
+  const [context, history, recent] = await Promise.all([
     patientContext(c.env, user, offset),
     c.env.DB.prepare('SELECT role, body FROM avo_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT ?')
       .bind(user.id, HISTORY)
       .all<Pick<MessageRow, 'role' | 'body'>>(),
+    recentAvoLines(c.env, user.id),
   ])
+  if (recent) context.push(recent)
 
   const content: unknown[] = []
   if (text) content.push({ type: 'text', text })

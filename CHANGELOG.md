@@ -2,6 +2,12 @@
 
 La web (PWA), la API y la app de iOS llevan la misma versión. Mientras la versión empiece con 0, la app sigue en pruebas.
 
+## 1.1.0 — 16 de octubre de 2026
+
+- **Recordatorios a la hora de comer** (web e iOS): desayuno 8:30, comida 1:00 y cena 7:30, y a las 9 p. m. si tu racha está en peligro. Si ya registraste esa comida, Avo no te molesta. En el iPhone son notificaciones del teléfono; en la web, push (en iPhone, con la web instalada). Una tarjeta de un toque en Mi día los ofrece, y se apagan en Perfil.
+- **Permiso para la IA más claro** y desde que entras como paciente (se puede dejar para después).
+- **Avo picante afinado:** primero contesta lo que le preguntas y después bromea, no repite apodos ni chistes, y nunca se burla de cuánto o qué tan seguido comes.
+
 ## 1.0.0 — 14 de octubre de 2026
 
 Primera versión para la App Store (solo Latinoamérica), gratis para todos.

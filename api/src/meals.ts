@@ -4,6 +4,7 @@ import { canSee } from './access'
 import { AI_CONSENT_REQUIRED, analyzePhoto, correctAnalysis, fraction, requireAiConsent, withTotals, type Analysis } from './ai'
 import { fail } from './errors'
 import { patientContext } from './moods'
+import { recentAvoLines } from './voice'
 import { signedPhotoUrl } from './photos'
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024
@@ -94,7 +95,8 @@ async function runAnalysis(env: Env, meal: MealRow, user: User, offset: number |
   try {
     const photo = await env.PHOTOS.get(meal.photo_key)
     if (!photo) throw new Error('No se encontró la foto')
-    const context = offset === null ? [] : [...(await patientContext(env, user, offset)), 'La foto es su comida más reciente (todavía sin analizar).']
+    const [base, recent] = await Promise.all([offset === null ? [] : patientContext(env, user, offset), recentAvoLines(env, user.id)])
+    const context = [...base, ...(offset === null ? [] : ['La foto es su comida más reciente (todavía sin analizar).']), ...(recent ? [recent] : [])]
     const result = await analyzePhoto(env, await photo.arrayBuffer(), photo.httpMetadata?.contentType ?? 'image/jpeg', meal.note, user, context)
     await saveAnalysis(env, meal.id, result)
   } catch (err) {

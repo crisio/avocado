@@ -20,6 +20,10 @@ export interface Env {
   REVIEW_CODE?: string
   /** Clave de la API de GIPHY para los GIF de Avo (sin ella, Avo contesta igual pero sin GIF). */
   GIPHY_API_KEY?: string
+  /** Web Push (VAPID): la pública va en vars; la privada es secreto. Sin ellas no hay recordatorios en la web. */
+  VAPID_PUBLIC_KEY?: string
+  VAPID_PRIVATE_KEY?: string
+  VAPID_SUBJECT?: string
 }
 
 export interface User {
@@ -41,9 +45,16 @@ export interface User {
   goals_set_by: string | null
   /** Personalidad de Avo: picante (sarcástico, con memes y GIF) o tranquilo. */
   avo_style: 'picante' | 'tranquilo'
+  /** Recordatorios a la hora de comer (ver reminders.ts). */
+  reminders: boolean
+  /** Último offset conocido del teléfono (minutos, como getTimezoneOffset). */
+  tz_offset: number | null
 }
 
 /** Columnas del usuario que viajan con la sesión y en /me. */
-export const USER_COLUMNS = 'id, email, full_name, role, daily_kcal_goal, ai_consent_at, goal, protein_g_goal, carbs_g_goal, fat_g_goal, goals_set_by, avo_style'
+export const USER_COLUMNS = 'id, email, full_name, role, daily_kcal_goal, ai_consent_at, goal, protein_g_goal, carbs_g_goal, fat_g_goal, goals_set_by, avo_style, reminders, tz_offset'
+
+/** La fila de la base trae los booleanos como 0/1. */
+export const toUser = <T extends { reminders: unknown }>(row: T) => ({ ...row, reminders: Boolean(row.reminders) })
 
 export type AppEnv = { Bindings: Env; Variables: { user: User; sessionHash: string } }

@@ -12,6 +12,7 @@ import { budgetRoutes } from './budget'
 import { careRoutes } from './care'
 import { peopleRoutes } from './people'
 import { verifyPhotoSignature } from './photos'
+import { reminderRoutes, sendDueReminders } from './reminders'
 
 const app = new Hono<AppEnv>()
 
@@ -66,6 +67,8 @@ app.use('/moods/*', requireUser)
 app.use('/insights', requireUser)
 app.use('/avo/*', requireUser)
 app.use('/budget', requireUser)
+app.use('/reminders', requireUser)
+app.use('/push/*', requireUser)
 app.route('/', peopleRoutes)
 app.route('/meals', mealRoutes)
 app.route('/cravings', cravingRoutes)
@@ -75,6 +78,7 @@ app.route('/insights', insightRoutes)
 app.route('/avo', avoRoutes)
 app.route('/budget', budgetRoutes)
 app.route('/care', careRoutes)
+app.route('/', reminderRoutes)
 
 app.notFound((c) => c.json({ error: 'No encontrado' }, 404))
 
@@ -84,4 +88,10 @@ app.onError((err, c) => {
   return c.json({ error: 'Algo salió mal. Intenta de nuevo.' }, 500)
 })
 
-export default app
+export default {
+  fetch: app.fetch,
+  // Cron (wrangler.jsonc → triggers): recordatorios a la hora de comer por Web Push.
+  async scheduled(_event: ScheduledController, env: AppEnv['Bindings'], ctx: ExecutionContext) {
+    ctx.waitUntil(sendDueReminders(env).then(({ sent }) => console.log('recordatorios', sent)))
+  },
+} satisfies ExportedHandler<AppEnv['Bindings']>

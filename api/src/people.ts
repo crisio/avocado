@@ -16,7 +16,7 @@ peopleRoutes.get('/me', (c) => c.json(c.var.user))
 peopleRoutes.patch('/me', async (c) => {
   const user = c.var.user
   const body = await c.req
-    .json<{ full_name?: unknown; role?: unknown; daily_kcal_goal?: unknown; ai_consent?: unknown; goal?: unknown; avo_style?: unknown }>()
+    .json<{ full_name?: unknown; role?: unknown; daily_kcal_goal?: unknown; ai_consent?: unknown; goal?: unknown; avo_style?: unknown; reminders?: unknown }>()
     .catch(() => ({}) as Record<string, unknown>)
 
   let fullName = user.full_name
@@ -68,10 +68,17 @@ peopleRoutes.patch('/me', async (c) => {
     avoStyle = body.avo_style
   }
 
-  await c.env.DB.prepare('UPDATE users SET full_name = ?, role = ?, daily_kcal_goal = ?, ai_consent_at = ?, goal = ?, avo_style = ? WHERE id = ?')
-    .bind(fullName, role, goal, consent, objective, avoStyle, user.id)
+  // Recordatorios a la hora de comer: true o false.
+  let reminders = user.reminders
+  if (body.reminders !== undefined) {
+    if (typeof body.reminders !== 'boolean') fail(400, 'reminders debe ser true o false')
+    reminders = body.reminders
+  }
+
+  await c.env.DB.prepare('UPDATE users SET full_name = ?, role = ?, daily_kcal_goal = ?, ai_consent_at = ?, goal = ?, avo_style = ?, reminders = ? WHERE id = ?')
+    .bind(fullName, role, goal, consent, objective, avoStyle, reminders ? 1 : 0, user.id)
     .run()
-  return c.json({ ...user, full_name: fullName, role, daily_kcal_goal: goal, ai_consent_at: consent, goal: objective, avo_style: avoStyle })
+  return c.json({ ...user, full_name: fullName, role, daily_kcal_goal: goal, ai_consent_at: consent, goal: objective, avo_style: avoStyle, reminders })
 })
 
 // Borrar la cuenta y todo lo suyo: fotos, comidas, cómo se ha sentido, comentarios, vínculos y sesiones. No se puede deshacer.
@@ -86,6 +93,8 @@ peopleRoutes.delete('/me', async (c) => {
     db.prepare('DELETE FROM moods WHERE user_id = ?').bind(id),
     db.prepare('DELETE FROM meals WHERE user_id = ?').bind(id),
     db.prepare('DELETE FROM care_links WHERE patient_id = ?1 OR nutritionist_id = ?1').bind(id),
+    db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(id),
+    db.prepare('DELETE FROM reminders_sent WHERE user_id = ?').bind(id),
     db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
     db.prepare('DELETE FROM auth_codes WHERE email = ?').bind(email),
     db.prepare('DELETE FROM users WHERE id = ?').bind(id),

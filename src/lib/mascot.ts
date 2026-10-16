@@ -163,7 +163,7 @@ let avoStyle: AvoStyle = 'tranquilo'
 export function setAvoStyle(style: AvoStyle | undefined, role: string | null | undefined) {
   avoStyle = role === 'patient' ? (style ?? 'picante') : 'tranquilo'
 }
-const picante = () => avoStyle === 'picante'
+export const picante = () => avoStyle === 'picante'
 
 const pick = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)]
 

@@ -17,6 +17,8 @@ struct ProfileView: View {
     @State private var joining: Person?
     @State private var joinCode = ""
     @State private var route = AppRoute.shared
+    @State private var scheduler = ReminderScheduler.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     private let api = APIClient.shared
 
@@ -89,6 +91,28 @@ struct ProfileView: View {
                 Text(session.user?.style == .tranquilo
                     ? "Tranquilo: amable y sin carrilla."
                     : "Picante: sarcástico, con memes y GIF. Nunca se burla de tu cuerpo.")
+            }
+
+            Section {
+                Toggle("Recordatorios a la hora de comer", isOn: Binding(
+                    get: { (session.user?.remindersOn ?? true) && scheduler.allowed },
+                    set: { on in Task { await setReminders(on) } }
+                ))
+                .disabled(busy != nil)
+                if scheduler.status == .denied {
+                    Button("Activar avisos en Ajustes") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                    }
+                } else if let next = scheduler.next, session.user?.remindersOn ?? true {
+                    let kinds = ["desayuno": "desayuno", "comida": "comida", "cena": "cena", "racha": "tu racha"]
+                    Text("Próximo: \(kinds[next.kind] ?? next.kind) \(Fmt.day(Fmt.date(next.at)).lowercased() == "hoy" ? "" : Fmt.day(Fmt.date(next.at)).lowercased() + " ")a las \(Fmt.time(Fmt.date(next.at)))")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.muted)
+                }
+            } header: {
+                Text("Avisos")
+            } footer: {
+                Text("8:30 a. m., 1:00 p. m. y 7:30 p. m. Si ya registraste esa comida, no te aviso.")
             }
 
             Section {
@@ -189,6 +213,11 @@ struct ProfileView: View {
             name = session.user?.fullName ?? ""
             goal = session.user?.dailyKcalGoal.map(String.init) ?? ""
             await loadNutritionists()
+            await scheduler.refresh()
+        }
+        // Volver de Ajustes del sistema: el permiso pudo cambiar.
+        .onChange(of: scenePhase) {
+            if scenePhase == .active { Task { await scheduler.refresh() } }
         }
     }
 
@@ -255,6 +284,19 @@ struct ProfileView: View {
     private func setConsent(_ value: Bool) async {
         await run("consent") {
             try await session.update(["ai_consent": value])
+            return nil
+        }
+    }
+
+    private func setReminders(_ on: Bool) async {
+        await run("reminders") {
+            if on {
+                if await !scheduler.enable(), scheduler.status == .denied {
+                    return "Los avisos están apagados en Ajustes del teléfono."
+                }
+            } else {
+                await scheduler.disable()
+            }
             return nil
         }
     }

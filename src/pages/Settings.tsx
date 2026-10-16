@@ -1,10 +1,11 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Button, Card, Notice, PageHeader, PersonRow, Screen, Segmented, TextField, type SegmentedOption } from '@avocado/ui'
 import { useAuth } from '../auth'
 import AiConsentCard from '../components/AiConsent'
 import InstallCard from '../components/InstallCard'
 import InviteCard from '../components/InviteCard'
 import { Mascot } from '../components/Mascot'
+import { nextReminderText } from '../components/ReminderCard'
 import PrivacyLink from '../components/PrivacyLink'
 import { api } from '../lib/api'
 import { useCachedApi } from '../lib/useCachedApi'
@@ -12,6 +13,7 @@ import { displayName, firstName, formatDay, formatNumber } from '../lib/format'
 import { parseInviteCode } from '../lib/invite'
 import { cheer } from '../lib/mascot'
 import { useOutbox } from '../lib/outbox'
+import { disableReminders, enableReminders, hasSubscription, needsInstallForPush, permission, pushConfigured, pushSupported } from '../lib/push'
 import type { AvoStyle, Goal, Person, User } from '../lib/types'
 
 export default function Settings() {
@@ -64,6 +66,8 @@ export default function Settings() {
 
       {user?.role === 'patient' && <AvoStylePicker />}
 
+      {user?.role === 'patient' && <Reminders />}
+
       {user?.role === 'patient' && <MyNutritionists />}
 
       {user?.role === 'patient' && (user.ai_consent_at ? <AiPermission given={user.ai_consent_at} /> : <AiConsentCard />)}
@@ -80,6 +84,84 @@ export default function Settings() {
         <PrivacyLink /> · Avocado {__APP_VERSION__}
       </p>
     </Screen>
+  )
+}
+
+const REMINDER_OPTIONS: SegmentedOption<'on' | 'off'>[] = [
+  { value: 'on', label: 'Sí 🔔' },
+  { value: 'off', label: 'No' },
+]
+
+/** Recordatorios push a la hora de comer: el interruptor vale para la cuenta y para este dispositivo. */
+function Reminders() {
+  const { user, setUser } = useAuth()
+  const [configured, setConfigured] = useState(false)
+  const [subscribed, setSubscribed] = useState(false)
+  const [next, setNext] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const denied = permission() === 'denied'
+  const install = needsInstallForPush()
+  const on = user?.reminders !== false && subscribed
+
+  useEffect(() => {
+    void pushConfigured().then(setConfigured)
+    void hasSubscription().then(setSubscribed)
+  }, [])
+  useEffect(() => {
+    if (on) void nextReminderText().then(setNext)
+    else setNext(null)
+  }, [on])
+
+  if (!configured || (!install && !pushSupported())) return null
+
+  async function choose(value: 'on' | 'off') {
+    setError(null)
+    setBusy(true)
+    try {
+      if (value === 'on') {
+        const updated = await enableReminders()
+        if (updated) {
+          setUser(updated)
+          setSubscribed(true)
+          cheer('love', 'Listo, te escribo a la hora de comer 🔔', { interrupt: true })
+        }
+      } else {
+        setUser(await disableReminders())
+        setSubscribed(false)
+      }
+    } catch (err) {
+      setError((err as Error).message)
+    }
+    setBusy(false)
+  }
+
+  return (
+    <Card padding="lg" as="section" aria-label="Recordatorios a la hora de comer">
+      <div className="app-stack" style={{ gap: 6 }}>
+        <span className="mood-label">Recordatorios a la hora de comer</span>
+        {install ? (
+          <span className="av-text-muted" style={{ fontSize: 13 }}>
+            Para recibir avisos en el iPhone, agrega Avocado a tu pantalla de inicio (Compartir → Agregar a Inicio) y actívalos desde ahí.
+          </span>
+        ) : denied ? (
+          <span className="av-text-muted" style={{ fontSize: 13 }}>
+            Bloqueaste las notificaciones de Avocado. Para activarlas, permítelas en los ajustes del navegador o del teléfono (Notificaciones → Avocado) y vuelve aquí.
+          </span>
+        ) : (
+          <>
+            <fieldset disabled={busy} style={{ border: 0, margin: 0, padding: 0 }}>
+              <Segmented label="Recordatorios a la hora de comer" options={REMINDER_OPTIONS} value={on ? 'on' : 'off'} onChange={(v) => void choose(v)} />
+            </fieldset>
+            <span className="av-text-muted" style={{ fontSize: 13 }}>
+              8:30 a. m., 1:00 p. m. y 7:30 p. m. Si ya registraste esa comida, no te aviso.
+              {next && ` ${next}.`}
+            </span>
+          </>
+        )}
+        {error && <Notice tone="error">{error}</Notice>}
+      </div>
+    </Card>
   )
 }
 

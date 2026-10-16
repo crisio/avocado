@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { createMiddleware } from 'hono/factory'
-import { USER_COLUMNS, type AppEnv, type Env, type User } from './env'
+import { toUser, USER_COLUMNS, type AppEnv, type Env, type User } from './env'
 import { hmac, randomCode, randomToken, safeEqual, sha256 } from './crypto'
 import { loginCodeMail, sendMail } from './email'
 import { fail } from './errors'
@@ -92,7 +92,8 @@ authRoutes.post('/verify', async (c) => {
   }
 
   await c.env.DB.prepare('DELETE FROM auth_codes WHERE email = ?').bind(email).run()
-  let user = await c.env.DB.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE email = ?`).bind(email).first<User>()
+  const found = await c.env.DB.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE email = ?`).bind(email).first<User>()
+  let user: User | null = found ? toUser(found) : null
   if (!user) {
     user = {
       id: crypto.randomUUID(),
@@ -107,6 +108,8 @@ authRoutes.post('/verify', async (c) => {
       fat_g_goal: null,
       goals_set_by: null,
       avo_style: 'picante',
+      reminders: true,
+      tz_offset: null,
     }
     await c.env.DB.prepare('INSERT INTO users (id, email) VALUES (?, ?)').bind(user.id, email).run()
   }
@@ -143,7 +146,7 @@ export const requireUser = createMiddleware<AppEnv>(async (c, next) => {
   }
 
   const { refreshed_at: _, ...user } = row
-  c.set('user', user)
+  c.set('user', toUser(user))
   c.set('sessionHash', hash)
   await next()
 })

@@ -48,6 +48,25 @@ body {
   gap: 4px;
 }
 
+.ai-consent__list--emoji {
+  list-style: none;
+  padding-left: 0;
+  gap: 8px;
+}
+
+.ai-consent__more summary {
+  cursor: pointer;
+  color: var(--av-muted);
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.reminder-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .app-note {
   margin: 0;
   font-style: italic;

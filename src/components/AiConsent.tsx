@@ -10,8 +10,9 @@ import PrivacyLink from './PrivacyLink'
 /**
  * Permiso para mandar fotos y notas a la IA de otras empresas (App Store 5.1.2(i)). Sin él la API no analiza nada.
  * Si cambian los modelos (AI_MODELS en api/wrangler.jsonc), actualiza aquí a quién se mandan y en public/privacidad.html.
+ * `onSaved` reemplaza el guardado en la sesión (el registro lo usa para terminar el paso antes de entrar a la app).
  */
-export default function AiConsentCard({ onDecline }: { onDecline?: () => void }) {
+export default function AiConsentCard({ onDecline, onSaved }: { onDecline?: () => void; onSaved?: (user: User) => void }) {
   const { setUser } = useAuth()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -20,7 +21,8 @@ export default function AiConsentCard({ onDecline }: { onDecline?: () => void })
     setBusy(true)
     setError(null)
     try {
-      setUser(await api<User>('/me', { method: 'PATCH', json: { ai_consent: true } }))
+      const updated = await api<User>('/me', { method: 'PATCH', json: { ai_consent: true } })
+      ;(onSaved ?? setUser)(updated)
       cheer('love', '¡Gracias! A ver qué comiste', { interrupt: true })
     } catch (err) {
       setError((err as Error).message)
@@ -30,37 +32,45 @@ export default function AiConsentCard({ onDecline }: { onDecline?: () => void })
 
   return (
     <Card padding="lg" as="section" aria-labelledby="permiso-ia">
-      <div className="ai-consent__head">
-        <Mascot size={72} base="think" />
-        <h2 id="permiso-ia" className="av-section-title">
-          Avo usa inteligencia artificial
-        </h2>
+      <div className="mascot-hero">
+        <Mascot size={104} base="think" />
       </div>
-      <p style={{ margin: 0 }}>Para calcular calorías y macros, Avocado manda a un modelo de IA de otra empresa:</p>
-      <ul className="ai-consent__list">
-        <li>La foto de tu comida y tu nota.</li>
-        <li>Tus correcciones («me dejé la mitad…»).</li>
-        <li>En «¿Me lo como?»: la foto del antojo, tu primer nombre, lo que llevas hoy y tu meta.</li>
-        <li>Cómo te sientes (hambre, ánimo, energía, si vas con tu plan) y tus últimas comidas, para aconsejarte y encontrar tus patrones.</li>
-        <li>Lo que le escribes o le dices en audio a Avo en el chat (el audio no se guarda, solo lo que dijiste).</li>
-      </ul>
+      <h2 id="permiso-ia" className="av-section-title" style={{ textAlign: 'center', fontSize: 22 }}>
+        Para calcular tus calorías, Avo necesita ver tus fotos
+      </h2>
       <p style={{ margin: 0 }}>
-        Lo reciben <strong>OpenRouter</strong> y los modelos de <strong>Google</strong> (Gemini) y <strong>OpenAI</strong> (GPT), solo para darte el
-        resultado. No les mandamos tu correo.
+        Tu foto y tu nota se mandan a una IA de <strong>Google</strong> (Gemini) u <strong>OpenAI</strong>, vía <strong>OpenRouter</strong>, solo para
+        estimar la comida. Tu correo no se manda.
       </p>
-      <p className="av-text-muted" style={{ margin: 0, fontSize: 14 }}>
-        Los resultados son estimaciones y pueden equivocarse: no son consejo médico. Puedes retirar el permiso cuando quieras en Perfil.{' '}
-        <PrivacyLink />.
-      </p>
+      <ul className="ai-consent__list ai-consent__list--emoji">
+        <li>📸 Le tomas foto a tu plato y en segundos ves calorías y macros</li>
+        <li>🔒 No usamos tus datos para publicidad ni los vendemos</li>
+        <li>↩️ Puedes quitar el permiso cuando quieras en Perfil</li>
+      </ul>
+      <details className="ai-consent__more">
+        <summary>¿Qué más se manda?</summary>
+        <ul className="ai-consent__list">
+          <li>Tus correcciones («me dejé la mitad…»).</li>
+          <li>En «¿Me lo como?»: la foto del antojo, tu primer nombre, lo que llevas hoy y tu meta.</li>
+          <li>Cómo te sientes (hambre, ánimo, energía, si vas con tu plan) y tus últimas comidas, para aconsejarte y encontrar tus patrones.</li>
+          <li>Lo que le escribes o le dices en audio a Avo en el chat (el audio no se guarda, solo lo que dijiste).</li>
+        </ul>
+        <p className="av-text-muted" style={{ margin: 0, fontSize: 14 }}>
+          Los resultados son estimaciones y pueden equivocarse: no son consejo médico.
+        </p>
+      </details>
       {error && <Notice tone="error">{error}</Notice>}
       <Button size="lg" fullWidth icon="check" loading={busy} onClick={accept}>
-        Acepto
+        Sí, que Avo vea mis fotos
       </Button>
       {onDecline && (
         <Button variant="ghost" fullWidth onClick={onDecline} disabled={busy}>
           Ahora no
         </Button>
       )}
+      <p className="av-text-muted" style={{ margin: 0, fontSize: 14, textAlign: 'center' }}>
+        <PrivacyLink />
+      </p>
     </Card>
   )
 }

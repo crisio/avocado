@@ -6,6 +6,7 @@ import MoodCheckIn from '../components/MoodCheckIn'
 import DayView from '../components/DayView'
 import InviteConfirm from '../components/InviteConfirm'
 import InstallCard from '../components/InstallCard'
+import ReminderCard from '../components/ReminderCard'
 import { StreakChip } from '../components/Streak'
 import { Mascot } from '../components/Mascot'
 import { firstName, formatLongDate } from '../lib/format'
@@ -53,6 +54,7 @@ export default function Today() {
       {streak && <StreakChip streak={streak} />}
       <InviteConfirm />
       <InstallCard dismissible mobileOnly />
+      {user.role === 'patient' && <ReminderCard />}
       <DayView
         userId={user.id}
         goal={user.daily_kcal_goal}

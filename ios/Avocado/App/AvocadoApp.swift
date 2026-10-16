@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 @main
 struct AvocadoApp: App {
@@ -7,8 +8,11 @@ struct AvocadoApp: App {
     @State private var connectivity = Connectivity.shared
     @State private var streaks = StreakStore.shared
 
+    private let notifications = NotificationDelegate()
+
     init() {
         BrandFont.register()
+        UNUserNotificationCenter.current().delegate = notifications
     }
 
     var body: some Scene {

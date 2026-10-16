@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Button, Card, Notice, PageHeader, RadioCard, Screen, TextField } from '@avocado/ui'
 import { useAuth } from '../auth'
+import AiConsentCard from '../components/AiConsent'
 import { Mascot } from '../components/Mascot'
 import { getInviteCode } from '../lib/invite'
 import { cheer, greetOnce } from '../lib/mascot'
@@ -14,6 +15,8 @@ export default function Onboarding() {
   const [role, setRole] = useState<Role>('patient') // con código de invitación pendiente también empieza en paciente
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Paciente sin permiso de IA: antes de entrar a la app se le explica (la sesión se actualiza al terminar este paso)
+  const [consentFor, setConsentFor] = useState<User | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => greetOnce('onboarding', () => cheer('wave', '¡Hola! Soy Avo, te acompaño en cada comida')), 600)
@@ -24,13 +27,24 @@ export default function Onboarding() {
     e.preventDefault()
     setBusy(true)
     try {
-      setUser(await api<User>('/me', { method: 'PATCH', json: { full_name: fullName, role } }))
+      const updated = await api<User>('/me', { method: 'PATCH', json: { full_name: fullName, role } })
+      if (updated.role === 'patient' && !updated.ai_consent_at) {
+        setConsentFor(updated)
+        setBusy(false)
+      } else setUser(updated)
     } catch (err) {
       setError((err as Error).message)
       cheer('oops', 'Algo falló', { interrupt: true })
       setBusy(false)
     }
   }
+
+  if (consentFor)
+    return (
+      <Screen narrow>
+        <AiConsentCard onSaved={setUser} onDecline={() => setUser(consentFor)} />
+      </Screen>
+    )
 
   return (
     <Screen narrow>

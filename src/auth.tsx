@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { api, getToken, setToken, setUnauthorizedHandler } from './lib/api'
 import { clearCache } from './lib/cache'
 import { setAvoStyle } from './lib/mascot'
+import { dropSubscription, refreshSubscription } from './lib/push'
 import { clearOutbox, pendingCount } from './lib/outbox'
 import type { User } from './lib/types'
 
@@ -54,7 +55,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null)
     })
     // Refresca el perfil en segundo plano (un 401 cierra la sesión vía el handler)
-    if (getToken()) api<User>('/me').then(setUser, () => {})
+    if (getToken())
+      api<User>('/me').then((me) => {
+        setUser(me)
+        // Mantiene al día la zona horaria de los recordatorios push
+        if (me.role === 'patient') void refreshSubscription()
+      }, () => {})
   }, [])
 
   // En un teléfono compartido no deben quedar comidas ni datos de otra cuenta
@@ -74,11 +80,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut: async () => {
       const pending = pendingCount()
       if (pending && !confirm(`Tienes ${pending} ${pending === 1 ? 'envío' : 'envíos'} sin mandar (sin conexión). Si cierras sesión se pierden. ¿Cerrar sesión de todos modos?`)) return
+      await dropSubscription() // antes de borrar el token: la API necesita la sesión
       await api('/auth/logout', { method: 'POST' }).catch(() => {})
       await forgetLocal()
     },
     deleteAccount: async () => {
       await api('/me', { method: 'DELETE', timeoutMs: 60_000 })
+      await dropSubscription()
       await forgetLocal()
     },
     setUser,

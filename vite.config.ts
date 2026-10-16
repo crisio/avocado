@@ -32,6 +32,8 @@ export default defineConfig({
         // Menos la política de privacidad, que es una página aparte (la App Store pide un enlace que abra).
         navigateFallbackDenylist: [/^\/privacidad/, /^\/soporte/],
         cleanupOutdatedCaches: true,
+        // Recordatorios push: public/push-sw.js agrega los manejadores de push y de toque en la notificación.
+        importScripts: ['push-sw.js'],
         runtimeCaching: [
           {
             // Fotos de las comidas (API /photos/...). La firma (?exp=&sig=) cambia cada hora, así que se
