@@ -2,6 +2,10 @@
 
 La web (PWA), la API y la app de iOS llevan la misma versión. Mientras la versión empiece con 0, la app sigue en pruebas.
 
+## 1.3.1 — 17 de octubre de 2026
+
+- **Publicar en tu historia de Instagram** (web e iOS): un botón arma la historia completa (1080×1920): tu foto en cuadrado arriba y el sticker de macros abajo, para que no tape la comida, sobre la misma foto difuminada. Se comparte directo a Instagram → Historia (antes había que elegir la foto y pegar el sticker a mano, y quedaba encima del plato). La vista previa muestra la historia tal cual se publica.
+
 ## 1.3.0 — 17 de octubre de 2026
 
 - **«¿Lo cocinaste tú?»** al registrar una comida (web e iOS): con un toque dices cómo (plancha, frito, horno…), con qué (aceite de oliva, de aguacate, mantequilla…) y cuánto (1 cucharadita, 1 cucharada…), y la IA suma esa grasa aunque no se vea en la foto (sale como un alimento aparte). Recuerda tu aceite de siempre.

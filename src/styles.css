@@ -1334,29 +1334,18 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 220px;
-  padding: 24px 16px;
+  /* Vista previa de la historia (9:16) */
+  width: min(100%, 240px);
+  aspect-ratio: 9 / 16;
+  margin: 0 auto;
   border-radius: 18px;
   background-color: #2b3a2d;
-  background-size: cover;
-  background-position: center;
-  /* La foto se ve de fondo, difuminada, como cuando se pega en una historia */
-  position: relative;
   overflow: hidden;
-  isolation: isolate;
-}
-.share-sticker__stage::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: inherit;
-  filter: blur(6px) brightness(0.9);
-  transform: scale(1.1);
-  z-index: -1;
 }
 .share-sticker__img {
-  width: min(100%, 300px);
-  height: auto;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 .share-sticker__wait {
   color: #fff;

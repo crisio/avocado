@@ -166,6 +166,56 @@ struct MacroStickerView: View {
     return renderer.uiImage?.pngData()
 }
 
+/// Imagen para la historia (1080×1920, igual que src/components/ShareSticker.tsx): la foto de la comida en cuadrado
+/// arriba (el centro, donde suele estar el plato) y el sticker abajo, para que no tape la comida; de fondo, la misma foto
+/// difuminada.
+@MainActor func renderStoryImage(photo: UIImage, sticker: UIImage) -> UIImage {
+    let size = CGSize(width: 1080, height: 1920)
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    format.opaque = true
+
+    func fill(_ image: CGSize, in rect: CGRect) -> CGRect {
+        let scale = max(rect.width / image.width, rect.height / image.height)
+        let w = image.width * scale, h = image.height * scale
+        return CGRect(x: rect.midX - w / 2, y: rect.midY - h / 2, width: w, height: h)
+    }
+    func fit(_ image: CGSize, in rect: CGRect) -> CGRect {
+        let scale = min(rect.width / image.width, rect.height / image.height)
+        let w = image.width * scale, h = image.height * scale
+        return CGRect(x: rect.midX - w / 2, y: rect.minY, width: w, height: h)
+    }
+
+    // Difuminado barato: la foto dibujada diminuta y luego estirada.
+    let tinySize = CGSize(width: 27, height: 48)
+    let tiny = UIGraphicsImageRenderer(size: tinySize, format: format).image { _ in
+        photo.draw(in: fill(photo.size, in: CGRect(origin: .zero, size: tinySize)))
+    }
+    return UIGraphicsImageRenderer(size: size, format: format).image { ctx in
+        ctx.cgContext.interpolationQuality = .high
+        tiny.draw(in: CGRect(origin: .zero, size: size))
+        UIColor.black.withAlphaComponent(0.25).setFill()
+        ctx.fill(CGRect(origin: .zero, size: size))
+
+        let photoRect = CGRect(x: 100, y: 170, width: 880, height: 880)
+        ctx.cgContext.saveGState()
+        UIBezierPath(roundedRect: photoRect, cornerRadius: 48).addClip()
+        photo.draw(in: fill(photo.size, in: photoRect))
+        ctx.cgContext.restoreGState()
+
+        sticker.draw(in: fit(sticker.size, in: CGRect(x: 100, y: 1100, width: 880, height: 670)))
+    }
+}
+
+/// La imagen de la historia para el menú de compartir.
+struct StoryImage: Transferable {
+    let image: UIImage
+
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(exportedContentType: .png) { $0.image.pngData() ?? Data() }
+    }
+}
+
 /// El PNG listo para el menú de compartir.
 struct StickerImage: Transferable {
     let png: Data
@@ -183,6 +233,8 @@ struct ShareStickerCard: View {
     @AppStorage("stickerTheme") private var themeId = StickerTheme.dia.rawValue
     @AppStorage("stickerTransparency") private var transparencyPercent = 0
     @State private var png: Data?
+    /// La historia armada (foto + sticker), cuando ya bajó la foto.
+    @State private var story: UIImage?
     @State private var notice: String?
     @State private var noticeTone: Tone = .info
     @State private var pastes = 0
@@ -207,10 +259,27 @@ struct ShareStickerCard: View {
             if let notice { Notice(text: notice, tone: noticeTone) }
 
             if let png {
-                Button { Task { await pasteInInstagram(png) } } label: {
-                    Label("Pegar en Instagram", systemImage: "camera").frame(maxWidth: .infinity)
+                if let story {
+                    if Config.facebookAppID != nil {
+                        Button { Task { await postToInstagram(story) } } label: {
+                            Label("Publicar en tu historia", systemImage: "camera").frame(maxWidth: .infinity)
+                        }
+                        .primaryButton()
+                    } else {
+                        // Sin el ID de Meta, Instagram no abre la historia directo: el menú de compartir → Instagram → Historia.
+                        ShareLink(item: StoryImage(image: story), preview: SharePreview("Tu historia de Avocado", image: Image(uiImage: story))) {
+                            Label("Publicar en tu historia", systemImage: "camera").frame(maxWidth: .infinity)
+                        }
+                        .primaryButton()
+                        .simultaneousGesture(TapGesture().onEnded { cheer(.love, "Toca Instagram → Historia") })
+                    }
+                } else {
+                    Button {} label: {
+                        Label("Armando tu historia…", systemImage: "camera").frame(maxWidth: .infinity)
+                    }
+                    .primaryButton()
+                    .disabled(true)
                 }
-                .primaryButton()
                 HStack(spacing: 10) {
                     ShareLink(item: StickerImage(png: png), preview: SharePreview("Sticker de Avocado", image: Image(uiImage: UIImage(data: png) ?? UIImage()))) {
                         Label("Compartir", systemImage: "square.and.arrow.up").lineLimit(1).frame(maxWidth: .infinity)
@@ -230,6 +299,9 @@ struct ShareStickerCard: View {
         .card()
         .task(id: "\(meal.id)|\(meal.calories ?? 0)|\(meal.proteinG ?? 0)|\(meal.carbsG ?? 0)|\(meal.fatG ?? 0)|\(meal.title)|\(themeId)|\(transparencyPercent)") {
             png = renderMacroSticker(meal, theme: theme, transparency: Double(transparencyPercent) / 100)
+            if let png, let sticker = UIImage(data: png), let url = URL(string: meal.photoUrl), let photo = await ImageStore.shared.load(url) {
+                story = renderStoryImage(photo: photo, sticker: sticker)
+            }
         }
         .sensoryFeedback(.success, trigger: pastes)
         .sensoryFeedback(.success, trigger: saves)
@@ -264,10 +336,18 @@ struct ShareStickerCard: View {
         }
     }
 
-    /// Vista previa sobre la foto de la comida, difuminada (como se vería al pegarlo en una historia).
+    /// Vista previa: la historia tal cual se publica (o el sticker sobre la foto difuminada mientras baja la foto).
     private var preview: some View {
         Group {
-            if let png, let image = UIImage(data: png) {
+            if let story {
+                Image(uiImage: story)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 420)
+                    .clipShape(.rect(cornerRadius: 14))
+                    .padding(12)
+                    .accessibilityLabel("Vista previa de tu historia: la foto de tu comida y abajo el sticker con calorías y macros")
+            } else if let png, let image = UIImage(data: png) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
@@ -287,17 +367,22 @@ struct ShareStickerCard: View {
         .clipShape(.rect(cornerRadius: 18))
     }
 
-    private func pasteInInstagram(_ png: Data) async {
-        // Con el tipo PNG se conserva la transparencia.
-        UIPasteboard.general.setData(png, forPasteboardType: UTType.png.identifier)
+    /// Abre Instagram directo en una historia nueva con la imagen ya armada (requiere el ID de la app de Meta).
+    private func postToInstagram(_ story: UIImage) async {
+        guard let appID = Config.facebookAppID, let data = story.jpegData(compressionQuality: 0.9),
+              let url = URL(string: "instagram-stories://share?source_application=\(appID)") else { return }
+        UIPasteboard.general.setItems(
+            [["com.instagram.sharedSticker.backgroundImage": data]],
+            options: [.expirationDate: Date.now.addingTimeInterval(300)]
+        )
         pastes += 1
-        cheer(.love, "¡Sticker copiado!")
-        let opened = await UIApplication.shared.open(URL(string: "instagram://story-camera")!)
+        let opened = await UIApplication.shared.open(url)
         if opened {
             notice = nil
+            cheer(.love, "¡Lista tu historia!")
         } else {
             noticeTone = .info
-            notice = "Copiado: abre tu historia en Instagram y pégalo"
+            notice = "No encontré Instagram. Usa «Compartir» o «Guardar»."
         }
     }
 

@@ -194,6 +194,68 @@ export async function drawSticker(meal: Meal, theme: StickerTheme = THEMES[0], t
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('No se pudo crear la imagen'))), 'image/png'))
 }
 
+const STORY_W = 1080
+const STORY_H = 1920
+
+/** Baja la foto de la comida como imagen. Con `fetch` + blob el canvas nunca queda "tainted"; la API manda CORS en /photos. */
+async function loadPhoto(photoUrl: string): Promise<HTMLImageElement | null> {
+  try {
+    const res = await fetch(photoUrl)
+    if (!res.ok) return null
+    const objectUrl = URL.createObjectURL(await res.blob())
+    const img = await loadImage(objectUrl)
+    URL.revokeObjectURL(objectUrl)
+    return img
+  } catch {
+    return null
+  }
+}
+
+/** Historia de 1080×1920: foto difuminada de fondo, la foto en cuadro arriba y el sticker debajo, sin tapar la comida. */
+export async function drawStory(stickerBlob: Blob, photo: HTMLImageElement | null): Promise<Blob> {
+  const sticker = await createImageBitmap(stickerBlob)
+  const canvas = document.createElement('canvas')
+  canvas.width = STORY_W
+  canvas.height = STORY_H
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#2b3a2d'
+  ctx.fillRect(0, 0, STORY_W, STORY_H)
+
+  if (photo) {
+    const pw = photo.naturalWidth
+    const ph = photo.naturalHeight
+    // Fondo: la foto cubre toda la historia, difuminada (con margen extra para que los bordes no queden transparentes)
+    const cover = Math.max(STORY_W / pw, STORY_H / ph)
+    const bw = pw * cover
+    const bh = ph * cover
+    const over = 120
+    ctx.save()
+    ctx.filter = 'blur(40px)'
+    ctx.drawImage(photo, (STORY_W - bw) / 2 - over, (STORY_H - bh) / 2 - over, bw + over * 2, bh + over * 2)
+    ctx.restore()
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'
+    ctx.fillRect(0, 0, STORY_W, STORY_H)
+
+    // Foto en cuadro, recortada al centro
+    const side = Math.min(pw, ph)
+    ctx.save()
+    ctx.beginPath()
+    ctx.roundRect(100, 170, 880, 880, 48)
+    ctx.clip()
+    ctx.drawImage(photo, (pw - side) / 2, (ph - side) / 2, side, side, 100, 170, 880, 880)
+    ctx.restore()
+  }
+
+  // Sticker: ajustado a la franja de abajo, centrado y pegado arriba
+  const scale = Math.min(880 / sticker.width, 670 / sticker.height)
+  const sw = sticker.width * scale
+  const sh = sticker.height * scale
+  ctx.drawImage(sticker, 100 + (880 - sw) / 2, 1100, sw, sh)
+  sticker.close()
+
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('No se pudo crear la imagen'))), 'image/png'))
+}
+
 const STYLE_KEY = 'avocado.stickerStyle'
 
 /** Último estilo que eligió el usuario. Por defecto, el de día y sólido. */
@@ -212,6 +274,9 @@ function loadStyle(): { theme: string; transparency: number } {
 export default function ShareSticker({ meal }: { meal: Meal }) {
   const [blob, setBlob] = useState<Blob | null>(null)
   const [url, setUrl] = useState<string | null>(null)
+  const [photo, setPhoto] = useState<HTMLImageElement | null | undefined>(meal.photo_url ? undefined : null)
+  const [storyBlob, setStoryBlob] = useState<Blob | null>(null)
+  const [storyUrl, setStoryUrl] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [themeId, setThemeId] = useState(() => loadStyle().theme)
@@ -243,6 +308,61 @@ export default function ShareSticker({ meal }: { meal: Meal }) {
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [meal.id, meal.eaten_at, meal.calories, meal.protein_g, meal.carbs_g, meal.fat_g, meal.analysis?.summary, meal.note, themeId, transparency])
+
+  // La foto se baja una vez por comida
+  useEffect(() => {
+    let cancelled = false
+    if (!meal.photo_url) {
+      setPhoto(null)
+      return
+    }
+    setPhoto(undefined)
+    loadPhoto(meal.photo_url).then((img) => !cancelled && setPhoto(img))
+    return () => {
+      cancelled = true
+    }
+  }, [meal.photo_url])
+
+  // La vista previa es la misma historia que se publica
+  useEffect(() => {
+    if (!blob || photo === undefined) return
+    let cancelled = false
+    let objectUrl: string | null = null
+    drawStory(blob, photo)
+      .then((b) => {
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(b)
+        setStoryBlob(b)
+        setStoryUrl(objectUrl)
+      })
+      .catch(() => !cancelled && setFailed(true))
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [blob, photo])
+
+  const storyFile = storyBlob ? new File([storyBlob], 'avocado-historia.png', { type: 'image/png' }) : null
+  const canShareStory = !!storyFile && !!navigator.canShare?.({ files: [storyFile] })
+
+  async function publishStory() {
+    if (!storyFile || !storyUrl) return
+    if (canShareStory) {
+      try {
+        await navigator.share({ files: [storyFile] })
+        cheer('love', '¡Lista tu historia!', { interrupt: true })
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') setNotice('No se pudo compartir la historia.')
+      }
+      return
+    }
+    const a = document.createElement('a')
+    a.href = storyUrl
+    a.download = 'avocado-historia.png'
+    a.click()
+    setNotice('Imagen guardada: súbela a tu historia')
+    cheer('love', '¡Lista tu historia!', { interrupt: true })
+  }
 
   const file = blob ? new File([blob], 'avocado-sticker.png', { type: 'image/png' }) : null
   const canShare = !!file && !!navigator.canShare?.({ files: [file] })
@@ -280,8 +400,8 @@ export default function ShareSticker({ meal }: { meal: Meal }) {
   return (
     <Card padding="lg">
       <h2 className="av-section-title">Sticker para tu historia</h2>
-      <div className="share-sticker__stage" style={meal.photo_url ? { backgroundImage: `url("${meal.photo_url}")` } : undefined}>
-        {url ? <img className="share-sticker__img" src={url} alt="Vista previa del sticker con proteína, carbohidratos, grasa y calorías" /> : <span className="share-sticker__wait">{failed ? 'No se pudo crear el sticker.' : 'Preparando…'}</span>}
+      <div className="share-sticker__stage">
+        {storyUrl ? <img className="share-sticker__img" src={storyUrl} alt="Vista previa de tu historia con la foto y el sticker de proteína, carbohidratos, grasa y calorías" /> : <span className="share-sticker__wait">{failed ? 'No se pudo crear la historia.' : 'Preparando…'}</span>}
       </div>
       <div className="share-sticker__themes" role="radiogroup" aria-label="Estilo del sticker">
         {THEMES.map((t) => (
@@ -298,13 +418,16 @@ export default function ShareSticker({ meal }: { meal: Meal }) {
         <input type="range" min={0} max={70} step={5} value={transparency} onChange={(e) => setTransparency(Number(e.target.value))} />
       </label>
       <div className="share-sticker__actions">
+        <Button icon="share" onClick={publishStory} disabled={!storyFile}>
+          Publicar en tu historia
+        </Button>
         {canShare && (
-          <Button icon="share" onClick={share}>
+          <Button variant="secondary" icon="share" onClick={share}>
             Compartir sticker
           </Button>
         )}
         {canCopy && (
-          <Button variant={canShare ? 'secondary' : 'primary'} icon="image" onClick={copy}>
+          <Button variant="secondary" icon="image" onClick={copy}>
             Copiar sticker
           </Button>
         )}

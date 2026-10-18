@@ -13,4 +13,8 @@ enum Config {
 
     static let webURL = URL(string: "https://avocadoapp.cristopherpineda.com")!
     static let privacyURL = URL(string: "https://avocadoapp.cristopherpineda.com/privacidad.html")!
+
+    /// ID de la app de Meta (developers.facebook.com): Instagram lo pide para abrir directo la historia con nuestra imagen.
+    /// Sin él, "Publicar en tu historia" abre el menú de compartir (Instagram → Historia).
+    static let facebookAppID: String? = nil
 }
