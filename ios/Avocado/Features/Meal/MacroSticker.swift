@@ -207,13 +207,15 @@ struct MacroStickerView: View {
     }
 }
 
-/// La imagen de la historia para el menú de compartir.
-struct StoryImage: Transferable {
-    let image: UIImage
+/// Menú de compartir del sistema (para la historia cuando no hay Instagram instalado).
+struct ActivitySheet: UIViewControllerRepresentable {
+    let items: [Any]
 
-    static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(exportedContentType: .png) { $0.image.pngData() ?? Data() }
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
 /// El PNG listo para el menú de compartir.
@@ -235,6 +237,8 @@ struct ShareStickerCard: View {
     @State private var png: Data?
     /// La historia armada (foto + sticker), cuando ya bajó la foto.
     @State private var story: UIImage?
+    /// Menú de compartir para la historia cuando no hay Instagram.
+    @State private var shareSheet: UIImage?
     @State private var notice: String?
     @State private var noticeTone: Tone = .info
     @State private var pastes = 0
@@ -260,19 +264,10 @@ struct ShareStickerCard: View {
 
             if let png {
                 if let story {
-                    if Config.facebookAppID != nil {
-                        Button { Task { await postToInstagram(story) } } label: {
-                            Label("Publicar en tu historia", systemImage: "camera").frame(maxWidth: .infinity)
-                        }
-                        .primaryButton()
-                    } else {
-                        // Sin el ID de Meta, Instagram no abre la historia directo: el menú de compartir → Instagram → Historia.
-                        ShareLink(item: StoryImage(image: story), preview: SharePreview("Tu historia de Avocado", image: Image(uiImage: story))) {
-                            Label("Publicar en tu historia", systemImage: "camera").frame(maxWidth: .infinity)
-                        }
-                        .primaryButton()
-                        .simultaneousGesture(TapGesture().onEnded { cheer(.love, "Toca Instagram → Historia") })
+                    Button { Task { await postToInstagram(story) } } label: {
+                        Label("Publicar en tu historia", systemImage: "camera").frame(maxWidth: .infinity)
                     }
+                    .primaryButton()
                 } else {
                     Button {} label: {
                         Label("Armando tu historia…", systemImage: "camera").frame(maxWidth: .infinity)
@@ -302,6 +297,9 @@ struct ShareStickerCard: View {
             if let png, let sticker = UIImage(data: png), let url = URL(string: meal.photoUrl), let photo = await ImageStore.shared.load(url) {
                 story = renderStoryImage(photo: photo, sticker: sticker)
             }
+        }
+        .sheet(isPresented: Binding(get: { shareSheet != nil }, set: { if !$0 { shareSheet = nil } })) {
+            if let shareSheet { ActivitySheet(items: [shareSheet]).presentationDetents([.medium, .large]) }
         }
         .sensoryFeedback(.success, trigger: pastes)
         .sensoryFeedback(.success, trigger: saves)
@@ -367,22 +365,51 @@ struct ShareStickerCard: View {
         .clipShape(.rect(cornerRadius: 18))
     }
 
-    /// Abre Instagram directo en una historia nueva con la imagen ya armada (requiere el ID de la app de Meta).
+    /**
+     La historia armada queda en el carrete y se abre Instagram:
+     - Con el ID de la app de Meta, directo en el editor con la historia cargada (lista para publicar).
+     - Sin él, en la cámara de historias: la historia es la foto más reciente, la de la miniatura de abajo a la izquierda.
+     Sin Instagram, el menú de compartir.
+     */
     private func postToInstagram(_ story: UIImage) async {
-        guard let appID = Config.facebookAppID, let data = story.jpegData(compressionQuality: 0.9),
-              let url = URL(string: "instagram-stories://share?source_application=\(appID)") else { return }
-        UIPasteboard.general.setItems(
-            [["com.instagram.sharedSticker.backgroundImage": data]],
-            options: [.expirationDate: Date.now.addingTimeInterval(300)]
-        )
+        guard let data = story.jpegData(compressionQuality: 0.92) else { return }
+        let saved = await saveStoryToPhotos(data)
         pastes += 1
-        let opened = await UIApplication.shared.open(url)
-        if opened {
-            notice = nil
-            cheer(.love, "¡Lista tu historia!")
-        } else {
+
+        if let appID = Config.facebookAppID, let url = URL(string: "instagram-stories://share?source_application=\(appID)") {
+            UIPasteboard.general.setItems(
+                [["com.instagram.sharedSticker.backgroundImage": data]],
+                options: [.expirationDate: Date.now.addingTimeInterval(300)]
+            )
+            if await UIApplication.shared.open(url) {
+                notice = nil
+                cheer(.love, "¡Lista tu historia!")
+                return
+            }
+        }
+        if await UIApplication.shared.open(URL(string: "instagram://story-camera")!) {
             noticeTone = .info
-            notice = "No encontré Instagram. Usa «Compartir» o «Guardar»."
+            notice = saved
+                ? "Tu historia quedó en tu carrete: en Instagram toca la foto de abajo a la izquierda y publícala."
+                : "Abre tu carrete en Instagram y elige tu historia."
+            cheer(.love, saved ? "Toca la foto de abajo a la izquierda 👇" : "¡Ya casi!")
+        } else {
+            // Sin Instagram: el menú de compartir.
+            shareSheet = story
+        }
+    }
+
+    /// Guarda la historia en Fotos (solo agregar). false si no hay permiso o falla.
+    private func saveStoryToPhotos(_ data: Data) async -> Bool {
+        let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+        guard status == .authorized || status == .limited else { return false }
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                PHAssetCreationRequest.forAsset().addResource(with: .photo, data: data, options: nil)
+            }
+            return true
+        } catch {
+            return false
         }
     }
 

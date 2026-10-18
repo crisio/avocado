@@ -2,6 +2,10 @@
 
 La web (PWA), la API y la app de iOS llevan la misma versión. Mientras la versión empiece con 0, la app sigue en pruebas.
 
+## 1.3.2 — 17 de octubre de 2026
+
+- **Instagram (iOS):** «Publicar en tu historia» guarda la historia armada en tu carrete y abre Instagram en Historia: es la foto más reciente, la de la miniatura de abajo a la izquierda, lista para publicar. Con el ID de la app de Meta abrirá directo el editor con la historia cargada. Sin Instagram, abre el menú de compartir.
+
 ## 1.3.1 — 17 de octubre de 2026
 
 - **Publicar en tu historia de Instagram** (web e iOS): un botón arma la historia completa (1080×1920): tu foto en cuadrado arriba y el sticker de macros abajo, para que no tape la comida, sobre la misma foto difuminada. Se comparte directo a Instagram → Historia (antes había que elegir la foto y pegar el sticker a mano, y quedaba encima del plato). La vista previa muestra la historia tal cual se publica.
