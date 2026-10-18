@@ -164,6 +164,11 @@ export default function MealDetail() {
           {job ? 'Comida guardada en el teléfono' : mealTitle(meal)}
         </h1>
         {meal.note && <p className="app-note">“{meal.note}”</p>}
+        {meal.cooking && (
+          <p className="av-text-muted" style={{ margin: 0, fontSize: 14 }}>
+            🍳 {meal.cooking}
+          </p>
+        )}
         {job ? (
           <div>
             {job.error ? (

@@ -17,6 +17,8 @@ interface MealRow {
   eaten_at: string
   photo_key: string
   note: string | null
+  /** Cómo lo cocinó (aceite, cantidad, método…), si lo dijo. */
+  cooking: string | null
   status: 'pending' | 'analyzed' | 'error'
   analysis: string | null
   calories: number | null
@@ -97,7 +99,7 @@ async function runAnalysis(env: Env, meal: MealRow, user: User, offset: number |
     if (!photo) throw new Error('No se encontró la foto')
     const [base, recent] = await Promise.all([offset === null ? [] : patientContext(env, user, offset), recentAvoLines(env, user.id)])
     const context = [...base, ...(offset === null ? [] : ['La foto es su comida más reciente (todavía sin analizar).']), ...(recent ? [recent] : [])]
-    const result = await analyzePhoto(env, await photo.arrayBuffer(), photo.httpMetadata?.contentType ?? 'image/jpeg', meal.note, user, context)
+    const result = await analyzePhoto(env, await photo.arrayBuffer(), photo.httpMetadata?.contentType ?? 'image/jpeg', meal.note, user, context, meal.cooking)
     await saveAnalysis(env, meal.id, result)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -130,7 +132,8 @@ mealRoutes.get('/', async (c) => {
   return c.json(await Promise.all(results.map((m) => toMeal(c.env, origin, m))))
 })
 
-// Nueva comida: multipart con photo, eaten_at, note y offset (para que Avo sepa la hora del teléfono).
+// Nueva comida: multipart con photo, eaten_at, note, cooking (cómo lo cocinó) y offset (para que Avo sepa la hora del
+// teléfono).
 mealRoutes.post('/', async (c) => {
   const form = await c.req.formData().catch(() => fail(400, 'Formulario inválido'))
   const photo = form.get('photo')
@@ -139,6 +142,7 @@ mealRoutes.post('/', async (c) => {
   if (photo.size > MAX_PHOTO_BYTES) fail(413, 'La foto es muy pesada (máximo 5 MB)')
 
   const note = String(form.get('note') ?? '').trim().slice(0, 1000) || null
+  const cooking = String(form.get('cooking') ?? '').trim().slice(0, 500) || null
   const eatenAt = form.get('eaten_at') ? toIso(form.get('eaten_at'), 'eaten_at') : new Date().toISOString()
   const origin = new URL(c.req.url).origin
 
@@ -156,8 +160,8 @@ mealRoutes.post('/', async (c) => {
   const key = `${c.var.user.id}/${id}.${photo.type.split('/')[1].replace('jpeg', 'jpg')}`
 
   await c.env.PHOTOS.put(key, await photo.arrayBuffer(), { httpMetadata: { contentType: photo.type } })
-  await c.env.DB.prepare('INSERT INTO meals (id, user_id, eaten_at, photo_key, note) VALUES (?, ?, ?, ?, ?)')
-    .bind(id, c.var.user.id, eatenAt, key, note)
+  await c.env.DB.prepare('INSERT INTO meals (id, user_id, eaten_at, photo_key, note, cooking) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(id, c.var.user.id, eatenAt, key, note, cooking)
     .run()
 
   // analyze=1: el análisis arranca aquí mismo y sigue aunque el teléfono pierda la conexión. Sin permiso para la IA
@@ -227,7 +231,7 @@ mealRoutes.post('/:id/correct', async (c) => {
 
   let updated: Analysis
   try {
-    updated = await correctAnalysis(c.env, analysis, correction, meal.note)
+    updated = await correctAnalysis(c.env, analysis, correction, meal.note, meal.cooking)
   } catch (err) {
     console.error('correct', meal.id, err instanceof Error ? err.message : err)
     fail(502, 'No se pudo corregir con la IA. Intenta de nuevo en un momento.')

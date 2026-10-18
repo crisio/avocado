@@ -103,6 +103,8 @@ export interface Meal {
   eaten_at: string
   photo_url: string
   note: string | null
+  /** Cómo lo cocinó (aceite, mantequilla…); la IA lo usa para las grasas. */
+  cooking: string | null
   status: 'pending' | 'analyzed' | 'error'
   analysis: Analysis | null
   calories: number | null
@@ -242,4 +244,6 @@ export interface Fasting {
   /** Del más reciente al más antiguo (últimos 14 días, ayunos de 8 h o más). */
   history: { start: string; end: string; hours: number; met: boolean | null }[]
   stats: { longest_hours: number; average_hours: number; met_last_7: number }
+  /** Primera y última comida de hoy que rompen el ayuno. */
+  today?: { first_meal_at: string | null; last_meal_at: string | null }
 }

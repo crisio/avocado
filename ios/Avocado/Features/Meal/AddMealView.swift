@@ -15,6 +15,7 @@ struct AddMealView: View {
     @State private var photo: UIImage?
     @State private var eatenAt = Date.now
     @State private var note = ""
+    @State private var cooking: String?
     @State private var busy = false
     @State private var error: String?
 
@@ -55,9 +56,12 @@ struct AddMealView: View {
                 .lineLimit(2...5)
                 .padding(12)
                 .background(Theme.sunken, in: .rect(cornerRadius: 14))
+            VoiceButton(text: $note, context: "nota")
             Text("Ayuda a la IA con lo que no se ve en la foto.").font(.footnote).foregroundStyle(Theme.muted)
         }
         .card()
+
+        if let user = session.user { CookingSection(userId: user.id, cooking: $cooking) }
 
         if !connectivity.online {
             Notice(text: "Sin conexión: la comida se guarda en el teléfono y se analiza sola al volver la señal.", tone: .warning)
@@ -82,7 +86,7 @@ struct AddMealView: View {
             return
         }
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        let job = MealJob(id: UUID().uuidString.lowercased(), userId: user.id, eatenAt: eatenAt, note: trimmed.isEmpty ? nil : trimmed, createdAt: .now)
+        let job = MealJob(id: UUID().uuidString.lowercased(), userId: user.id, eatenAt: eatenAt, note: trimmed.isEmpty ? nil : trimmed, cooking: cooking, createdAt: .now)
         do {
             try outbox.enqueue(job, jpeg: jpeg)
         } catch {

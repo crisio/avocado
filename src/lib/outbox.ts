@@ -24,6 +24,7 @@ export interface MealJob extends BaseJob {
   kind: 'meal'
   eaten_at: string
   note: string | null
+  cooking?: string | null
   photo: Blob
 }
 
@@ -114,6 +115,7 @@ async function send(job: Job) {
     form.set('analyze', '1')
     form.set('offset', String(new Date().getTimezoneOffset()))
     if (job.note) form.set('note', job.note)
+    if (job.cooking) form.set('cooking', job.cooking)
     await api('/meals', { method: 'POST', body: form, timeoutMs: 60_000 })
   } else {
     await api(`/meals/${job.mealId}/comments`, { method: 'POST', json: { id: job.id, body: job.body } })

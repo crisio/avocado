@@ -158,6 +158,7 @@ peopleRoutes.delete('/me', async (c) => {
     db.prepare('DELETE FROM care_links WHERE patient_id = ?1 OR nutritionist_id = ?1').bind(id),
     db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(id),
     db.prepare('DELETE FROM reminders_sent WHERE user_id = ?').bind(id),
+    db.prepare('DELETE FROM transcriptions WHERE user_id = ?').bind(id),
     db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
     db.prepare('DELETE FROM auth_codes WHERE email = ?').bind(email),
     db.prepare('DELETE FROM users WHERE id = ?').bind(id),

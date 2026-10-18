@@ -82,6 +82,9 @@ export function computeFasting({ meals, fastStartedAt, hours, eatingStart, offse
       history.push({ start: new Date(breaking[i - 1]).toISOString(), end: new Date(breaking[i]).toISOString(), hours: round1(gap), met: hours ? gap >= hours : null })
   }
   const lastWeek = history.filter((f) => Date.parse(f.end) >= now - 7 * DAY)
+  // Comidas de hoy (día local) que rompen el ayuno: a qué hora empezó y terminó de comer.
+  const localDay = (ms: number) => new Date(ms - offset * 60_000).toISOString().slice(0, 10)
+  const today = breaking.filter((ms) => localDay(ms) === localDay(now))
   return {
     plan,
     current: {
@@ -92,6 +95,10 @@ export function computeFasting({ meals, fastStartedAt, hours, eatingStart, offse
     },
     state,
     window,
+    today: {
+      first_meal_at: today.length ? new Date(today[0]).toISOString() : null,
+      last_meal_at: today.length ? new Date(today.at(-1)!).toISOString() : null,
+    },
     history,
     stats: {
       longest_hours: history.length ? Math.max(...history.map((f) => f.hours)) : 0,

@@ -155,6 +155,7 @@ struct MealDetailView: View {
                 .foregroundStyle(Theme.muted)
             Text(meal.title).font(.display(28, weight: 800)).foregroundStyle(Theme.ink)
             if let note = meal.note, !note.isEmpty { Text("“\(note)”").italic().foregroundStyle(Theme.muted) }
+            if let cooking = meal.cooking, !cooking.isEmpty { Text("🍳 \(cooking)").font(.subheadline).foregroundStyle(Theme.muted) }
             if meal.status == .pending { Chip(text: "La IA está analizando la foto", icon: "clock") }
         }
 

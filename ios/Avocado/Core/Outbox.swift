@@ -8,6 +8,8 @@ struct MealJob: Codable, Identifiable, Equatable {
     var userId: String
     var eatenAt: Date
     var note: String?
+    /// ¿Cómo lo cocinó? (opcional; las comidas ya en cola no lo traen).
+    var cooking: String?
     var createdAt: Date
     var attempts = 0
     /// Error permanente (el servidor rechazó el envío); no se reintenta solo.
@@ -104,6 +106,7 @@ final class Outbox {
         form.addJPEG("photo", filename: "comida.jpg", data: jpeg)
         form.add("eaten_at", Fmt.iso(job.eatenAt))
         if let note = job.note { form.add("note", note) }
+        if let cooking = job.cooking { form.add("cooking", cooking) }
         form.add("client_id", job.id)
         form.add("analyze", "1")
         form.add("offset", String(Fmt.timezoneOffset))

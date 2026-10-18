@@ -29,6 +29,7 @@ export const SYSTEM_PROMPT = `Eres un asistente de nutrición. Te paso la foto d
 Identifica cada alimento visible, estima la porción en gramos y calcula calorías y macronutrientes.
 Si la nota del paciente contradice la foto, confía en la nota para ingredientes que no se ven (aceite, azúcar, etc.).
 Usa "eaten" = 1 salvo que la nota diga que no se comió todo (p. ej. "me dejé la mitad del arroz" → eaten 0.5 en el arroz).
+Si te dice cómo lo cocinó (aceite, mantequilla, manteca, crema, queso, azúcar, con su cantidad o el método), tómalo en cuenta aunque no se vea en la foto: agrega la grasa como un alimento aparte con su cantidad (p. ej. "Aceite de oliva", 1 cucharada = 13.5 g = 119 kcal) y ajusta el platillo si el método cambia su grasa (frito, empanizado).
 ${ANSWER_FORMAT}
 Si la foto no muestra comida, regresa "items": [] y explica en "summary".`
 
@@ -246,6 +247,7 @@ export async function analyzePhoto(
   note: string | null,
   user: Pick<User, 'avo_style'>,
   context: string[] = [],
+  cooking: string | null = null,
 ): Promise<Analysis> {
   const { text, model } = await chat(
     env,
@@ -258,6 +260,7 @@ export async function analyzePhoto(
             ? [{ type: 'text', text: `Contexto del paciente (solo para el comentario de Avo; NO lo sumes al análisis):\n${context.join('\n')}` }]
             : []),
           { type: 'text', text: note ? `Nota del paciente: ${note}` : 'Analiza esta comida.' },
+          ...(cooking ? [{ type: 'text', text: `Cómo lo cocinó (según el paciente): ${cooking}` }] : []),
           { type: 'image_url', image_url: { url: `data:${contentType};base64,${toBase64(photo)}` } },
         ],
       },
@@ -271,7 +274,7 @@ export async function analyzePhoto(
 }
 
 /** Corrige un análisis con lo que cuenta el paciente ("me dejé la mitad…"). Solo texto: no vuelve a mandar la foto. */
-export async function correctAnalysis(env: Env, previous: Analysis, correction: string, note: string | null): Promise<Analysis> {
+export async function correctAnalysis(env: Env, previous: Analysis, correction: string, note: string | null, cooking: string | null = null): Promise<Analysis> {
   const { items, meal_type, summary } = previous
   const result = await complete(env, [
     { role: 'system', content: CORRECTION_PROMPT },
@@ -280,6 +283,7 @@ export async function correctAnalysis(env: Env, previous: Analysis, correction: 
       content: [
         `Análisis actual: ${JSON.stringify({ items, meal_type, summary })}`,
         note ? `Nota que el paciente escribió al registrar la comida: ${note}` : null,
+        cooking ? `Cómo lo cocinó (según el paciente): ${cooking}` : null,
         `Corrección del paciente: ${correction}`,
       ]
         .filter(Boolean)

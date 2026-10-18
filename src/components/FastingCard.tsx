@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button, Card, Notice } from '@avocado/ui'
 import { useAuth } from '../auth'
 import { api } from '../lib/api'
@@ -32,6 +33,7 @@ export default function FastingCard() {
   const { user, setUser } = useAuth()
   const { data, refresh } = useFasting(user?.id, !!user?.fasting_hours)
   const now = useNow()
+  const navigate = useNavigate()
   const [picking, setPicking] = useState(false)
   const [time, setTime] = useState('')
   const [busy, setBusy] = useState(false)
@@ -65,6 +67,10 @@ export default function FastingCard() {
   if (reached) line = `¡Ayuno de ${goal} h cumplido! 💪`
   else if (fasting) line = `Ayunando${opens ? ` · tu ventana abre a las ${opens}` : ''}`
   else line = `Ventana abierta${closes ? ` hasta las ${closes}` : ''}`
+
+  const first = data.today?.first_meal_at
+  const last = data.today?.last_meal_at
+  const todayLine = first ? `Hoy: primera comida ${formatTime(first)}${last && last !== first ? ` · última ${formatTime(last)}` : ''}` : null
 
   async function start() {
     if (!time) return
@@ -113,6 +119,24 @@ export default function FastingCard() {
           <span style={{ fontSize: 14 }}>{line}</span>
         </div>
       </div>
+      {todayLine && (
+        <span className="av-text-muted" style={{ fontSize: 13 }}>
+          {todayLine}
+        </span>
+      )}
+      {startedAt && !reached && (
+        <button
+          type="button"
+          className="fasting-card__link"
+          onClick={() =>
+            navigate('/avo', {
+              state: { draft: `¿Cómo puedo alargar mi ayuno? Mi plan es ${data.plan?.label ?? `${goal} h`} y hoy llevo ${Math.floor(hours)} horas.` },
+            })
+          }
+        >
+          ¿Cómo alargo mi ayuno? Pregúntale a Avo
+        </button>
+      )}
       {picking ? (
         <div className="app-row" style={{ alignItems: 'center' }}>
           <input

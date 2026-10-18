@@ -226,6 +226,7 @@ struct Meal: Codable, Identifiable, Equatable {
     var eatenAt: String
     var photoUrl: String
     var note: String?
+    var cooking: String?
     var status: MealStatus
     var analysis: Analysis?
     var calories: Double?

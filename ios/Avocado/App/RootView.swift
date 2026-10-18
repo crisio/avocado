@@ -98,6 +98,7 @@ struct MainTabs: View {
             }
         }
         .onChange(of: avoPrompt.pending) { if avoPrompt.pending != nil { tab = .avo } }
+        .onChange(of: avoPrompt.draft) { if avoPrompt.draft != nil { tab = .avo } }
         .onChange(of: route.tab, initial: true) {
             guard let next = route.tab else { return }
             tab = next

@@ -45,6 +45,7 @@ export default function AvoChat() {
   const location = useLocation()
   const navigate = useNavigate()
   const ask = (location.state as { ask?: string } | null)?.ask
+  const draft = (location.state as { draft?: string } | null)?.draft
 
   // El cuadro para escribir va en la barra de abajo (Layout deja un hueco en esta pantalla).
   useEffect(() => {
@@ -81,6 +82,13 @@ export default function AvoChat() {
     navigate('/avo', { replace: true, state: null })
     void send({ id: crypto.randomUUID(), text: ask, audio: null })
   }, [ask, messages === null])
+
+  // Borrador que llega de otra pantalla ("¿Cómo alargo mi ayuno?"): queda en el cuadro sin enviarse.
+  useEffect(() => {
+    if (!draft) return
+    setText(draft)
+    navigate('/avo', { replace: true, state: null })
+  }, [draft])
 
   async function send(message: Pending) {
     setPending({ ...message, error: undefined })

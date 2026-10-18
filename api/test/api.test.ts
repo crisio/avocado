@@ -1417,3 +1417,69 @@ describe('Ayuno intermitente y meta de proteína', () => {
     expect((await call('/me', { method: 'PATCH', token, json: { protein_g_goal: 120 } })).status).toBe(200)
   })
 })
+
+describe('Cómo lo cocinó y dictado por voz', () => {
+  const aiReply = (content: unknown) => Response.json({ model: 'm', choices: [{ message: { content: JSON.stringify(content) } }] })
+  const wavFile = () => new File([new Uint8Array([82, 73, 70, 70, 0, 0, 0, 0, 87, 65, 86, 69])], 'a.wav', { type: 'audio/wav' })
+
+  it('guarda cómo lo cocinó y se lo pasa a la IA al analizar y al corregir', async () => {
+    const token = await login('cocina@gmail.com', { full_name: 'Coco Cocina', role: 'patient' })
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      aiReply({ items: [{ name: 'Pollo', portion_g: 150, calories: 250, protein_g: 40, carbs_g: 0, fat_g: 9, eaten: 1 }, { name: 'Aceite de oliva', portion_g: 13.5, calories: 119, protein_g: 0, carbs_g: 0, fat_g: 13.5, eaten: 1 }], meal_type: 'comida', summary: 'Pollo a la plancha', confidence: 0.8, avo: 'Bien ahí.', gif: '' }),
+    )
+    const created = await call('/meals', { method: 'POST', token, body: photoForm({ analyze: '1', cooking: 'A la plancha con 1 cucharada de aceite de oliva.' }) })
+    expect(created.status).toBe(201)
+    const meal = (await call(`/meals/${created.data.id}`, { token })).data
+    expect(meal).toMatchObject({ cooking: 'A la plancha con 1 cucharada de aceite de oliva.', calories: 369 })
+    const sent = JSON.parse(String((spy.mock.calls[0][1] as RequestInit).body))
+    expect(sent.messages[0].content).toContain('Si te dice cómo lo cocinó')
+    expect(sent.messages[1].content.map((p: { text?: string }) => p.text ?? '').join(' ')).toContain('Cómo lo cocinó (según el paciente): A la plancha con 1 cucharada de aceite de oliva.')
+
+    spy.mockClear()
+    await call(`/meals/${meal.id}/correct`, { method: 'POST', token, json: { text: 'me comí la mitad' } })
+    expect(JSON.parse(String((spy.mock.calls[0][1] as RequestInit).body)).messages[1].content).toContain('Cómo lo cocinó (según el paciente)')
+  })
+
+  it('transcribe un audio con permiso, valida y pone tope diario', async () => {
+    const token = await login('dicta@gmail.com', { full_name: 'Dani Dicta', role: 'patient', ai_consent: false })
+    const form = (audio: File, context = 'cocina') => {
+      const f = new FormData()
+      f.set('audio', audio)
+      f.set('context', context)
+      return f
+    }
+    expect((await call('/transcribe', { method: 'POST', token, body: form(wavFile()) })).status).toBe(403)
+    await call('/me', { method: 'PATCH', token, json: { ai_consent: true } })
+    expect((await call('/transcribe', { method: 'POST', token, body: form(new File([new Uint8Array([1])], 'a.mp3', { type: 'audio/mpeg' })) })).status).toBe(400)
+
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(aiReply({ text: 'Usé una cucharada de aceite de aguacate y le eché crema.' }))
+    const ok = await call('/transcribe', { method: 'POST', token, body: form(wavFile()) })
+    expect(ok.status).toBe(200)
+    expect(ok.data).toEqual({ text: 'Usé una cucharada de aceite de aguacate y le eché crema.' })
+    const sent = JSON.parse(String((spy.mock.calls[0][1] as RequestInit).body))
+    expect(sent.messages[0].content).toContain('cómo cocinó')
+    expect(sent.messages[1].content[0]).toEqual({ type: 'input_audio', input_audio: { data: expect.any(String), format: 'wav' } })
+
+    spy.mockResolvedValue(aiReply({ text: '' }))
+    expect((await call('/transcribe', { method: 'POST', token, body: form(wavFile(), 'nota') })).status).toBe(422)
+    spy.mockResolvedValue(new Response('caído', { status: 500 }))
+    expect((await call('/transcribe', { method: 'POST', token, body: form(wavFile()) })).status).toBe(502)
+
+    await env.DB.prepare("UPDATE transcriptions SET n = 100 WHERE user_id = (SELECT id FROM users WHERE email = 'dicta@gmail.com')").run()
+    expect((await call('/transcribe', { method: 'POST', token, body: form(wavFile()) })).status).toBe(429)
+  })
+
+  it('el ayuno dice a qué hora fue la primera y la última comida de hoy', () => {
+    const at = (local: string) => Date.parse(`${local}:00-06:00`)
+    const meal = (local: string, calories: number) => ({ eaten_at: new Date(at(local)).toISOString(), status: 'analyzed', calories })
+    const f = computeFasting({
+      meals: [meal('2026-10-15T20:00', 600), meal('2026-10-16T07:00', 3), meal('2026-10-16T12:10', 650), meal('2026-10-16T15:30', 200)],
+      fastStartedAt: null,
+      hours: 16,
+      eatingStart: '12:00',
+      offset: 360,
+      now: at('2026-10-16T16:00'),
+    })
+    expect(f.today).toEqual({ first_meal_at: new Date(at('2026-10-16T12:10')).toISOString(), last_meal_at: new Date(at('2026-10-16T15:30')).toISOString() })
+  })
+})

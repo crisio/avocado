@@ -10,6 +10,7 @@ export function jobToMeal(job: MealJob, photoUrl: string): Meal {
     eaten_at: job.eaten_at,
     photo_url: photoUrl,
     note: job.note,
+    cooking: job.cooking ?? null,
     status: 'pending',
     analysis: null,
     calories: null,

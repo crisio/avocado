@@ -12,8 +12,8 @@ import { avoVoice, CHATTY, GIF_FIELD, recentAvoLines } from './voice'
  * conversación es privada. Los audios no se guardan: la IA los transcribe y se guarda el texto.
  */
 
-const MAX_AUDIO_BYTES = 4 * 1024 * 1024 // ~2 minutos de WAV mono a 16 kHz
-const AUDIO_TYPES = ['audio/wav', 'audio/x-wav', 'audio/wave']
+export const MAX_AUDIO_BYTES = 4 * 1024 * 1024 // ~2 minutos de WAV mono a 16 kHz
+export const AUDIO_TYPES = ['audio/wav', 'audio/x-wav', 'audio/wave']
 const MAX_PER_DAY = 150
 const HISTORY = 16
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

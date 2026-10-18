@@ -54,6 +54,16 @@ struct FastingCard: View {
                     }
                     Spacer(minLength: 0)
                 }
+                if let today = todayLine(status) {
+                    Text(today).font(.footnote).foregroundStyle(Theme.muted)
+                }
+                if status.isFasting || status.current.startedAt != nil {
+                    Button("¿Cómo alargo mi ayuno? Pregúntale a Avo") {
+                        AvoPrompt.shared.prefill("¿Cómo puedo alargar mi ayuno? Mi plan es \(plan.label) y hoy llevo \(Int(live)) horas.")
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.accentStrong)
+                }
                 if status.state == "ventana" || status.current.startedAt == nil {
                     if picking {
                         HStack {
@@ -82,6 +92,13 @@ struct FastingCard: View {
         }
         if status.state == "ventana" { return "Ventana abierta hasta las \(FastingStatus.clock(plan.eatingEnd))" }
         return "Tu ventana abre a las \(FastingStatus.clock(plan.eatingStart))"
+    }
+
+    private func todayLine(_ status: FastingStatus) -> String? {
+        guard let first = status.today?.firstMealAt else { return nil }
+        var text = "Hoy: primera comida \(Fmt.time(Fmt.date(first)))"
+        if let last = status.today?.lastMealAt, last != first { text += " · última \(Fmt.time(Fmt.date(last)))" }
+        return text
     }
 
     static func liveHours(_ status: FastingStatus, now: Date) -> Double {

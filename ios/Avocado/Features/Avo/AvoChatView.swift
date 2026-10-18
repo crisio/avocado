@@ -50,8 +50,10 @@ struct AvoChatView: View {
         .task(id: session.user?.aiConsentAt) {
             await load()
             sendPendingPrompt()
+            takeDraft()
         }
         .onChange(of: avoPrompt.pending) { sendPendingPrompt() }
+        .onChange(of: avoPrompt.draft) { takeDraft() }
         .confirmationDialog("¿Borrar la conversación con Avo?", isPresented: $confirmClear, titleVisibility: .visible) {
             Button("Borrar conversación", role: .destructive) { Task { await clear() } }
         } message: {
@@ -243,6 +245,13 @@ struct AvoChatView: View {
         guard let text = avoPrompt.pending, messages != nil, !busy, session.user?.aiConsentAt != nil else { return }
         avoPrompt.pending = nil
         send(Pending(id: UUID().uuidString.lowercased(), text: text, audio: nil))
+    }
+
+    /// Borrador que llega de otra pantalla: queda escrito en el campo para que la persona lo revise y lo mande.
+    private func takeDraft() {
+        guard let draft = avoPrompt.draft, session.user?.aiConsentAt != nil else { return }
+        avoPrompt.draft = nil
+        text = draft
     }
 
     private func submit() {

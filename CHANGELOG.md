@@ -2,6 +2,12 @@
 
 La web (PWA), la API y la app de iOS llevan la misma versión. Mientras la versión empiece con 0, la app sigue en pruebas.
 
+## 1.3.0 — 17 de octubre de 2026
+
+- **«¿Lo cocinaste tú?»** al registrar una comida (web e iOS): con un toque dices cómo (plancha, frito, horno…), con qué (aceite de oliva, de aguacate, mantequilla…) y cuánto (1 cucharadita, 1 cucharada…), y la IA suma esa grasa aunque no se vea en la foto (sale como un alimento aparte). Recuerda tu aceite de siempre.
+- **Dictar en vez de escribir** 🎙️: la nota de la comida y «¿Algo más?» se pueden decir por audio; se pasa a texto para que lo revises (el audio no se guarda).
+- **Ayuno:** la tarjeta dice a qué hora fue tu primera y tu última comida de hoy, y «¿Cómo alargo mi ayuno?» le pregunta a Avo con tu plan.
+
 ## 1.2.0 — 16 de octubre de 2026
 
 - **Ayuno intermitente** (web e iOS): eliges tu plan en Perfil (12:12, 14:10, 16:8, 18:6 o 20:4) y a qué hora abre tu ventana de comida. En Mi día ves cuánto llevas de ayuno en vivo y cuándo abre o cierra tu ventana; Avo te festeja al cumplirlo. El ayuno se cuenta solo con tus comidas (un café negro o un refresco sin azúcar no lo rompen) y, si no registraste tu última comida, tocas «Empecé mi ayuno». En la semana: tus ayunos, el promedio, el más largo y cuántos cumpliste. Los recordatorios cambian a «abre tu ventana» y «cierra en 30 min», y Avo respeta tu plan. Tu nutrióloga lo ve.

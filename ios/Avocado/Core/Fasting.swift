@@ -31,7 +31,13 @@ struct FastingStatus: Decodable, Equatable {
         let metLast7: Int
     }
 
+    struct Today: Decodable, Equatable {
+        let firstMealAt: String?
+        let lastMealAt: String?
+    }
+
     let plan: Plan?
+    let today: Today?
     let current: Current
     let state: String?
     let window: Window?
