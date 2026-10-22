@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Button, TabBar, TabBarItem } from '@avocado/ui'
 import type { Role } from '../lib/types'
 import ConnectionBanner from './ConnectionBanner'
+import AchievementsWatcher from './AchievementsWatcher'
 import { Celebration } from './Celebration'
 import { MascotDock } from './Mascot'
 
@@ -28,6 +29,7 @@ export default function Layout({ role }: { role: Role }) {
       </Suspense>
       <MascotDock />
       <Celebration />
+      {role === 'patient' && <AchievementsWatcher />}
       <TabBar
         action={
           showAction ? (

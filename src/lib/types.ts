@@ -33,6 +33,8 @@ export interface User {
   goals_set_by?: string | null
   /** Personalidad de Avo (ausente = picante). */
   avo_style?: AvoStyle
+  /** Accesorio que lleva Avo (clave de /achievements); null o ausente = ninguno. */
+  avo_accessory?: string | null
   /** Recordatorios a la hora de comer (por defecto sí; el servidor los manda si hay suscripción push). */
   reminders?: boolean
   /** Ayuno intermitente: horas de ayuno del plan (12–23); null o ausente = apagado. */

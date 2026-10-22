@@ -15,6 +15,7 @@ import { verifyPhotoSignature } from './photos'
 import { reminderRoutes, sendDueReminders } from './reminders'
 import { fastingRoutes } from './fasting'
 import { transcribeRoutes } from './transcribe'
+import { achievementRoutes } from './achievements'
 
 const app = new Hono<AppEnv>()
 
@@ -72,6 +73,7 @@ app.use('/budget', requireUser)
 app.use('/reminders', requireUser)
 app.use('/fasting', requireUser)
 app.use('/transcribe', requireUser)
+app.use('/achievements', requireUser)
 app.use('/push/*', requireUser)
 app.route('/', peopleRoutes)
 app.route('/meals', mealRoutes)
@@ -85,6 +87,7 @@ app.route('/care', careRoutes)
 app.route('/', reminderRoutes)
 app.route('/fasting', fastingRoutes)
 app.route('/transcribe', transcribeRoutes)
+app.route('/achievements', achievementRoutes)
 
 app.notFound((c) => c.json({ error: 'No encontrado' }, 404))
 

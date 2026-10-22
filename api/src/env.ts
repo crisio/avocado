@@ -55,10 +55,12 @@ export interface User {
   eating_start: string | null
   /** "Empecé mi ayuno a las…" (ISO), por si no registró su última comida. */
   fast_started_at: string | null
+  /** Accesorio que trae puesto Avo (ver achievements.ts). */
+  avo_accessory: string | null
 }
 
 /** Columnas del usuario que viajan con la sesión y en /me. */
-export const USER_COLUMNS = 'id, email, full_name, role, daily_kcal_goal, ai_consent_at, goal, protein_g_goal, carbs_g_goal, fat_g_goal, goals_set_by, avo_style, reminders, tz_offset, fasting_hours, eating_start, fast_started_at'
+export const USER_COLUMNS = 'id, email, full_name, role, daily_kcal_goal, ai_consent_at, goal, protein_g_goal, carbs_g_goal, fat_g_goal, goals_set_by, avo_style, reminders, tz_offset, fasting_hours, eating_start, fast_started_at, avo_accessory'
 
 /** La fila de la base trae los booleanos como 0/1. */
 export const toUser = <T extends { reminders: unknown }>(row: T) => ({ ...row, reminders: Boolean(row.reminders) })

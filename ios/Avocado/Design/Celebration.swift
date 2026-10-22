@@ -42,7 +42,7 @@ struct CelebrationView: View {
                     .overlay(Circle().stroke(.white, lineWidth: 6))
                     .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
 
-                    MascotView(mood: .eat, size: 112, hd: true, loop: true)
+                    MascotView(mood: .eat, size: 112, hd: true, loop: true, dressed: true)
                         .offset(x: 46, y: 18)
                 }
                 .padding(.trailing, 40)

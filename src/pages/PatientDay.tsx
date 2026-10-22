@@ -10,6 +10,7 @@ import { useFasting } from '../lib/fasting'
 import { useCachedApi } from '../lib/useCachedApi'
 import { displayName, firstName, formatHours, formatNumber } from '../lib/format'
 import { cheer } from '../lib/mascot'
+import { useAchievements } from '../lib/achievements'
 import { useStreak } from '../lib/streak'
 import type { Goal, PatientGoals, User } from '../lib/types'
 
@@ -20,6 +21,7 @@ export default function PatientDay() {
   const { data, mutate } = useCachedApi<User>(`/users/${id}`, 300_000)
   const patient = data ?? null
   const { streak } = useStreak(id)
+  const medals = useAchievements(id).data
   const fasting = useFasting(id, !!id, false).data
 
   return (
@@ -34,6 +36,11 @@ export default function PatientDay() {
         <div>
           <StreakChip streak={streak} self={false} />
         </div>
+      )}
+      {medals && (
+        <p className="av-text-muted" style={{ margin: 0 }}>
+          🏅 {medals.summary.unlocked} {medals.summary.unlocked === 1 ? 'medalla' : 'medallas'} · 🔥 récord {medals.streak.best} {medals.streak.best === 1 ? 'día' : 'días'}
+        </p>
       )}
       {fasting && (fasting.plan || fasting.history.length > 0) && (
         <p className="av-text-muted" style={{ margin: 0 }}>

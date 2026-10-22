@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { Button, Card, Notice, PageHeader, PersonRow, Screen, Segmented, TextField, type SegmentedOption } from '@avocado/ui'
 import { useAuth } from '../auth'
 import AiConsentCard from '../components/AiConsent'
@@ -65,6 +66,12 @@ export default function Settings() {
       {user?.role === 'patient' && (user.goals_set_by ? <LockedGoals /> : <DailyGoal />)}
 
       {user?.role === 'patient' && <Fasting />}
+
+      {user?.role === 'patient' && (
+        <Button as={Link} to="/logros" variant="secondary">
+          🏅 Tus logros y tu Avo
+        </Button>
+      )}
 
       {user?.role === 'patient' && <AvoStylePicker />}
 

@@ -5,6 +5,7 @@ import { fail } from './errors'
 import { deletePhotos } from './photos'
 import { GOALS, type Goal } from './budget'
 import { isAvoStyle } from './voice'
+import { accessoryUnlocked } from './achievements'
 
 type PublicUser = Pick<User, 'id' | 'email' | 'full_name'>
 
@@ -28,6 +29,7 @@ peopleRoutes.patch('/me', async (c) => {
       fasting_hours?: unknown
       eating_start?: unknown
       fast_started_at?: unknown
+      avo_accessory?: unknown
     }>()
     .catch(() => ({}) as Record<string, unknown>)
 
@@ -115,6 +117,18 @@ peopleRoutes.patch('/me', async (c) => {
     }
   }
 
+  // Accesorio de Avo: uno que ya desbloqueó con sus medallas, o null para quitárselo.
+  let accessory = user.avo_accessory
+  if (body.avo_accessory !== undefined) {
+    if (body.avo_accessory === null) accessory = null
+    else {
+      const unlocked = typeof body.avo_accessory === 'string' ? await accessoryUnlocked(c.env, user.id, body.avo_accessory) : null
+      if (unlocked === null) fail(400, 'Ese accesorio no existe')
+      if (!unlocked) fail(403, 'Todavía no lo desbloqueas')
+      accessory = body.avo_accessory as string
+    }
+  }
+
   // Recordatorios a la hora de comer: true o false.
   let reminders = user.reminders
   if (body.reminders !== undefined) {
@@ -124,9 +138,9 @@ peopleRoutes.patch('/me', async (c) => {
 
   await c.env.DB.prepare(
     `UPDATE users SET full_name = ?, role = ?, daily_kcal_goal = ?, ai_consent_at = ?, goal = ?, avo_style = ?, reminders = ?,
-       protein_g_goal = ?, fasting_hours = ?, eating_start = ?, fast_started_at = ? WHERE id = ?`,
+       protein_g_goal = ?, fasting_hours = ?, eating_start = ?, fast_started_at = ?, avo_accessory = ? WHERE id = ?`,
   )
-    .bind(fullName, role, goal, consent, objective, avoStyle, reminders ? 1 : 0, protein, fastingHours, eatingStart, fastStartedAt, user.id)
+    .bind(fullName, role, goal, consent, objective, avoStyle, reminders ? 1 : 0, protein, fastingHours, eatingStart, fastStartedAt, accessory, user.id)
     .run()
   return c.json({
     ...user,
@@ -141,6 +155,7 @@ peopleRoutes.patch('/me', async (c) => {
     fasting_hours: fastingHours,
     eating_start: eatingStart,
     fast_started_at: fastStartedAt,
+    avo_accessory: accessory,
   })
 })
 
@@ -159,6 +174,8 @@ peopleRoutes.delete('/me', async (c) => {
     db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(id),
     db.prepare('DELETE FROM reminders_sent WHERE user_id = ?').bind(id),
     db.prepare('DELETE FROM transcriptions WHERE user_id = ?').bind(id),
+    db.prepare('DELETE FROM achievements WHERE user_id = ?').bind(id),
+    db.prepare('DELETE FROM challenge_wins WHERE user_id = ?').bind(id),
     db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
     db.prepare('DELETE FROM auth_codes WHERE email = ?').bind(email),
     db.prepare('DELETE FROM users WHERE id = ?').bind(id),

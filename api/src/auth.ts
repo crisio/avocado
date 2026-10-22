@@ -113,6 +113,7 @@ authRoutes.post('/verify', async (c) => {
       fasting_hours: null,
       eating_start: null,
       fast_started_at: null,
+      avo_accessory: null,
     }
     await c.env.DB.prepare('INSERT INTO users (id, email) VALUES (?, ?)').bind(user.id, email).run()
   }

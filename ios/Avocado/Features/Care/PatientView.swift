@@ -9,6 +9,7 @@ struct PatientView: View {
     @State private var editing = false
     @State private var streak: Streak?
     @State private var fasting: FastingStatus?
+    @State private var achievements: AchievementsData?
     @State private var reloads = 0
     @State private var report: ReportFile?
     @State private var makingReport = false
@@ -28,6 +29,13 @@ struct PatientView: View {
                 if let streak { StreakChip(streak: streak, own: false) }
 
                 goalsCard
+
+                if let a = achievements {
+                    Text("🏅 \(a.summary.unlocked) \(a.summary.unlocked == 1 ? "medalla" : "medallas") · 🔥 récord \(Fmt.days(a.streak.best))")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.ink)
+                        .card(padding: 14)
+                }
 
                 if let fasting, let plan = fasting.plan {
                     Label("Ayuno \(plan.label)" + (fasting.history.first.map { " · último ayuno \(FastingStatus.oneDecimal($0.hours)) h" } ?? ""), systemImage: "timer")
@@ -79,6 +87,7 @@ struct PatientView: View {
         .mealDestinations()
         .task { await loadStreak() }
         .task { fasting = await FastingStatus.load(userId: patient.id) }
+        .task { achievements = await AchievementsData.load(userId: patient.id) }
         .sheet(isPresented: $editing) {
             GoalsEditorSheet(patientId: patient.id, name: patient.displayName, goals: goals) { goals = $0 }
         }

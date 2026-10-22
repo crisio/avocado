@@ -20,13 +20,14 @@ struct TodayView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 PageHeader(eyebrow: Fmt.longDate(.now), title: name.isEmpty ? "Hola" : "Hola, \(name)") {
-                    MascotView(mood: outbox.jobs.isEmpty ? (MascotView.isNight() ? .sleepy : .idle) : .think, size: 88, reactive: true, bubbleEdge: .bottom)
+                    MascotView(mood: outbox.jobs.isEmpty ? (MascotView.isNight() ? .sleepy : .idle) : .think, size: 88, reactive: true, bubbleEdge: .bottom, dressed: true)
                 }
                 if let streak = streaks.streak {
                     Button(action: showWeek) { StreakChip(streak: streak) }.buttonStyle(.plain)
                 }
                 ReminderPromptCard()
                 GoalCard()
+                LogrosCard()
                 if let userId = session.user?.id {
                     DayMealsView(userId: userId, day: $day, reloadKey: reloads) {
                         MoodCheckInView()

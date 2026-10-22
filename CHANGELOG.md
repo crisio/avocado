@@ -2,6 +2,13 @@
 
 La web (PWA), la API y la app de iOS llevan la misma versión. Mientras la versión empiece con 0, la app sigue en pruebas.
 
+## 1.5.0 — 22 de octubre de 2026
+
+- **Logros** (web e iOS): 20 medallas por constancia (3, 7, 14 y 30 días seguidos), registro (primera foto, 25 y 100 comidas, «En el momento», desayunos, cenas, días completos), hábitos (ánimo, chef, chat con Avo, proteína, meta de calorías, ayunos) y retos. Cada una muestra su avance («4/7») y, una vez ganada, se queda aunque se rompa la racha. Al ganar una, Avo lo celebra.
+- **Retos de la semana:** dos por semana, a tu medida: uno de constancia que sube si te fue bien («Registra 6 de 7 días») y otro de tu punto débil (tu ayuno, tu proteína o la comida que menos registras, p. ej. «Registra 3 cenas»).
+- **Viste a Avo:** cada medalla desbloquea un accesorio (gorra, lentes de sol, flor, moño, audífonos, corona…) que Avo lleva puesto en toda la app. En Mi día, la tarjeta «Tus logros»; todo en «Tus logros y tu Avo».
+- Tu nutrióloga ve tus medallas y tu récord de racha.
+
 ## 1.4.0 — 22 de octubre de 2026
 
 - **Avo de tu lado:** celebra cuando comes bien (con su estilo picante, pero a tu favor), deja la carrilla para los antojos y las excusas, nunca se burla de que comas poco, repitas algo sano o comas seguido, menciona lo que le contaste en tu nota y reconoce tu constancia. Antes de mostrarse, cada comentario de tus fotos pasa por una revisión que corrige o descarta lo que rompa esas reglas (o que nombre una comida que no es).

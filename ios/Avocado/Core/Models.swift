@@ -33,6 +33,8 @@ struct User: Codable, Equatable {
     var eatingStart: String?
     /// Cuándo dice que empezó su ayuno (ISO).
     var fastStartedAt: String?
+    /// Accesorio que lleva Avo (clave); nil = ninguno.
+    var avoAccessory: String?
 
     var style: AvoStyle { avoStyle ?? .picante }
     var remindersOn: Bool { reminders ?? true }

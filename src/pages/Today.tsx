@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Screen, PageHeader } from '@avocado/ui'
 import { useAuth } from '../auth'
+import AchievementsCard from '../components/AchievementsCard'
 import CravingLink from '../components/CravingLink'
 import MoodCheckIn from '../components/MoodCheckIn'
 import DayView from '../components/DayView'
@@ -66,6 +67,7 @@ export default function Today() {
           <>
             {user.role === 'patient' && <GoalCard hasMeals={!!streak && streak.best > 0} />}
             {user.role === 'patient' && <FastingCard />}
+            {user.role === 'patient' && <AchievementsCard />}
             <MoodCheckIn />
             <CravingLink />
           </>

@@ -7,7 +7,7 @@ ve tu día para dejarte indicaciones. Algo como Whoop, pero para nutrición y co
 
 **App:** https://avocadoapp.cristopherpineda.com (se instala en el teléfono como app)
 
-## Qué hace hoy (v1.4)
+## Qué hace hoy (v1.5)
 
 Los cambios de cada versión están en [CHANGELOG.md](CHANGELOG.md). La web, la API y la app de iOS llevan la misma versión.
 
@@ -24,6 +24,7 @@ Los cambios de cada versión están en [CHANGELOG.md](CHANGELOG.md). La web, la 
 - **Recordatorios a la hora de comer:** desayuno, comida y cena (y la racha en la noche), sin avisar de lo ya registrado. iOS los programa en el teléfono con el texto de `GET /reminders`; la web los recibe por Web Push desde el cron del Worker (`api/src/reminders.ts`, llaves VAPID: la pública en `wrangler.jsonc`, la privada en el secreto `VAPID_PRIVATE_KEY`).
 - **Ayuno intermitente:** plan (16:8…) y ventana de comida en Perfil, el ayuno en vivo en Mi día (se calcula con las comidas: solo rompe lo de 50 kcal o más), historial en la semana y avisos de la ventana (`api/src/fasting.ts`).
 - **Cómo lo cocinaste y dictado:** al registrar, «¿Lo cocinaste tú?» (método, grasa y cantidad) para que la IA sume el aceite que no se ve, y dictado por voz de la nota (`POST /transcribe`, tope de 100 al día).
+- **Logros y Avo personalizable:** medallas por constancia y hábitos, dos retos por semana a la medida de cada quien y accesorios para Avo que se desbloquean con las medallas (`api/src/achievements.ts`, `GET /achievements`).
 - **Sticker para Instagram** con los macros de la comida (5 estilos y transparencia), y la foto para guardarla.
 - **Saldo de la semana y comida libre:** con tu meta y tu objetivo (bajar, mantener o subir), Avo te dice si te alcanza para un cheat meal.
 - **App de iOS** nativa para pacientes (`ios/`), con la misma API, y **widget** de pantalla de inicio con tu día y un toque para registrar.

@@ -63,7 +63,7 @@ struct AvoChatView: View {
 
     private var header: some View {
         HStack(spacing: 14) {
-            MascotView(mood: busy ? .think : .idle, size: 64, reactive: true, bubbleEdge: .bottom)
+            MascotView(mood: busy ? .think : .idle, size: 64, reactive: true, bubbleEdge: .bottom, dressed: true)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Avo").font(.display(30, weight: 800, relativeTo: .largeTitle))
                 Text("Lo que platiquen es privado; cómo te sientes lo ve tu nutrióloga.")

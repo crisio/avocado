@@ -105,10 +105,17 @@ struct MascotView: View {
     var loop: Bool?
     /// Se queda quieto en este cuadro.
     var pose: Int?
+    /// Lleva puesto el accesorio que eligió la persona (solo en las pantallas del paciente).
+    var dressed = false
+    /// Un accesorio en particular (emoji + espacio), por ejemplo para ver una vista previa.
+    var accessory: (emoji: String, slot: String)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var center = MascotCenter.shared
     @State private var step = 0
+    @State private var achievements = Achievements.shared
+
+    private var worn: (emoji: String, slot: String)? { accessory ?? (dressed ? achievements.worn : nil) }
 
     private var reaction: MascotCenter.Reaction? { reactive ? center.reaction : nil }
 
@@ -132,6 +139,7 @@ struct MascotView: View {
             .resizable()
             .interpolation(.high)
             .frame(width: size, height: size)
+            .overlay { if let worn { AccessoryOverlay(emoji: worn.emoji, slot: worn.slot, size: size) } }
             .offset(y: still ? 0 : s.lift * size / 88)
             .animation(.spring(duration: 0.25), value: step)
             .overlay(alignment: bubbleAlignment) {
@@ -250,5 +258,34 @@ private struct BubbleWidth: ViewModifier {
         } else {
             content.fixedSize()
         }
+    }
+}
+
+/// El accesorio de Avo, puesto según su lugar (cabeza, cara, lado o aura) sobre el cuadro; se mueve con Avo.
+private struct AccessoryOverlay: View {
+    let emoji: String
+    let slot: String
+    let size: CGFloat
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var floating = false
+
+    var body: some View {
+        let spec: (x: CGFloat, y: CGFloat, font: CGFloat) = switch slot {
+        case "cabeza": (0.5, 0.13, 0.42)
+        case "cara": (0.5, 0.38, 0.34)
+        case "lado": (0.70, 0.2, 0.28)
+        default: (0.85, -0.05, 0.26)
+        }
+        Text(emoji)
+            .font(.system(size: size * spec.font))
+            .fixedSize()
+            .position(x: size * spec.x, y: size * spec.y + (slot == "aura" && floating ? -size * 0.05 : 0))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .onAppear {
+                guard slot == "aura", !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) { floating = true }
+            }
     }
 }

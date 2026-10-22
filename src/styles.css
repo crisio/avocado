@@ -606,6 +606,27 @@ body {
   }
 }
 
+/* Accesorio de Avo: emoji centrado en su lugar (los lugares los fija AccessoryOverlay) */
+.mascot__accessory {
+  position: absolute;
+  line-height: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  user-select: none;
+}
+.mascot__accessory--float {
+  animation: mascot-float 2.6s ease-in-out infinite;
+}
+@keyframes mascot-float {
+  0%,
+  100% {
+    transform: translate(-50%, -50%);
+  }
+  50% {
+    transform: translate(-50%, calc(-50% - 4px));
+  }
+}
+
 /* Globo de texto */
 .mascot__bubble {
   position: absolute;
@@ -1229,6 +1250,7 @@ body {
     animation: none;
   }
   .mascot__sprite--breathe,
+  .mascot__accessory--float,
   .mascot__bubble,
   .mascot-dock,
   .mascot-dock--leaving {
@@ -2266,4 +2288,264 @@ body {
 .goal-chip:disabled {
   cursor: default;
   opacity: 0.45;
+}
+
+/* ── Logros, medallas y accesorios de Avo ─────────────────── */
+.logros-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--av-ink);
+  text-decoration: none;
+}
+.logros-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.logros-card__head strong {
+  font-family: var(--av-font-display);
+  font-size: 17px;
+}
+.logros-card__head .av-text-muted {
+  flex: 1;
+}
+.logros-card__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+.logro-bar {
+  display: block;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--av-surface-sunken);
+  overflow: hidden;
+}
+.logro-bar--thin {
+  height: 4px;
+  width: 100%;
+}
+.logro-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--av-accent);
+  transition: width 300ms ease-out;
+}
+.logro-bar--done > span {
+  background: #2e9b57;
+}
+.logros-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.logros-hero__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.logros-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.logros-section__title {
+  margin: 0;
+  font-family: var(--av-font-display);
+  font-size: 20px;
+}
+.logros-group__title {
+  margin: 4px 0 8px;
+  font-size: 14px;
+  color: var(--av-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.logro-challenge {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.logro-challenge__emoji {
+  font-size: 30px;
+  line-height: 1;
+}
+.logro-challenge__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+.logro-challenge__foot {
+  font-size: 13px;
+  font-weight: 600;
+}
+.medal-grid,
+.acc-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.medal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 6px;
+  text-align: center;
+  border-radius: var(--av-radius-lg);
+  background: var(--av-surface);
+}
+.medal__emoji {
+  font-size: 34px;
+  line-height: 1.1;
+}
+.medal__title {
+  font-size: 13px;
+  line-height: 1.2;
+}
+.medal__sub {
+  font-size: 12px;
+  color: var(--av-muted);
+}
+.medal--locked .medal__emoji {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+.medal--locked .medal__title {
+  color: var(--av-muted);
+}
+.logros-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-top: 24px;
+}
+.acc {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border: 0;
+  background: none;
+  color: var(--av-ink);
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+  touch-action: manipulation;
+}
+.acc:focus-visible {
+  outline: 3px solid var(--av-accent);
+  outline-offset: 2px;
+  border-radius: var(--av-radius-lg);
+}
+.acc__circle {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  border-radius: 50%;
+  background: var(--av-surface-sunken);
+  border: 3px solid transparent;
+}
+.acc--on .acc__circle {
+  border-color: var(--av-accent);
+}
+.acc__check,
+.acc__lock {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  font-size: 12px;
+  line-height: 1;
+}
+.acc__check {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--av-accent);
+  color: #fff;
+  font-weight: 800;
+}
+.acc--locked {
+  cursor: default;
+}
+.acc--locked .acc__circle {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+.acc__name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.acc__req {
+  font-size: 11px;
+  color: var(--av-muted);
+  line-height: 1.2;
+}
+
+/* Hoja de "¡Nueva medalla!" (components/AchievementsWatcher.tsx) */
+.medal-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(20, 30, 20, 0.5);
+  animation: party-in 200ms ease-out both;
+}
+.medal-sheet__card {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 20px 20px;
+  text-align: center;
+  border-radius: var(--av-radius-lg);
+  background: var(--av-surface);
+  animation: mascot-pop 300ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+.medal-sheet__emoji {
+  font-size: 72px;
+  line-height: 1;
+}
+.medal-sheet__title {
+  margin: 0;
+  font-family: var(--av-font-display);
+  font-size: 24px;
+}
+.medal-sheet__acc {
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: reduce) {
+  .medal-sheet,
+  .medal-sheet__card {
+    animation: none;
+  }
+}
+.logros-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
 }

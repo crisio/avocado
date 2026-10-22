@@ -6,6 +6,7 @@ import { findGif } from '../src/gifs'
 import type { Env } from '../src/env'
 import { learnWindows, planReminders, sendDueReminders } from '../src/reminders'
 import { computeFasting } from '../src/fasting'
+import { weekChallenges, type AchievementMeal } from '../src/achievements'
 import { b64urlToBytes, bytesToB64url, encryptPayload, vapidAuthorization } from '../src/webpush'
 
 const BASE = 'https://api.test'
@@ -1562,5 +1563,86 @@ describe('Avo que escucha y avisos a tu hora', () => {
     expect(weekly.body).toMatch(/6 de 7|6 días de 7/)
     const few = planReminders({ user: { id: 'u', full_name: 'Mar', avo_style: 'tranquilo' }, offset: 360, mealTimes: meals.slice(0, 1), hasMeals: true }, at('2026-10-18T10:00'), 1)
     expect(few.find((r) => r.kind === 'semana')!.body).toContain('Te extrañé')
+  })
+})
+
+describe('Logros, retos de la semana y accesorios de Avo', () => {
+  const at = (local: string) => Date.parse(`${local}:00-06:00`)
+  const meal = (local: string, extra: Partial<AchievementMeal> = {}): AchievementMeal => ({
+    eaten_at: new Date(at(local)).toISOString(),
+    created_at: new Date(at(local)).toISOString(),
+    status: 'analyzed',
+    calories: 500,
+    protein_g: 30,
+    cooking: null,
+    meal_type: null,
+    ...extra,
+  })
+  const noGoals = { protein_g_goal: null, fasting_hours: null, eating_start: null }
+
+  it('los retos se hacen a la medida: suben si le fue bien y van por la comida que menos registra', () => {
+    // Semana pasada (12–18 oct): comida 4 días, desayuno 2, nunca cena. Esta semana (desde el lunes 19): 2 días.
+    const meals = [
+      ...['12', '13', '14', '15'].map((d) => meal(`2026-10-${d}T12:30`)),
+      ...['13', '16'].map((d) => meal(`2026-10-${d}T08:00`)),
+      meal('2026-10-19T12:30'),
+      meal('2026-10-20T20:00'),
+    ]
+    const { week, challenges } = weekChallenges(meals, noGoals, 360, at('2026-10-21T10:00'))
+    expect(week).toBe('2026-10-19')
+    expect(challenges.map((c) => [c.key, c.progress, c.target, c.done])).toEqual([
+      ['dias-6', 2, 6, false], // la semana pasada fueron 5 días: ahora 6
+      ['cena-3', 1, 3, false],
+    ])
+    expect(challenges[1].title).toBe('Registra 3 cenas')
+    expect(challenges[0].ends_at).toBe(new Date(at('2026-10-26T00:00')).toISOString())
+
+    // Con meta de proteína, el reto es la proteína.
+    const protein = weekChallenges([meal('2026-10-19T12:30', { protein_g: 160 })], { ...noGoals, protein_g_goal: 150 }, 360, at('2026-10-21T10:00'))
+    expect(protein.challenges[1]).toMatchObject({ key: 'proteina-3', progress: 1, target: 3 })
+  })
+
+  it('gana medallas con sus registros, se quedan, desbloquean accesorios y cuentan los retos', async () => {
+    const token = await login('logros@gmail.com', { full_name: 'Lola Logros', role: 'patient' })
+    const id = (await call('/me', { token })).data.id
+    const insert = (ms: number) =>
+      env.DB.prepare('INSERT INTO meals (id, user_id, eaten_at, photo_key, created_at, status, calories, protein_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(crypto.randomUUID(), id, new Date(ms).toISOString(), 'x.jpg', new Date(ms).toISOString(), 'analyzed', 500, 30)
+        .run()
+    for (let d = 0; d < 3; d++) await insert(Date.now() - d * 86_400_000)
+
+    const res = await call('/achievements?offset=360', { token })
+    expect(res.status).toBe(200)
+    const medal = (key: string) => res.data.medals.find((m: { key: string }) => m.key === key)
+    expect(medal('primera').unlocked_at).toEqual(expect.any(String))
+    expect(medal('racha3').unlocked_at).toEqual(expect.any(String))
+    expect(medal('racha7')).toMatchObject({ progress: 3, target: 7, unlocked_at: null })
+    expect(res.data.streak).toEqual({ current: 3, best: 3 })
+    expect(res.data.summary.total).toBe(res.data.medals.length)
+    expect(res.data.challenges).toHaveLength(2)
+    const lentes = res.data.accessories.find((a: { key: string }) => a.key === 'lentes')
+    expect(lentes).toMatchObject({ emoji: '🕶️', slot: 'cara', unlocked: true, requirement: 'Tres al hilo' })
+
+    // Ponerle a Avo: solo lo desbloqueado.
+    expect((await call('/me', { method: 'PATCH', token, json: { avo_accessory: 'nada' } })).status).toBe(400)
+    expect((await call('/me', { method: 'PATCH', token, json: { avo_accessory: 'corona' } })).status).toBe(403)
+    expect((await call('/me', { method: 'PATCH', token, json: { avo_accessory: 'lentes' } })).data.avo_accessory).toBe('lentes')
+    expect((await call('/achievements?offset=360', { token })).data.equipped).toBe('lentes')
+
+    // Aunque borre sus comidas (o se rompa la racha), la medalla ganada se queda.
+    await env.DB.prepare('DELETE FROM meals WHERE user_id = ?').bind(id).run()
+    const after = (await call('/achievements?offset=360', { token })).data
+    expect(after.medals.find((m: { key: string }) => m.key === 'racha3').unlocked_at).toEqual(expect.any(String))
+    expect(after.streak.current).toBe(0)
+
+    // Un reto cumplido cuenta para "Primer reto".
+    await env.DB.prepare('INSERT INTO challenge_wins (user_id, week, key) VALUES (?, ?, ?)').bind(id, '2026-10-12', 'dias-4').run()
+    expect((await call('/achievements?offset=360', { token })).data.medals.find((m: { key: string }) => m.key === 'reto1').unlocked_at).toEqual(expect.any(String))
+
+    // Su nutrióloga vinculada lo ve; otra persona no.
+    const nutri = await login('nutri-logros@gmail.com', { full_name: 'Lic. Logros', role: 'nutritionist' })
+    expect((await call(`/achievements?offset=360&user_id=${id}`, { token: nutri })).status).toBe(404)
+    await call('/care/nutritionists', { method: 'POST', token, json: { email: 'nutri-logros@gmail.com' } })
+    expect((await call(`/achievements?offset=360&user_id=${id}`, { token: nutri })).data.summary.unlocked).toBeGreaterThanOrEqual(3)
   })
 })

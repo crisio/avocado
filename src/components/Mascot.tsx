@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { POSES, SEQUENCES, setInlineVisible, spriteUrl, tapMascot, useInlineVisible, useReaction, cheer, type Mood } from '../lib/mascot'
 import { useOnline } from '../lib/useOnline'
+import { useWornAccessory, type WornAccessory } from '../lib/achievements'
 
 const reducedQuery = typeof window !== 'undefined' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null
 export const useReducedMotion = () =>
@@ -64,11 +65,13 @@ export interface MascotProps {
   hd?: boolean
   /** Se queda quieta en este cuadro (0–3) de su ánimo. */
   pose?: number
+  /** Accesorio puesto. Sin indicar, lleva el del paciente (si es reactiva o interactiva); null = ninguno. */
+  accessory?: WornAccessory | null
   className?: string
 }
 
 /** Avo, el aguacate del logo, animado. */
-export function Mascot({ size = 88, base = 'idle', reactive = false, interactive = false, bubble = 'left', floating = false, play, hd = false, pose, className }: MascotProps) {
+export function Mascot({ size = 88, base = 'idle', reactive = false, interactive = false, bubble = 'left', floating = false, play, hd = false, pose, accessory, className }: MascotProps) {
   const reduced = useReducedMotion()
   const reaction = useReaction()
   const active = reactive && !play ? reaction : null
@@ -77,6 +80,8 @@ export function Mascot({ size = 88, base = 'idle', reactive = false, interactive
   const frame = pose ?? stepFrame
   const ref = useRef<HTMLElement>(null)
   const role = useAuth().user?.role ?? null
+  const worn = useWornAccessory()
+  const wearing = accessory !== undefined ? accessory : reactive || interactive ? worn : null
 
   // Si está a la vista, la mascota flotante no hace falta.
   useEffect(() => {
@@ -108,6 +113,7 @@ export function Mascot({ size = 88, base = 'idle', reactive = false, interactive
           className={`mascot__sprite${mood === 'idle' || mood === 'sleepy' ? ' mascot__sprite--breathe' : ''}`}
           style={{ backgroundImage: `url(${spriteUrl(mood, hd)})`, backgroundPosition: `${(frame * 100) / 3}% 0` }}
         />
+        {wearing && <AccessoryOverlay accessory={wearing} size={size} reduced={reduced} />}
       </span>
       {active?.message && (
         <span key={active.id} className={`mascot__bubble mascot__bubble--${bubble}`} aria-hidden="true">
@@ -142,6 +148,28 @@ export function Mascot({ size = 88, base = 'idle', reactive = false, interactive
   ) : (
     <span ref={ref} className={classes} style={style} aria-hidden="true">
       {sprite}
+    </span>
+  )
+}
+
+// Lugar y tamaño de cada accesorio, en fracción del tamaño de Avo (x, y = centro del emoji).
+const SLOTS: Record<WornAccessory['slot'], { x: number; y: number; font: number }> = {
+  cabeza: { x: 0.5, y: 0.13, font: 0.42 },
+  cara: { x: 0.5, y: 0.38, font: 0.34 },
+  lado: { x: 0.7, y: 0.2, font: 0.28 },
+  aura: { x: 0.85, y: -0.05, font: 0.26 },
+}
+
+/** El accesorio de Avo: va dentro del mismo "lift", así salta con él. */
+function AccessoryOverlay({ accessory, size, reduced }: { accessory: WornAccessory; size: number; reduced: boolean }) {
+  const { x, y, font } = SLOTS[accessory.slot] ?? SLOTS.cabeza
+  return (
+    <span
+      className={`mascot__accessory${accessory.slot === 'aura' && !reduced ? ' mascot__accessory--float' : ''}`}
+      style={{ left: `${x * 100}%`, top: `${y * 100}%`, fontSize: size * font }}
+      aria-hidden="true"
+    >
+      {accessory.emoji}
     </span>
   )
 }

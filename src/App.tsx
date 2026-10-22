@@ -21,6 +21,7 @@ const PatientWeek = lazy(() => import('./pages/PatientWeek'))
 const Week = lazy(() => import('./pages/Week'))
 const Craving = lazy(() => import('./pages/Craving'))
 const Settings = lazy(() => import('./pages/Settings'))
+const Logros = lazy(() => import('./pages/Logros'))
 const AvoChat = lazy(() => import('./pages/AvoChat'))
 
 export default function App() {
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="semana" element={<Week />} />
             <Route path="antojo" element={<Craving />} />
             <Route path="avo" element={<AvoChat />} />
+            <Route path="logros" element={<Logros />} />
           </>
         )}
         <Route path="invitar/:code" element={<Invite />} />

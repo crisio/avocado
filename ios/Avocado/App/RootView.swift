@@ -81,6 +81,9 @@ struct MainTabs: View {
     @State private var tab: AppTab = .today
     @State private var avoPrompt = AvoPrompt.shared
     @State private var route = AppRoute.shared
+    @State private var achievements = Achievements.shared
+    @Environment(Session.self) private var session
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         TabView(selection: $tab) {
@@ -96,6 +99,15 @@ struct MainTabs: View {
             Tab("Perfil", systemImage: "person.crop.circle", value: .profile) {
                 NavigationStack { ProfileView() }
             }
+        }
+        // Medallas y retos: al entrar, al volver a la app y al subir una comida.
+        .task(id: "\(session.user?.id ?? "")-\(Outbox.shared.syncedCount)-\(scenePhase == .active)") {
+            guard scenePhase == .active, let id = session.user?.id else { return }
+            await achievements.refresh(userId: id)
+        }
+        .sheet(item: Binding(get: { achievements.celebrating }, set: { if $0 == nil { achievements.dismissCelebration() } })) { medal in
+            MedalCelebrationView(medal: medal)
+                .presentationDetents([.medium, .large])
         }
         .onChange(of: avoPrompt.pending) { if avoPrompt.pending != nil { tab = .avo } }
         .onChange(of: avoPrompt.draft) { if avoPrompt.draft != nil { tab = .avo } }

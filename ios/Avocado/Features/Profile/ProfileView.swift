@@ -32,10 +32,18 @@ struct ProfileView: View {
                         Text("Perfil").font(.display(34, weight: 800, relativeTo: .largeTitle))
                     }
                     Spacer()
-                    MascotView(mood: .idle, size: 76, reactive: true, bubbleEdge: .bottom)
+                    MascotView(mood: .idle, size: 76, reactive: true, bubbleEdge: .bottom, dressed: true)
                 }
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 4, trailing: 4))
+            }
+
+            Section {
+                NavigationLink {
+                    LogrosView()
+                } label: {
+                    Label("Tus logros y tu Avo", systemImage: "medal.fill")
+                }
             }
 
             if let error { Section { Notice(text: error, tone: .danger) }.listRowBackground(Color.clear).listRowInsets(EdgeInsets()) }
