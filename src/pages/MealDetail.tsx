@@ -103,7 +103,7 @@ export default function MealDetail() {
       const updated = await api<Meal>(`/meals/${id}/correct`, { method: 'POST', json: { text: correction.trim() }, timeoutMs: 60_000 })
       applyMeal(updated)
       setCorrection('')
-      cheer('celebrate', `¡Corregido! ${Math.round(updated.calories ?? 0)} kcal`, { interrupt: true })
+      cheer('celebrate', '¡Gracias por avisarme! Ya lo ajusté 👍', { interrupt: true })
     } catch (err) {
       setCorrectError((err as Error).message)
       cheer('oops', 'No pude corregirla', { interrupt: true })

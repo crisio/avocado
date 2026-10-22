@@ -2240,3 +2240,30 @@ body {
   display: grid;
   gap: 6px;
 }
+
+/* Tarjeta "Tu objetivo": opciones en fichas */
+.goal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.goal-chip {
+  font: inherit;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--av-border, rgba(0, 0, 0, 0.15));
+  border-radius: 999px;
+  background: var(--av-surface);
+  color: inherit;
+  cursor: pointer;
+}
+.goal-chip:hover:not(:disabled) {
+  background: var(--av-accent-soft);
+}
+.goal-chip:focus-visible {
+  outline: 2px solid var(--av-accent);
+}
+.goal-chip:disabled {
+  cursor: default;
+  opacity: 0.45;
+}

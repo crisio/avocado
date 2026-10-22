@@ -26,6 +26,7 @@ struct TodayView: View {
                     Button(action: showWeek) { StreakChip(streak: streak) }.buttonStyle(.plain)
                 }
                 ReminderPromptCard()
+                GoalCard()
                 if let userId = session.user?.id {
                     DayMealsView(userId: userId, day: $day, reloadKey: reloads) {
                         MoodCheckInView()

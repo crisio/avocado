@@ -11,17 +11,61 @@ import { sendPush, type VapidKeys } from './webpush'
  * Los textos usan la personalidad de Avo del paciente.
  */
 
-export const REMINDER_KINDS = ['desayuno', 'comida', 'cena', 'racha', 'ventana', 'cierre'] as const
+export const REMINDER_KINDS = ['desayuno', 'comida', 'cena', 'racha', 'ventana', 'cierre', 'semana'] as const
 export type ReminderKind = (typeof REMINDER_KINDS)[number]
 
-/** Hora local del aviso y desde qué hora una comida registrada ya cuenta para no avisar. */
-const WINDOWS: { kind: ReminderKind; at: number; since: number }[] = [
+type Window = { kind: ReminderKind; at: number; since: number; habit?: boolean }
+
+/** Hora local del aviso (por omisión) y desde qué hora una comida registrada ya cuenta para no avisar. */
+const WINDOWS: Window[] = [
   { kind: 'desayuno', at: 8 * 60 + 30, since: 5 * 60 },
   { kind: 'comida', at: 13 * 60, since: 11 * 60 },
   { kind: 'cena', at: 19 * 60 + 30, since: 17 * 60 + 30 },
   // Solo si hoy no ha registrado nada y la racha sigue viva (registró ayer).
   { kind: 'racha', at: 21 * 60, since: 0 },
 ]
+
+/** En qué rango (minutos locales) cae cada comida, para aprender a qué hora la hace. */
+const MEAL_RANGES = { desayuno: [5 * 60, 10 * 60 + 30], comida: [10 * 60 + 30, 16 * 60], cena: [17 * 60, 23 * 60 + 30] } as const
+type MealKind = keyof typeof MEAL_RANGES
+
+/** Domingo a las 6 p. m.: cómo le fue en la semana. */
+const WEEKLY: Window = { kind: 'semana', at: 18 * 60, since: Number.POSITIVE_INFINITY }
+
+/**
+ * Los avisos de comida se acomodan a su costumbre (sus últimos 14 días): si hizo esa comida 3 días o más, el aviso va
+ * 15 min antes de su hora de siempre; si ya tiene rutina (5+ días registrando) y nunca registra esa comida (p. ej. la
+ * cena), no se le avisa. Con pocos datos, las horas de siempre.
+ */
+export function learnWindows(localMeals: number[], todayStart: number): Window[] {
+  const byDay = new Map<string, number[]>()
+  for (const ms of localMeals) {
+    if (ms >= todayStart || ms < todayStart - 14 * DAY_MS) continue
+    const day = isoDay(ms)
+    byDay.set(day, [...(byDay.get(day) ?? []), Math.floor((ms - Date.parse(`${day}T00:00:00Z`)) / 60_000)])
+  }
+  const out: Window[] = []
+  for (const w of WINDOWS) {
+    if (w.kind === 'racha') {
+      out.push(w)
+      continue
+    }
+    const [start, end] = MEAL_RANGES[w.kind as MealKind]
+    const firsts = [...byDay.values()].map((mins) => Math.min(...mins.filter((m) => m >= start && m < end))).filter(Number.isFinite).sort((a, b) => a - b)
+    if (firsts.length >= 3) {
+      const usual = firsts[Math.floor(firsts.length / 2)]
+      const at = Math.min(Math.max(Math.round((usual - 15) / 5) * 5, start), end - 30)
+      out.push({ kind: w.kind, at, since: start, habit: true })
+    } else if (!(byDay.size >= 5 && firsts.length === 0)) out.push(w)
+  }
+  return out
+}
+
+/** 11:30 a. m. */
+function clock(minutes: number) {
+  const h = Math.floor(minutes / 60) % 24
+  return `${h % 12 || 12}:${String(minutes % 60).padStart(2, '0')} ${h < 12 ? 'a. m.' : 'p. m.'}`
+}
 
 /** Quien hace ayuno recibe otros: cuando abre su ventana de comida y 30 min antes de que cierre. */
 function fastingWindows(hours: number, eatingStart: string) {
@@ -38,10 +82,18 @@ const TITLES: Record<ReminderKind, string> = {
   cena: 'Hora de cenar 🌙',
   racha: 'Tu racha 🔥',
   ventana: 'Tu ventana de comida 🍽️',
+  semana: 'Tu semana 📊',
   cierre: 'Tu ventana cierra pronto ⏳',
 }
 
-type Texts = Record<ReminderKind | 'primera', string[]>
+type Texts = Record<ReminderKind | 'primera', string[]> & {
+  /** Cuando ya conocemos su hora ({time}): "a tu hora de siempre". */
+  habit: Record<MealKind, string[]>
+  /** Resumen del domingo según cuántos días registró ({days}). */
+  semanaBien: string[]
+  semanaMedio: string[]
+  semanaPoco: string[]
+}
 
 // {name}: su primer nombre (o "tú"); {streak}: días seguidos; {hours}: horas de ayuno. Nunca sobre su cuerpo ni sobre
 // cuánto come.
@@ -77,6 +129,15 @@ const PICANTE: Texts = {
     'Tu ventana cierra en 30 min, {name}. ¿Última comida? Foto y a ayunar 🕗',
     'Última llamada: en 30 min empieza tu ayuno. Si comes algo, que sea con foto.',
   ],
+  habit: {
+    desayuno: ['Ya casi es tu hora de desayunar ({time}), {name}. Ya me sé tu horario 😏 Foto y te digo.', 'Tu desayuno de las {time} se acerca, {name}. Aquí te espero con la cámara 📸'],
+    comida: ['Ya casi es tu hora de comer ({time}), {name}. Foto antes del primer bocado 👀', 'Son casi las {time}, tu hora de comer, {name}. Yo puntual, ¿y tú? 🍽️'],
+    cena: ['Ya casi es tu hora de cenar ({time}), {name}. Foto y te cuento qué opino 🌙', 'Tu cena de las {time} se acerca, {name}. Cierra el día con foto.'],
+  },
+  semana: ['Domingo de repaso, {name}: mira cómo te fue esta semana 📊'],
+  semanaBien: ['{days} de 7 días registrados esta semana, {name}. Ni yo me la creía 💪 Mira tu resumen.', '{days} días de 7, {name}. Esto ya es costumbre y se nota. ¡Así se hace! 🔥'],
+  semanaMedio: ['{days} de 7 días esta semana, {name}. Nada mal… pero yo sé que puedes más 😏 Mira tu resumen.'],
+  semanaPoco: ['Esta semana casi no supe de ti, {name} 🥲 Mañana una foto y arrancamos de nuevo, sin drama.'],
 }
 
 const TRANQUILO: Texts = {
@@ -87,6 +148,15 @@ const TRANQUILO: Texts = {
   primera: ['{name}, tómale foto a tu comida y en segundos ves sus calorías y macros.'],
   ventana: ['Completaste tus {hours} horas de ayuno, {name}. Tu ventana de comida ya abrió.'],
   cierre: ['Tu ventana de comida cierra en 30 minutos, {name}.'],
+  habit: {
+    desayuno: ['Ya casi es tu hora de desayunar ({time}), {name}. ¿Le tomas foto?'],
+    comida: ['Ya casi es tu hora de comer ({time}), {name}. No olvides la foto.'],
+    cena: ['Ya casi es tu hora de cenar ({time}), {name}. Una foto y listo.'],
+  },
+  semana: ['Es domingo, {name}: mira cómo te fue esta semana 📊'],
+  semanaBien: ['Registraste {days} de 7 días esta semana, {name}. ¡Qué constancia! 💚'],
+  semanaMedio: ['Registraste {days} de 7 días esta semana, {name}. Vas bien; esta semana vamos por más.'],
+  semanaPoco: ['Te extrañé esta semana, {name}. Mañana es buen día para retomar 💚'],
 }
 
 export interface Reminder {
@@ -139,7 +209,8 @@ export function planReminders(state: ReminderState, now: number, days = 7, from 
   const streak = streakFrom(new Set(localMeals.map(isoDay)), today)
 
   const out: Reminder[] = []
-  const windows = state.fasting ? fastingWindows(state.fasting.hours, state.fasting.eatingStart) : WINDOWS
+  const windows: Window[] = [...(state.fasting ? fastingWindows(state.fasting.hours, state.fasting.eatingStart) : learnWindows(localMeals, todayStart)), WEEKLY]
+  const weekDays = new Set(localMeals.filter((ms) => ms > localNow - 7 * DAY_MS).map(isoDay)).size
   for (let d = 0; d < days; d++) {
     const date = isoDay(todayStart + d * DAY_MS)
     for (const w of windows) {
@@ -147,13 +218,31 @@ export function planReminders(state: ReminderState, now: number, days = 7, from 
       if (at <= from) continue
       if (w.kind === 'racha') {
         if (d > 0 || todayMinutes.length > 0 || streak.current === 0) continue
+      } else if (w.kind === 'semana') {
+        if (new Date(`${date}T00:00:00Z`).getUTCDay() !== 0 || !state.hasMeals) continue
       } else if (d === 0 && todayMinutes.some((m) => m >= w.since)) continue
 
-      const pool = !state.fasting && w.kind !== 'racha' && !state.hasMeals ? texts.primera : texts[w.kind]
+      // El resumen del domingo con sus números solo si es hoy (para otro día todavía no se sabe).
+      const pool =
+        w.kind === 'semana'
+          ? d > 0
+            ? texts.semana
+            : weekDays >= 5
+              ? texts.semanaBien
+              : weekDays >= 2
+                ? texts.semanaMedio
+                : texts.semanaPoco
+          : !state.fasting && w.kind !== 'racha' && !state.hasMeals
+            ? texts.primera
+            : w.habit
+              ? texts.habit[w.kind as MealKind]
+              : texts[w.kind]
       const body = pick(pool, `${user.id}|${date}|${w.kind}`)
         .replaceAll('{name}', name)
         .replaceAll('{streak}', String(streak.current))
         .replaceAll('{hours}', String(state.fasting?.hours ?? ''))
+        .replaceAll('{time}', clock(w.at + 15))
+        .replaceAll('{days}', String(weekDays))
       out.push({
         id: `${w.kind}-${date}`,
         kind: w.kind,

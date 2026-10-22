@@ -2,6 +2,13 @@
 
 La web (PWA), la API y la app de iOS llevan la misma versión. Mientras la versión empiece con 0, la app sigue en pruebas.
 
+## 1.4.0 — 22 de octubre de 2026
+
+- **Avo de tu lado:** celebra cuando comes bien (con su estilo picante, pero a tu favor), deja la carrilla para los antojos y las excusas, nunca se burla de que comas poco, repitas algo sano o comas seguido, menciona lo que le contaste en tu nota y reconoce tu constancia. Antes de mostrarse, cada comentario de tus fotos pasa por una revisión que corrige o descarta lo que rompa esas reglas (o que nombre una comida que no es).
+- **Avisos a tu hora:** Avo aprende a qué hora sueles desayunar, comer y cenar (tus últimos 14 días) y te avisa 15 minutos antes; si nunca registras una comida, no te molesta con ella. Los domingos a las 6 p. m., **el resumen de tu semana**.
+- **«¿Qué quieres lograr?»** en Mi día: tu objetivo y tu meta de calorías en dos toques (si no los tienes y tu nutrióloga no te los puso).
+- Al corregir una comida, Avo te da las gracias.
+
 ## 1.3.2 — 17 de octubre de 2026
 
 - **Instagram (iOS):** «Publicar en tu historia» guarda la historia armada en tu carrete y abre Instagram en Historia: es la foto más reciente, la de la miniatura de abajo a la izquierda, lista para publicar. Con el ID de la app de Meta abrirá directo el editor con la historia cargada. Sin Instagram, abre el menú de compartir.

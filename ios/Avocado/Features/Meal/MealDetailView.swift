@@ -323,7 +323,7 @@ struct MealDetailView: View {
             let updated: Meal = try await api.request("POST", "/meals/\(mealId)/correct", json: ["text": text], timeout: 60)
             apply(updated)
             correction = ""
-            cheer(.celebrate, "¡Corregido! \(Fmt.kcal(updated.calories))")
+            cheer(.celebrate, "¡Gracias por avisarme! Ya lo ajusté 👍")
         } catch {
             correctError = error.localizedDescription
             cheer(.oops, "No pude corregirla")

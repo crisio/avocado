@@ -4,6 +4,7 @@ import { useAuth } from '../auth'
 import CravingLink from '../components/CravingLink'
 import MoodCheckIn from '../components/MoodCheckIn'
 import DayView from '../components/DayView'
+import GoalCard from '../components/GoalCard'
 import FastingCard from '../components/FastingCard'
 import InviteConfirm from '../components/InviteConfirm'
 import InstallCard from '../components/InstallCard'
@@ -63,6 +64,7 @@ export default function Today() {
         onAnalyzing={setAnalyzing}
         todayExtra={
           <>
+            {user.role === 'patient' && <GoalCard hasMeals={!!streak && streak.best > 0} />}
             {user.role === 'patient' && <FastingCard />}
             <MoodCheckIn />
             <CravingLink />

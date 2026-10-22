@@ -269,8 +269,61 @@ export async function analyzePhoto(
   )
   const analysis = parseAnalysis(text, model)
   const raw = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)) as { avo?: unknown }
-  const said = typeof raw.avo === 'string' ? raw.avo.trim().slice(0, 400) : ''
+  const draft = typeof raw.avo === 'string' ? raw.avo.trim().slice(0, 400) : ''
+  const said = draft ? await reviewAvoLine(env, draft, analysis, note, user) : ''
   return { ...analysis, avo: said ? { text: said, gif: await findGif(env, gifQueryOf(text)) } : null }
+}
+
+export const REVIEW_PROMPT = `Revisas el comentario que Avo (la mascota de una app de nutrición) le va a decir a un paciente sobre la foto de su comida, antes de que lo vea. Reglas:
+1. Nunca se burla del cuerpo, el peso, la talla ni la apariencia (nada de "pesado/a", "gordo/a", "panza", "flaco/a").
+2. Nunca se burla de cuánto come, de que coma poco (una fruta, un snack ligero), de que coma seguido, de que repita algo sano ni de su rutina.
+3. Si la comida es saludable o balanceada, el comentario la celebra (con humor si es picante, pero de su lado), no la critica ni la llama "postre disfrazado".
+4. Nada de culpa, "prohibido", "malo", "trampa" ni regaños por pasarse.
+5. Solo nombra comidas y bebidas que estén en el análisis o en la nota, sin cambiarlas (una baleada no es un taco, un té no es un jugo).
+6. Sin groserías ni insultos humillantes.
+Si cumple todo: "ok": true y "text" igual al comentario. Si no: "ok": false y en "text" una versión corregida de 1 o 2 frases con el mismo estilo (sarcástico pero de su lado si es picante; cálido si es tranquilo). Si no tiene arreglo, "text" vacío.`
+
+const REVIEW_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['ok', 'text'],
+  properties: { ok: { type: 'boolean' }, text: { type: 'string' } },
+}
+
+/**
+ * Segunda mirada al comentario de Avo antes de guardarlo: si rompe una regla (burlarse del cuerpo, de comer poco, de
+ * una comida sana; nombrar una comida que no es), se corrige o se descarta. Si la revisión falla, queda el original:
+ * el prompt principal ya pide lo mismo.
+ */
+export async function reviewAvoLine(env: Env, draft: string, analysis: Pick<Analysis, 'summary' | 'items'>, note: string | null, user: Pick<User, 'avo_style'>) {
+  try {
+    const { text } = await chat(
+      env,
+      [
+        { role: 'system', content: REVIEW_PROMPT },
+        {
+          role: 'user',
+          content: [
+            `Comida: ${analysis.summary}`,
+            `Alimentos: ${analysis.items.map((i) => i.name).join(', ') || 'ninguno'}`,
+            note ? `Nota del paciente: ${note}` : null,
+            `Estilo: ${user.avo_style === 'tranquilo' ? 'tranquilo' : 'picante'}`,
+            `Comentario: ${draft}`,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        },
+      ],
+      { type: 'json_schema', json_schema: { name: 'avo_review', strict: true, schema: REVIEW_SCHEMA } },
+      { temperature: 0 },
+    )
+    const raw = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)) as { ok?: unknown; text?: unknown }
+    if (raw.ok !== false) return draft
+    return typeof raw.text === 'string' ? raw.text.trim().slice(0, 400) : ''
+  } catch (err) {
+    console.error('avo review', err instanceof Error ? err.message : err)
+    return draft
+  }
 }
 
 /** Corrige un análisis con lo que cuenta el paciente ("me dejé la mitad…"). Solo texto: no vuelve a mandar la foto. */

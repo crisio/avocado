@@ -4,7 +4,7 @@ import app from '../src/index'
 import { devOutbox } from '../src/email'
 import { findGif } from '../src/gifs'
 import type { Env } from '../src/env'
-import { planReminders, sendDueReminders } from '../src/reminders'
+import { learnWindows, planReminders, sendDueReminders } from '../src/reminders'
 import { computeFasting } from '../src/fasting'
 import { b64urlToBytes, bytesToB64url, encryptPayload, vapidAuthorization } from '../src/webpush'
 
@@ -1109,7 +1109,10 @@ describe('Personalidad de Avo y GIF', () => {
     const detail = (await call(`/meals/${meal.id}`, { token })).data
     // Sin clave de GIPHY no hay GIF, pero el comentario sí.
     expect(detail.analysis.avo).toEqual({ text: '¿Pizza a las 11 de la noche, Roberto? This is fine 🔥', gif: null })
-    expect(spy).toHaveBeenCalledTimes(1) // una sola llamada: análisis y comentario juntos
+    // Análisis y comentario en una llamada; la segunda revisa el comentario antes de guardarlo.
+    expect(spy).toHaveBeenCalledTimes(2)
+    expect(sentOf(spy, 1).messages[0].content).toContain('Revisas el comentario que Avo')
+    expect(sentOf(spy, 1).temperature).toBe(0)
     const sent = sentOf(spy)
     expect(sent.messages[0].content).toContain('PICANTE')
     expect(sent.messages[0].content).toContain('NUNCA de su cuerpo')
@@ -1225,7 +1228,9 @@ describe('Recordatorios a la hora de comer', () => {
 
     // Siete días: la racha solo hoy; el mismo aviso siempre con el mismo texto.
     const week = planReminders({ ...base, mealTimes: [yesterday] }, at('2026-10-16T08:00'), 7)
-    expect(week).toHaveLength(4 + 6 * 3)
+    // 4 hoy + 3 por cada uno de los 6 días siguientes + el resumen del domingo 18.
+    expect(week).toHaveLength(4 + 6 * 3 + 1)
+    expect(week.find((r) => r.kind === 'semana')).toMatchObject({ id: 'semana-2026-10-18', at: '2026-10-19T00:00:00.000Z' })
     expect(planReminders({ ...base, mealTimes: [yesterday] }, at('2026-10-16T08:00'), 7)).toEqual(week)
 
     // Sin comidas nunca: textos para la primera foto y sin racha; en tranquilo, otra voz.
@@ -1481,5 +1486,81 @@ describe('Cómo lo cocinó y dictado por voz', () => {
       now: at('2026-10-16T16:00'),
     })
     expect(f.today).toEqual({ first_meal_at: new Date(at('2026-10-16T12:10')).toISOString(), last_meal_at: new Date(at('2026-10-16T15:30')).toISOString() })
+  })
+})
+
+describe('Avo que escucha y avisos a tu hora', () => {
+  const at = (local: string) => Date.parse(`${local}:00-06:00`)
+  const aiReply = (content: unknown) => Response.json({ model: 'm', choices: [{ message: { content: JSON.stringify(content) } }] })
+  const analysis = (avo: string) =>
+    aiReply({ items: [{ name: 'Yogur griego', portion_g: 200, calories: 200, protein_g: 18, carbs_g: 20, fat_g: 4, eaten: 1 }], meal_type: 'desayuno', summary: 'Yogur griego con fruta', confidence: 0.9, avo, gif: '' })
+
+  it('la revisión corrige o descarta el comentario que rompe una regla', async () => {
+    const token = await login('revisa@gmail.com', { full_name: 'Rebe Revisa', role: 'patient' })
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(analysis('¿Eso es desayuno o postre disfrazado de salud?'))
+      .mockResolvedValueOnce(aiReply({ ok: false, text: 'Yogur griego con fruta: chef’s kiss, Rebe. Así se arranca el día 💪' }))
+    const first = await call('/meals', { method: 'POST', token, body: photoForm({ analyze: '1', note: 'yogur con kiwi' }) })
+    expect((await call(`/meals/${first.data.id}`, { token })).data.analysis.avo.text).toBe('Yogur griego con fruta: chef’s kiss, Rebe. Así se arranca el día 💪')
+    const review = JSON.parse(String((spy.mock.calls[1][1] as RequestInit).body)).messages[1].content as string
+    expect(review).toContain('Nota del paciente: yogur con kiwi')
+    expect(review).toContain('Comentario: ¿Eso es desayuno o postre disfrazado de salud?')
+
+    // Sin arreglo: no se guarda comentario. Si la revisión falla, se queda el original.
+    spy.mockResolvedValueOnce(analysis('Comentario feo')).mockResolvedValueOnce(aiReply({ ok: false, text: '' }))
+    const second = await call('/meals', { method: 'POST', token, body: photoForm({ analyze: '1' }) })
+    expect((await call(`/meals/${second.data.id}`, { token })).data.analysis.avo).toBeNull()
+    spy.mockResolvedValueOnce(analysis('Así se hace, Rebe.')).mockResolvedValueOnce(new Response('caído', { status: 500 }))
+    const third = await call('/meals', { method: 'POST', token, body: photoForm({ analyze: '1' }) })
+    expect((await call(`/meals/${third.data.id}`, { token })).data.analysis.avo.text).toBe('Así se hace, Rebe.')
+  })
+
+  it('Avo sabe su constancia para reconocérsela', async () => {
+    const token = await login('constante@gmail.com', { full_name: 'Cony Constante', role: 'patient' })
+    for (let d = 0; d < 5; d++)
+      await env.DB.prepare('INSERT INTO meals (id, user_id, eaten_at, photo_key, created_at) SELECT ?, id, ?, ?, ? FROM users WHERE email = ?')
+        .bind(crypto.randomUUID(), new Date(Date.now() - d * 86_400_000).toISOString(), 'x.jpg', new Date(Date.now() - d * 86_400_000).toISOString(), 'constante@gmail.com')
+        .run()
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(aiReply({ transcript: '', reply: 'Hola', gif: '', mood: { log: false, feelings: [], energy: 0, on_plan: '', note: '' } }))
+    const form = new FormData()
+    form.set('text', 'hola')
+    form.set('offset', '360')
+    await call('/avo/messages', { method: 'POST', token, body: form })
+    const system = JSON.parse(String((spy.mock.calls[0][1] as RequestInit).body)).messages[0].content as string
+    expect(system).toMatch(/Constancia: registró comida [45] de los últimos 7 días, casi siempre en el momento en que come/)
+    expect(system).toContain('DE SU LADO')
+  })
+
+  it('los avisos aprenden su hora y dejan la comida que nunca registra', () => {
+    // Come como a las 11:30 casi todos los días, desayuna a ratos y nunca registra la cena.
+    const days = ['10-08', '10-09', '10-10', '10-11', '10-12', '10-13', '10-14']
+    const meals = [
+      ...days.map((d, i) => new Date(at(`2026-${d}T11:${['20', '30', '35', '25', '40', '30', '30'][i]}`)).toISOString()),
+      new Date(at('2026-10-09T07:10')).toISOString(),
+      new Date(at('2026-10-12T07:40')).toISOString(),
+    ]
+    const todayStart = Date.parse('2026-10-15T00:00:00Z')
+    const local = meals.map((iso) => Date.parse(iso) - 360 * 60_000)
+    expect(learnWindows(local, todayStart).map((w) => [w.kind, w.at, Boolean(w.habit)])).toEqual([
+      ['desayuno', 8 * 60 + 30, false],
+      ['comida', 11 * 60 + 15, true],
+      ['racha', 21 * 60, false],
+    ])
+    const plan = planReminders({ user: { id: 'u', full_name: 'Mar', avo_style: 'picante' }, offset: 360, mealTimes: meals, hasMeals: true }, at('2026-10-15T06:00'), 1)
+    const lunch = plan.find((r) => r.kind === 'comida')!
+    expect(lunch.at).toBe(new Date(at('2026-10-15T11:15')).toISOString())
+    expect(lunch.body).toContain('11:30 a. m.')
+    expect(plan.some((r) => r.kind === 'cena')).toBe(false)
+  })
+
+  it('el domingo manda el resumen de la semana según cuántos días registró', () => {
+    const meals = ['10-12', '10-13', '10-14', '10-15', '10-16', '10-17'].map((d) => new Date(at(`2026-${d}T12:00`)).toISOString())
+    const sunday = planReminders({ user: { id: 'u', full_name: 'Mar', avo_style: 'picante' }, offset: 360, mealTimes: meals, hasMeals: true }, at('2026-10-18T10:00'), 1)
+    const weekly = sunday.find((r) => r.kind === 'semana')!
+    expect(weekly).toMatchObject({ title: 'Tu semana 📊', at: new Date(at('2026-10-18T18:00')).toISOString() })
+    expect(weekly.body).toMatch(/6 de 7|6 días de 7/)
+    const few = planReminders({ user: { id: 'u', full_name: 'Mar', avo_style: 'tranquilo' }, offset: 360, mealTimes: meals.slice(0, 1), hasMeals: true }, at('2026-10-18T10:00'), 1)
+    expect(few.find((r) => r.kind === 'semana')!.body).toContain('Te extrañé')
   })
 })

@@ -117,7 +117,7 @@ struct ProfileView: View {
                         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                     }
                 } else if let next = scheduler.next, session.user?.remindersOn ?? true {
-                    let kinds = ["desayuno": "desayuno", "comida": "comida", "cena": "cena", "racha": "tu racha", "ventana": "tu ventana de comida", "cierre": "el cierre de tu ventana"]
+                    let kinds = ["desayuno": "desayuno", "comida": "comida", "cena": "cena", "racha": "tu racha", "ventana": "tu ventana de comida", "cierre": "el cierre de tu ventana", "semana": "tu resumen de la semana"]
                     Text("Próximo: \(kinds[next.kind] ?? next.kind) \(Fmt.day(Fmt.date(next.at)).lowercased() == "hoy" ? "" : Fmt.day(Fmt.date(next.at)).lowercased() + " ")a las \(Fmt.time(Fmt.date(next.at)))")
                         .font(.subheadline)
                         .foregroundStyle(Theme.muted)
@@ -125,7 +125,7 @@ struct ProfileView: View {
             } header: {
                 Text("Avisos")
             } footer: {
-                Text("8:30 a. m., 1:00 p. m. y 7:30 p. m. Si ya registraste esa comida, no te aviso.")
+                Text("A tu hora de siempre: Avo aprende a qué hora sueles comer y te avisa un poco antes. Si ya registraste, no te molesto.")
             }
 
             Section {

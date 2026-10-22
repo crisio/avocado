@@ -99,7 +99,7 @@ export default function ReminderCard() {
         ) : (
           <>
             <p className="av-text-muted" style={{ margin: 0 }}>
-              Desayuno, comida y cena. Si ya registraste, no te molesto.
+              A tu hora de siempre: Avo aprende a qué hora sueles comer y te avisa un poco antes. Si ya registraste, no te molesto.
             </p>
             <div className="reminder-card__actions">
               <Button loading={busy} onClick={() => void accept()}>
@@ -125,7 +125,7 @@ export async function nextReminderText(): Promise<string | null> {
     const when = new Date(next.t)
     const time = when.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })
     const day = when.toDateString() === new Date().toDateString() ? '' : ' de mañana'
-    return `Próximo aviso: ${next.kind === 'racha' ? 'tu racha' : next.kind === 'ventana' ? 'tu ventana de comida' : next.kind === 'cierre' ? 'el cierre de tu ventana' : next.kind}${day}, ${time}`
+    return `Próximo aviso: ${next.kind === 'racha' ? 'tu racha' : next.kind === 'ventana' ? 'tu ventana de comida' : next.kind === 'cierre' ? 'el cierre de tu ventana' : next.kind === 'semana' ? 'tu resumen de la semana' : next.kind}${day}, ${time}`
   } catch {
     return null
   }

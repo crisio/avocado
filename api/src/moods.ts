@@ -175,7 +175,7 @@ export async function patientContext(env: Env, user: User, offset: number, skipM
   const local = new Date(now - offset * 60_000)
   const dayStart = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) + offset * 60_000
   const db = env.DB
-  const [today, lastMeals, lastMoods, budget, fasting] = await Promise.all([
+  const [today, lastMeals, lastMoods, budget, fasting, week] = await Promise.all([
     db
       .prepare(
         `SELECT coalesce(sum(CASE WHEN status = 'analyzed' THEN calories END), 0) AS consumed, count(*) AS meals
@@ -196,6 +196,10 @@ export async function patientContext(env: Env, user: User, offset: number, skipM
       .all<MoodRow>(),
     weekBudget(env, user, offset, now),
     describeFasting(env, user, offset, now),
+    db
+      .prepare('SELECT eaten_at, created_at FROM meals WHERE user_id = ? AND eaten_at >= ?')
+      .bind(user.id, new Date(dayStart - 6 * DAY).toISOString())
+      .all<{ eaten_at: string; created_at: string }>(),
   ])
   const consumed = Math.round(today?.consumed ?? 0)
   const goal = user.daily_kcal_goal
@@ -206,6 +210,7 @@ export async function patientContext(env: Env, user: User, offset: number, skipM
     `Hoy lleva ${consumed} kcal en ${today?.meals ?? 0} comidas registradas.${goal ? ` Su meta diaria es ${goal} kcal (le quedan ${goal - consumed}).` : ' No tiene meta diaria.'}`,
     describeBudget(budget),
     fasting,
+    describeConsistency(week.results, offset),
     user.protein_g_goal || user.carbs_g_goal || user.fat_g_goal
       ? `Sus metas de macros al día: ${[
           user.protein_g_goal ? `${user.protein_g_goal} g de proteína` : null,
@@ -222,6 +227,14 @@ export async function patientContext(env: Env, user: User, offset: number, skipM
       ? `Cómo se ha sentido antes:\n${lastMoods.results.map((m) => `- ${localLabel(m.felt_at, offset)}: ${describeMood(toMood(m))}`).join('\n')}`
       : null,
   ].filter((line): line is string => Boolean(line))
+}
+
+/** Cuántos días de la última semana registró y si sube la foto en el momento: para que Avo se lo reconozca. */
+function describeConsistency(meals: { eaten_at: string; created_at: string }[], offset: number) {
+  if (!meals.length) return null
+  const days = new Set(meals.map((m) => new Date(Date.parse(m.eaten_at) - offset * 60_000).toISOString().slice(0, 10))).size
+  const onTime = meals.filter((m) => Math.abs(Date.parse(m.created_at) - Date.parse(m.eaten_at)) < 30 * 60_000).length / meals.length
+  return `Constancia: registró comida ${days} de los últimos 7 días${onTime >= 0.7 ? ', casi siempre en el momento en que come' : ''}.${days >= 4 ? ' Reconóceselo de vez en cuando (sin exagerar).' : ''}`
 }
 
 /** Consejo de Avo para lo que siente ahorita, con el contexto del día y de lo que ha comido y sentido. */

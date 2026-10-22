@@ -156,7 +156,7 @@ function Reminders() {
               <Segmented label="Recordatorios a la hora de comer" options={REMINDER_OPTIONS} value={on ? 'on' : 'off'} onChange={(v) => void choose(v)} />
             </fieldset>
             <span className="av-text-muted" style={{ fontSize: 13 }}>
-              8:30 a. m., 1:00 p. m. y 7:30 p. m. Si ya registraste esa comida, no te aviso.
+              A tu hora de siempre: Avo aprende a qué hora sueles comer y te avisa un poco antes. Si ya registraste, no te molesto.
               {next && ` ${next}.`}
             </span>
           </>

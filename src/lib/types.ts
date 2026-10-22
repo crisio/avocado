@@ -45,7 +45,7 @@ export interface User {
 
 export interface ReminderPreview {
   enabled: boolean
-  reminders: { id: string; kind: 'desayuno' | 'comida' | 'cena' | 'racha' | 'ventana' | 'cierre'; at: string; title: string; body: string }[]
+  reminders: { id: string; kind: 'desayuno' | 'comida' | 'cena' | 'racha' | 'ventana' | 'cierre' | 'semana'; at: string; title: string; body: string }[]
 }
 
 export type Goal = 'bajar' | 'mantener' | 'subir'

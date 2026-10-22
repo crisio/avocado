@@ -7,7 +7,7 @@ ve tu día para dejarte indicaciones. Algo como Whoop, pero para nutrición y co
 
 **App:** https://avocadoapp.cristopherpineda.com (se instala en el teléfono como app)
 
-## Qué hace hoy (v1.3)
+## Qué hace hoy (v1.4)
 
 Los cambios de cada versión están en [CHANGELOG.md](CHANGELOG.md). La web, la API y la app de iOS llevan la misma versión.
 
